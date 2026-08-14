@@ -1,0 +1,35 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+appsettings.Development.json
+appsettings.*.local.json
+
+# EF Core / SQLite cache (reconstructible depuis pCloud)
+*.db
+*.db-shm
+*.db-wal
+
+# Angular / Node
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+
+# Environnement / secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.vs/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
