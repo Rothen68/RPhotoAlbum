@@ -3,7 +3,6 @@ bin/
 obj/
 *.user
 *.suo
-appsettings.Development.json
 appsettings.*.local.json
 
 # EF Core / SQLite cache (reconstructible depuis pCloud)
