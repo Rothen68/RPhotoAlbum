@@ -4,6 +4,7 @@ obj/
 *.user
 *.suo
 appsettings.*.local.json
+.keys/
 
 # EF Core / SQLite cache (reconstructible depuis pCloud)
 *.db

@@ -1,0 +1,19 @@
+<div class="login-page">
+  <form class="login-card" [formGroup]="form" (ngSubmit)="submit()">
+    <h1>RPhotoAlbum</h1>
+
+    <label for="username">Identifiant</label>
+    <input id="username" type="text" formControlName="username" autocomplete="username" />
+
+    <label for="password">Mot de passe</label>
+    <input id="password" type="password" formControlName="password" autocomplete="current-password" />
+
+    @if (errorMessage(); as message) {
+      <p class="error">{{ message }}</p>
+    }
+
+    <button type="submit" [disabled]="form.invalid || submitting()">
+      {{ submitting() ? 'Connexion…' : 'Se connecter' }}
+    </button>
+  </form>
+</div>
