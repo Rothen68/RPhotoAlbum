@@ -2,6 +2,13 @@
 
 > **Révision 2 — 2026-08-14**
 > Ce document remplace la version initiale suite aux décisions suivantes : frontend **Angular** (au lieu de React), backend **.NET Core** (au lieu de Node.js), ajout d'un **cache local SQLite** (index de performance reconstructible), **compression désactivée** pour cette version (copie brute uniquement), **authentification applicative mono-utilisateur** (login/mot de passe), suppression du conteneur `worker` de compression.
+>
+> **Révision 3 — 2026-08-15**
+> UI/UX affinée à partir d'une spécification détaillée (Gallery/Albums/Album Detail, thème sombre "Nocturne"). Changements de fond par rapport à la révision 2 :
+> - **Gallery globale** : la grille de médias n'est plus filtrée par album ni par statut ajouté/disponible — elle montre tous les médias indexés (non rejetés). L'ajout à un ou plusieurs albums se fait via une sélection multiple suivie d'un choix d'albums (bottom sheet), plutôt qu'un parcours d'ajout/rejet par album.
+> - **Rejet devenu global** (et non plus par album, §6.3 de la révision 2) : un média rejeté disparaît définitivement de la Gallery, quel que soit l'album. Déclenché depuis le mode sélection de la Gallery (bouton "Reject" à côté de "Add to Album").
+> - **Un média peut appartenir à plusieurs albums** : chaque appartenance est un `AlbumItem` indépendant (position propre), voir §6.2.
+> - Copie sur ajout (§9.6) **conservée** : ajouter un média à un album continue de dupliquer le fichier dans le dossier pCloud de l'album, pour ne pas dépendre de la pérennité des dossiers source.
 
 ## 1. Objet
 Cette application web permet de créer, consulter et éditer des albums photo/vidéo enrichis de textes Markdown, ordonnés chronologiquement, et entièrement stockés sur pCloud. L'application elle-même est hébergée sur un serveur privé sous Docker, sur le réseau local de l'utilisateur (accès via VPN existant), tandis que tous les médias et fichiers JSON d'albums sont stockés sur pCloud. [docs.pcloud](https://docs.pcloud.com/)
@@ -36,7 +43,7 @@ Le frontend permet :
 - la création, consultation et édition d'albums ;
 - la visualisation de la chronologie ;
 - l'insertion de blocs texte Markdown ;
-- les actions de masse, notamment le rejet global des médias non ajoutés ;
+- les actions de masse depuis la Gallery : sélection multiple, rejet global, ajout à un ou plusieurs albums ;
 - la navigation paginée dans la grille de médias disponibles, avec affichage de miniatures.
 
 ### 4.2 API applicative (.NET Core)
@@ -48,7 +55,7 @@ Le backend centralise :
 - la création des sous-dossiers d'albums ;
 - la duplication (copie brute) des médias ;
 - la lecture/écriture des JSON d'albums ;
-- le calcul des statuts ajoutés, rejetés et disponibles ;
+- le calcul de l'état de rejet global des médias et de leur appartenance aux albums ;
 - la pagination des listes de médias.
 
 ### 4.3 Stockage pCloud
@@ -106,11 +113,9 @@ Conséquence d'architecture :
 ### 6.2 Entités principales
 - **Configuration de connexion** : informations d'accès à pCloud et choix des dossiers.
 - **Compte applicatif** : identifiant et hash du mot de passe de l'utilisateur unique.
-- **Album** : métadonnées globales et paramètres d'édition.
-- **Item de timeline** : entrée datée affichable dans le flux, de type média ou texte.
-- **Référence source** : pointeur vers le média original dans un dossier source.
-- **Référence album** : pointeur vers la copie du média dans le dossier de l'album.
-- **Rejet** : trace d'un média explicitement écarté pour un album donné.
+- **Album** : métadonnées globales (nom, dossier pCloud) et sa liste ordonnée de blocs (`items`).
+- **AlbumItem (bloc)** : élément de la timeline d'un album, de type `media` (référence vers un média + sa copie dans le dossier de l'album) ou `text` (contenu Markdown). Un même média peut apparaître dans plusieurs albums ; chaque appartenance est un `AlbumItem` distinct avec sa propre position — voir révision 3 en tête de document.
+- **Média indexé (cache)** : entrée du cache local pour un fichier détecté dans un dossier source (id pCloud, hash, dates, type). Porte aussi le **rejet**, désormais **global** (voir §6.4) et non plus par album.
 
 ### 6.3 Schéma recommandé d'un album
 ```json
@@ -118,33 +123,18 @@ Conséquence d'architecture :
   "id": "alb_20260703_ab12cd",
   "slug": "vacances-bretagne-2026",
   "name": "Vacances Bretagne 2026",
-  "description": "Séjour familial en juin 2026",
   "createdAt": "2026-07-03T12:00:00Z",
   "updatedAt": "2026-07-03T12:00:00Z",
-  "sourceFolders": [
-    { "folderId": 1001, "label": "Photos iPhone" },
-    { "folderId": 1002, "label": "Caméra" }
-  ],
   "albumFolder": {
     "folderId": 2001,
     "path": "/RPhotoAlbum/alb_20260703_ab12cd"
-  },
-  "settings": {
-    "sortOrder": "desc",
-    "compression": {
-      "enabled": false,
-      "note": "Compression désactivée pour cette version — copie brute uniquement (voir §13)"
-    }
   },
   "items": [
     {
       "id": "itm_001",
       "type": "media",
-      "status": "added",
       "mediaType": "image",
       "date": "2026-06-14T08:21:00Z",
-      "place": "Saint-Malo",
-      "description": "Départ de promenade",
       "source": {
         "fileId": 3001,
         "path": "/Sources/DCIM/IMG_1001.JPG",
@@ -170,25 +160,17 @@ Conséquence d'architecture :
       "date": "2026-06-14T12:00:00Z",
       "markdown": "## Arrivée\nTrès beau temps et mer calme."
     }
-  ],
-  "rejected": [
-    {
-      "fileId": 3002,
-      "name": "IMG_1002.JPG",
-      "hash": "987654321",
-      "rejectedAt": "2026-07-03T12:20:00Z"
-    }
   ]
 }
 ```
+Tous les éléments d'`items` sont par définition "ajoutés" à cet album — il n'y a plus de champ `status` par item, ni de liste `rejected` dans le JSON album (le rejet est désormais global, voir §6.4). L'ordre du tableau `items` est l'ordre d'affichage, modifiable via le mode Reorder (§11.7).
 
-### 6.4 États métier d'un média
-Dans le contexte d'un album, un média peut être :
-- **added** : présent dans la timeline et dupliqué (copie brute) dans le dossier de l'album ;
-- **rejected** : explicitement exclu, donc masqué lors des éditions suivantes ;
-- **available** : détecté dans les dossiers source mais encore non traité par l'utilisateur.
+### 6.4 États d'un média
+Un média indexé peut être :
+- **disponible** : visible dans la Gallery, sélectionnable pour être ajouté à un ou plusieurs albums ;
+- **rejeté** : écarté définitivement de la Gallery (indicateur global, stocké sur l'entrée de cache correspondante — pas dans un album.json). Déclenché depuis le mode sélection de la Gallery (§11.3).
 
-L'état `available` n'a pas besoin d'être persisté dans le JSON ; il est calculé en comparant l'index du cache local (médias source) avec les ensembles `items.status=added` et `rejected` du JSON album.
+Un média peut simultanément être "disponible" (visible en Gallery) et déjà présent dans un ou plusieurs albums — les deux ne s'excluent pas, contrairement à la révision précédente de ce document.
 
 ## 7. Règles de datation et tri chronologique
 pCloud renvoie différentes métadonnées telles que `created`, `modified`, `width`, `height`, `duration`, `rotate`, `thumb` et `category`, utiles pour classer et présenter les médias. Ces champs restent toutefois des métadonnées de stockage ou de traitement pCloud et ne remplacent pas systématiquement une date EXIF ou une date éditoriale choisie par l'utilisateur. [docs.pcloud](https://docs.pcloud.com/)
@@ -255,16 +237,18 @@ Responsabilités :
 
 ### 9.5 Service album
 Responsabilités :
-- créer les albums ;
-- lire et écrire `album.json` ;
-- appliquer les modifications de métadonnées ;
-- insérer les blocs texte Markdown ;
-- calculer les listes ajoutées, rejetées et disponibles.
+- créer, lister et supprimer les albums ;
+- lire et écrire `album.json` (blocs `items`, ordre) ;
+- ajouter/retirer des médias en masse (flux "Add to Album", §11.4) ;
+- insérer, éditer et supprimer des blocs texte Markdown ;
+- appliquer le nouvel ordre des blocs (Reorder, §11.7) ;
+- déterminer, pour un ensemble de médias sélectionnés, dans quels albums ils sont déjà entièrement présents (pour l'état "inclus" du bottom sheet, §11.4).
 
 ### 9.6 Service d'ingestion média
 Responsabilités :
-- copier le média source vers le dossier album (copie brute, sans compression) ;
-- associer source et copie dans le JSON.
+- copier le média source vers le dossier album (copie brute, sans compression) lors d'un ajout ;
+- associer source et copie dans le JSON de l'album ;
+- supprimer la copie album (et le bloc correspondant) lors d'un retrait, sans jamais toucher au fichier source dans le dossier source.
 
 ### 9.7 Service de rendu Markdown
 Responsabilités :
@@ -287,20 +271,20 @@ L'API applicative peut exposer les routes suivantes.
 | GET | `/api/pcloud/status` | État de la connexion pCloud (connecté/hostname) |
 | POST | `/api/pcloud/disconnect` | Déconnexion du compte pCloud |
 | GET | `/api/pcloud/folders/:folderId` | Navigation des dossiers pCloud (sélecteur de dossier) |
-| GET | `/api/media/source?page=&pageSize=` | Liste paginée des médias source (via cache) |
+| GET | `/api/media/source?page=&pageSize=` | Liste paginée des médias disponibles (non rejetés, via cache) |
 | POST | `/api/media/reindex` | Reconstruction du cache local depuis pCloud |
-| POST | `/api/albums` | Création d'un album |
-| GET | `/api/albums` | Liste des albums |
-| GET | `/api/albums/:id` | Lecture détaillée d'un album |
-| PUT | `/api/albums/:id` | Mise à jour des métadonnées d'album |
-| POST | `/api/albums/:id/items/media` | Ajout d'un média dans l'album (copie brute) |
-| POST | `/api/albums/:id/items/text` | Ajout d'un texte Markdown |
-| PUT | `/api/albums/:id/items/:itemId` | Édition d'un item |
-| DELETE | `/api/albums/:id/items/:itemId` | Retrait d'un item de la timeline |
-| POST | `/api/albums/:id/reject` | Rejet ciblé d'un média |
-| POST | `/api/albums/:id/reject-all-remaining` | Rejet de tous les médias restants |
-| GET | `/api/albums/:id/editor-feed?page=&pageSize=` | Vue enrichie paginée pour l'éditeur |
-| GET | `/api/albums/:id/view-feed` | Vue lecture seule pour affichage album |
+| POST | `/api/media/reject` | Rejet global d'un ou plusieurs médias (masqués de la Gallery) |
+| POST | `/api/albums` | Création d'un album (nom uniquement) |
+| GET | `/api/albums` | Liste des albums (couverture, nombre d'éléments) |
+| GET | `/api/albums/:id` | Lecture détaillée d'un album (blocs ordonnés) |
+| DELETE | `/api/albums/:id` | Suppression d'un album |
+| POST | `/api/albums/membership` | Pour un ensemble de médias, indique dans quels albums ils sont déjà tous présents (bottom sheet "Add to Album") |
+| POST | `/api/albums/:id/media/add` | Ajout en masse de médias à l'album (copie brute vers le dossier album) |
+| POST | `/api/albums/:id/media/remove` | Retrait en masse de médias de l'album (supprime la copie album, pas la source) |
+| POST | `/api/albums/:id/text` | Insertion d'un bloc texte Markdown à une position donnée |
+| PUT | `/api/albums/:id/items/:itemId` | Édition d'un bloc texte |
+| DELETE | `/api/albums/:id/items/:itemId` | Retrait d'un bloc (média ou texte) de l'album |
+| PUT | `/api/albums/:id/order` | Nouvel ordre des blocs (Reorder) |
 
 Toutes les routes `/api/*`, hormis `/api/auth/login` et `/api/health`, nécessitent une session applicative valide.
 
@@ -319,45 +303,40 @@ Toutes les routes `/api/*`, hormis `/api/auth/login` et `/api/health`, nécessit
 4. L'application valide l'accès aux dossiers et déclenche une première indexation (cache SQLite).
 5. La configuration est enregistrée côté backend.
 
-### 11.3 Création d'album
-1. L'utilisateur saisit nom et description.
-2. Le backend crée un identifiant unique d'album.
-3. Le backend crée un sous-dossier dédié sur pCloud.
-4. Le backend génère `album.json` initial.
-5. Le frontend charge, page par page, les médias disponibles en miniatures grisées.
+### 11.3 Création d'un album
+1. Depuis l'écran Albums, l'utilisateur tape sur "+" : une boîte de dialogue s'ouvre avec un seul champ (nom), focus automatique.
+2. "Create" reste désactivé tant que le nom est vide ; Entrée ou "Create" crée un album vide et ferme la boîte.
+3. Un album peut aussi être créé à la volée depuis le bottom sheet "Add to Album" (§11.4), pré-rempli avec les médias en cours de sélection.
 
-### 11.4 Ajout d'un média
-1. L'utilisateur sélectionne un média disponible.
-2. Le backend récupère la référence source depuis le cache.
-3. Le fichier est copié tel quel (copie brute) dans le dossier pCloud de l'album.
-4. Une entrée `added` est insérée dans `album.json`.
-5. L'éditeur reflète immédiatement le nouvel état.
+### 11.4 Sélection, rejet et ajout à un ou plusieurs albums (Gallery)
+1. La Gallery affiche en grille tous les médias indexés non rejetés (colonnes réglables, 1 à 4).
+2. L'utilisateur active le mode sélection (bouton "Select") et coche un ou plusieurs médias.
+3. Une barre d'action apparaît en bas : nombre sélectionné, bouton "Reject" et bouton principal "Add to Album" (désactivés tant que rien n'est sélectionné).
+4. "Reject" marque les médias sélectionnés comme rejetés (globalement) et les retire immédiatement de la grille.
+5. "Add to Album" ouvre un bottom sheet listant "New album" puis chaque album existant, avec son état d'inclusion (inclus si tous les médias sélectionnés y figurent déjà). Taper sur un album bascule l'inclusion de **tous** les médias sélectionnés dans cet album : ajoute ceux qui manquent, ou retire tout si déjà tous présents (ré-appui = annulation sûre).
+6. Chaque ajout copie le fichier (copie brute) dans le dossier pCloud de l'album et insère un bloc `media` dans `album.json` ; chaque retrait supprime le bloc et la copie associée, sans toucher au fichier source.
+7. Les changements s'appliquent immédiatement, sans étape de sauvegarde séparée. "Done" ferme le sheet ; "Cancel" ou la fin du flux quitte le mode sélection et vide la sélection.
 
-### 11.5 Rejet d'un média
-1. L'utilisateur rejette un média disponible.
-2. Le backend ajoute son identifiant dans la liste `rejected`.
-3. Le média est masqué lors des éditions ultérieures.
+### 11.5 Insertion de texte dans un album
+1. Dans l'Album Detail, l'utilisateur tape sur le "+" affiché entre deux blocs (ou avant le premier).
+2. Un champ de texte italique s'ouvre en ligne, à cet emplacement exact, avec le focus.
+3. Perdre le focus avec du texte non vide crée un bloc `text` à cette position ; un champ vide ne crée rien.
+4. Taper sur un bloc texte existant (hors mode Reorder) rouvre son édition en ligne ; le vider entièrement à la perte du focus supprime le bloc.
 
-### 11.6 Rejet massif
-1. L'utilisateur déclenche "rejeter tout le reste".
-2. Le backend calcule (via le cache) les médias encore disponibles sur la page/l'ensemble courant.
-3. Une entrée de rejet est créée pour chacun.
-4. La grille restante devient vide ou quasi vide.
-
-### 11.7 Insertion de texte
-1. L'utilisateur ajoute un bloc texte Markdown.
-2. Il choisit sa date ou sa position logique.
-3. Le backend crée un item `text` daté.
-4. Le rendu dans le flux reprend l'ordre chronologique global.
+### 11.6 Réorganisation et retrait de blocs
+1. "Reorder" bascule l'album en mode réorganisation : chaque bloc gagne une poignée de glisser-déposer, des boutons haut/bas, et un bouton de suppression (×).
+2. Le glisser-déposer déplace un bloc à la position visée ; les boutons haut/bas offrent une alternative tactile.
+3. Le bouton (×) retire un bloc (média ou texte) de l'album — la copie pCloud associée est supprimée, le média source ne l'est jamais.
+4. "Done" quitte le mode réorganisation.
 
 ## 12. Règles de synchronisation
-La cohérence d'un album repose sur des règles simples.
-- Un média `added` doit toujours posséder une copie dans le dossier album.
-- Un média `rejected` ne doit plus apparaître parmi les médias disponibles.
-- Un média source supprimé après ajout reste visible via la copie album si celle-ci existe toujours.
-- Un média source supprimé avant ajout ne doit plus apparaître dans l'éditeur lors de la prochaine indexation.
-- Le cache local SQLite peut devenir incohérent avec pCloud (source déplacée/supprimée en dehors de l'application) ; une reconstruction manuelle (`POST /api/media/reindex`) doit toujours permettre de revenir à un état cohérent.
-- La régénération du feed éditeur doit être idempotente à partir du cache local et du JSON album.
+La cohérence du système repose sur des règles simples.
+- Un bloc `media` d'un album doit toujours posséder une copie dans le dossier de cet album.
+- Un média rejeté (indicateur global sur le cache) ne doit plus apparaître dans la Gallery, quel que soit l'album — mais reste inchangé dans les albums où il aurait déjà été ajouté avant son rejet.
+- Un média source supprimé après ajout à un album reste visible dans cet album via la copie album, si celle-ci existe toujours.
+- Un média source supprimé avant tout ajout ne doit plus apparaître dans la Gallery lors de la prochaine indexation.
+- Le cache local SQLite peut devenir incohérent avec pCloud (source déplacée/supprimée en dehors de l'application) ; une reconstruction manuelle (`POST /api/media/reindex`) doit toujours permettre de revenir à un état cohérent. Le rejet global, bien que porté par une entrée du cache, est un choix utilisateur et non une donnée reconstructible — voir §6.4.
+- La régénération de la Gallery et de l'Album Detail doit être idempotente à partir du cache local et des `album.json`.
 
 ## 13. Compression et optimisation — hors périmètre v1 (standby)
 La compression est **désactivée pour cette version** : tous les médias (images et vidéos) sont copiés bruts depuis le dossier source vers le dossier album, sans redimensionnement ni ré-encodage.
@@ -434,25 +413,25 @@ Aucun volume persistant métier n'est requis (toute la donnée métier est exter
 - CI simple pour build et déploiement
 
 ## 18. Maquette fonctionnelle des écrans
-Les écrans principaux à concevoir sont :
+Écrans issus de la spécification UI/UX détaillée (révision 3, thème sombre "Nocturne") :
 - Connexion applicative (login/mot de passe)
-- Configuration pCloud (OAuth, dossiers)
-- Liste des albums
-- Création d'album
-- Consultation d'album
-- Édition d'album (avec grille paginée de médias disponibles)
-- Panneau d'édition d'un média
-- Insertion de texte Markdown
+- Configuration pCloud (OAuth, dossier des albums, dossiers source)
+- **Gallery** — onglet principal, grille de tous les médias non rejetés, contrôle du nombre de colonnes (1-4), mode sélection avec actions "Reject" / "Add to Album"
+- **Add to Album** — bottom sheet déclenché depuis la sélection : création d'album à la volée + bascule d'inclusion par album
+- **Albums** — second onglet principal, liste de cartes (couverture, nom, nombre d'éléments), création via dialogue "+"
+- **Album Detail** — flux vertical de blocs média/texte, insertion de texte en ligne, mode Reorder (glisser-déposer + boutons haut/bas + suppression de bloc)
+
+Barre d'onglets à deux entrées (Gallery / Albums) toujours visible, sauf dans Album Detail (vue enfant plein écran) et pendant le mode sélection de la Gallery (qui remplace l'en-tête et ajoute une barre d'action basse, mais n'masque pas la barre d'onglets).
 
 ## 19. Exigences UX
 Le design de l'application doit respecter une logique webapp responsive : une seule action primaire claire par écran, design mobile-first, tailles de texte compactes, touch targets de 44x44 px minimum, et bascule adaptée de la navigation entre mobile et desktop.
 
-Implications concrètes :
-- mobile : barre d'actions basse ou actions flottantes ;
-- tablette et desktop : sidebar gauche + panneau de détail à droite ;
-- grille d'import en miniatures compactes, avec pagination ou défilement infini ;
-- flux d'album vertical très lisible ;
-- séparation visuelle nette entre ajouté, disponible et rejeté.
+Implications concrètes, précisées par la spécification détaillée :
+- interface dense et sobre : animations subtiles et rapides (~150-180ms), pas d'effets démonstratifs ;
+- grille Gallery : tuiles carrées, 6px d'espacement, coins arrondis 8px ; vignettes vidéo avec icône lecture et durée en overlay ;
+- mode sélection : tuiles sélectionnées légèrement réduites (0.94×) avec contour et pastille de coche en accent ;
+- actions destructrices : la suppression d'un album est irréversible et demande confirmation (seul cas dans l'application) ; le retrait d'un bloc d'album est trivialement réversible (le média source n'est jamais touché) et ne demande donc pas de confirmation ;
+- séparation visuelle nette entre médias disponibles (Gallery) et rejetés (masqués).
 
 ## 20. Risques techniques
 Les principaux risques sont :
