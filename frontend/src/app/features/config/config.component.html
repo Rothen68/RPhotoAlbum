@@ -1,5 +1,5 @@
 <header>
-  <a routerLink="/">← Albums</a>
+  <a routerLink="/">← Gallery</a>
   <h1>Configuration</h1>
 </header>
 
@@ -65,6 +65,10 @@
   <button type="button" (click)="reindex()" [disabled]="reindexing()">
     {{ reindexing() ? 'Indexation…' : 'Réindexer maintenant' }}
   </button>
+</section>
+
+<section>
+  <button type="button" (click)="logout()">Se déconnecter</button>
 </section>
 
 @if (pickerMode(); as mode) {

@@ -1,0 +1,100 @@
+<header class="page-header">
+  <button type="button" class="btn-icon back-btn" (click)="goBack()" aria-label="Back">←</button>
+  <span class="album-name">{{ album()?.name }}</span>
+  <button type="button" class="btn-link" (click)="toggleReorder()">{{ reorderMode() ? 'Done' : 'Reorder' }}</button>
+</header>
+
+@if (loading()) {
+  <p class="muted">Loading…</p>
+} @else if (album(); as a) {
+  @if (a.items.length === 0) {
+    <p class="muted empty-state">No media yet. Add photos from the Gallery.</p>
+  }
+
+  <div class="feed">
+    @if (!reorderMode()) {
+      <div class="insert-gap">
+        @if (insertingAt() === null) {
+          <textarea
+            class="input insert-textarea"
+            [(ngModel)]="draftText"
+            placeholder="Add a note…"
+            (blur)="commitInsert()"
+            autofocus
+          ></textarea>
+        } @else {
+          <button type="button" class="insert-affordance" (click)="startInsert(null)" aria-label="Insert note here">
+            <span class="dashed-circle">+</span>
+          </button>
+        }
+      </div>
+    }
+
+    @for (item of a.items; track item.id; let idx = $index) {
+      <div
+        class="block"
+        [class.dragging]="draggedItemId() === item.id"
+        [class.drop-target]="dropTargetId() === item.id"
+        [attr.draggable]="reorderMode()"
+        (dragstart)="onDragStart(item)"
+        (dragover)="onDragOver($event, item)"
+        (drop)="onDrop(item)"
+        (dragend)="onDragEnd()"
+      >
+        @if (reorderMode()) {
+          <div class="reorder-controls">
+            <span class="drag-handle">⠿</span>
+            <div class="stack-buttons">
+              <button type="button" class="btn-icon" [disabled]="idx === 0" (click)="moveUp(idx)" aria-label="Move up">▲</button>
+              <button type="button" class="btn-icon" [disabled]="idx === a.items.length - 1" (click)="moveDown(idx)" aria-label="Move down">▼</button>
+            </div>
+          </div>
+        }
+
+        <div class="block-content">
+          @if (item.type === 'media') {
+            <div class="media-block">
+              <img [src]="thumbnailUrl(item.albumCopy!.fileId)" [alt]="item.albumCopy?.name" />
+              @if (item.mediaType === 'video') {
+                <span class="video-glyph">▶</span>
+              }
+            </div>
+          } @else {
+            @if (editingItemId() === item.id) {
+              <textarea
+                class="input insert-textarea"
+                [(ngModel)]="draftText"
+                (blur)="commitEditText(item)"
+                autofocus
+              ></textarea>
+            } @else {
+              <p class="text-block card" (click)="startEditText(item)">{{ item.markdown }}</p>
+            }
+          }
+        </div>
+
+        @if (reorderMode()) {
+          <button type="button" class="btn-icon remove-btn" (click)="removeItem(item.id)" aria-label="Remove block">✕</button>
+        }
+      </div>
+
+      @if (!reorderMode()) {
+        <div class="insert-gap">
+          @if (insertingAt() === item.id) {
+            <textarea
+              class="input insert-textarea"
+              [(ngModel)]="draftText"
+              placeholder="Add a note…"
+              (blur)="commitInsert()"
+              autofocus
+            ></textarea>
+          } @else {
+            <button type="button" class="insert-affordance" (click)="startInsert(item.id)" aria-label="Insert note here">
+              <span class="dashed-circle">+</span>
+            </button>
+          }
+        </div>
+      }
+    }
+  </div>
+}

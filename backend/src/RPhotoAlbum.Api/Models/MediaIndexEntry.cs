@@ -16,6 +16,8 @@ public class MediaIndexEntry
     public int? Width { get; set; }
     public int? Height { get; set; }
     public long Size { get; set; }
-    public string? ThumbnailUrl { get; set; }
     public DateTime IndexedAt { get; set; }
+
+    // Rejet global (choix utilisateur, pas une donnée reconstructible) — voir ARCHITECTURE.md §6.4, §12.
+    public bool IsRejected { get; set; }
 }

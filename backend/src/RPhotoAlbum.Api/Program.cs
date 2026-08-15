@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using RPhotoAlbum.Api.Albums;
 using RPhotoAlbum.Api.Auth;
 using RPhotoAlbum.Api.Data;
 using RPhotoAlbum.Api.Media;
@@ -36,6 +37,8 @@ builder.Services.AddHttpClient<PCloudClient>();
 builder.Services.Configure<IndexingOptions>(builder.Configuration.GetSection("Indexing"));
 builder.Services.AddScoped<MediaIndexService>();
 builder.Services.AddHostedService<MediaIndexBackgroundService>();
+
+builder.Services.AddScoped<AlbumService>();
 
 var keysPath = builder.Environment.IsDevelopment()
     ? Path.Combine(builder.Environment.ContentRootPath, ".keys")

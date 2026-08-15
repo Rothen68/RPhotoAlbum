@@ -1,7 +1,71 @@
-<header>
-  <span>Connecté en tant que {{ auth.username() }}</span>
-  <a routerLink="/config">Configuration</a>
-  <button type="button" (click)="logout()">Se déconnecter</button>
+<header class="page-header">
+  <h1>Albums</h1>
+  <div class="header-actions">
+    <a routerLink="/config" class="btn-icon" aria-label="Configuration">⚙</a>
+    <button type="button" class="btn-icon" aria-label="New album" (click)="openNewAlbumDialog()">+</button>
+  </div>
 </header>
 
-<p>Liste des albums — à venir.</p>
+@if (loading()) {
+  <p class="muted">Loading…</p>
+} @else if (albums().length === 0) {
+  <p class="muted empty-state">No albums yet.</p>
+} @else {
+  <ul class="album-list">
+    @for (album of albums(); track album.id) {
+      <li>
+        <a class="card elev-sm album-card" [routerLink]="['/albums', album.id]">
+          <div class="cover">
+            @if (album.coverFileId) {
+              <img [src]="thumbnailUrl(album.coverFileId)" [alt]="album.name" />
+            } @else {
+              <span class="muted">empty album</span>
+            }
+            <button type="button" class="btn-icon delete-btn" aria-label="Delete album" (click)="confirmDelete(album, $event)">
+              🗑
+            </button>
+          </div>
+          <div class="info">
+            <span class="name">{{ album.name }}</span>
+            <span class="muted count">{{ album.itemCount }} item{{ album.itemCount === 1 ? '' : 's' }}</span>
+          </div>
+        </a>
+      </li>
+    }
+  </ul>
+}
+
+@if (showNewAlbumDialog()) {
+  <div class="dialog-backdrop" (click)="closeNewAlbumDialog()">
+    <form class="dialog" (click)="$event.stopPropagation()" (ngSubmit)="createAlbum()">
+      <h2>New album</h2>
+      <input
+        class="input"
+        [ngModel]="newAlbumName()"
+        (ngModelChange)="newAlbumName.set($event)"
+        name="albumName"
+        placeholder="Album name"
+        autofocus
+      />
+      <div class="dialog-actions">
+        <button type="button" class="btn" (click)="closeNewAlbumDialog()">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="!newAlbumName().trim() || creating()">Create</button>
+      </div>
+    </form>
+  </div>
+}
+
+@if (albumPendingDelete(); as album) {
+  <div class="dialog-backdrop" (click)="cancelDelete()">
+    <div class="dialog" (click)="$event.stopPropagation()">
+      <h2>Delete "{{ album.name }}"?</h2>
+      <p class="muted">
+        This album has {{ album.itemCount }} item{{ album.itemCount === 1 ? '' : 's' }}. This cannot be undone.
+      </p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" (click)="cancelDelete()">Cancel</button>
+        <button type="button" class="btn btn-danger" [disabled]="deleting()" (click)="deleteAlbum()">Delete</button>
+      </div>
+    </div>
+  </div>
+}

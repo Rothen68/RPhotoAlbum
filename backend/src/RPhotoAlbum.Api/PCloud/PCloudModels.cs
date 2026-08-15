@@ -41,3 +41,23 @@ public record PCloudThumbLinkResponse(
     [property: JsonPropertyName("error")] string? Error,
     [property: JsonPropertyName("path")] string? Path,
     [property: JsonPropertyName("hosts")] string[]? Hosts);
+
+public record PCloudFolderOperationResponse(
+    [property: JsonPropertyName("result")] int Result,
+    [property: JsonPropertyName("error")] string? Error,
+    [property: JsonPropertyName("metadata")] PCloudFolderMetadata? Metadata);
+
+public record PCloudFileMetadata(
+    [property: JsonPropertyName("fileid")] long FileId,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("size")] long? Size);
+
+public record PCloudFileOperationResponse(
+    [property: JsonPropertyName("result")] int Result,
+    [property: JsonPropertyName("error")] string? Error,
+    [property: JsonPropertyName("metadata")] PCloudFileMetadata? Metadata);
+
+public record PCloudUploadResponse(
+    [property: JsonPropertyName("result")] int Result,
+    [property: JsonPropertyName("error")] string? Error,
+    [property: JsonPropertyName("fileids")] long[]? FileIds);

@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { AuthService } from '../../core/auth/auth.service';
 import { AppConfiguration, ConfigService, SourceFolder } from '../../core/config/config.service';
 import { MediaService } from '../../core/media/media.service';
 import { PCloudService, PCloudStatus } from '../../core/pcloud/pcloud.service';
@@ -20,6 +21,7 @@ export class ConfigComponent implements OnInit {
   private readonly configService = inject(ConfigService);
   private readonly mediaService = inject(MediaService);
   private readonly pcloud = inject(PCloudService);
+  private readonly auth = inject(AuthService);
 
   protected readonly pcloudStatus = signal<PCloudStatus | null>(null);
   protected readonly config = signal<AppConfiguration | null>(null);
@@ -135,5 +137,9 @@ export class ConfigComponent implements OnInit {
         this.message.set(err.error?.error ?? "Échec de l'indexation.");
       },
     });
+  }
+
+  logout(): void {
+    this.auth.logout().subscribe(() => this.router.navigateByUrl('/login'));
   }
 }

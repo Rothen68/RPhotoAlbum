@@ -1,0 +1,55 @@
+<div class="sheet-backdrop" (click)="close()">
+  <div class="sheet" (click)="$event.stopPropagation()">
+    <header>
+      <h2>Add to Album</h2>
+      <button type="button" class="btn-link" (click)="close()">Done</button>
+    </header>
+
+    <ul class="album-list">
+      <li>
+        @if (creatingNew()) {
+          <div class="row editing">
+            <input
+              class="input"
+              [(ngModel)]="newAlbumName"
+              placeholder="Album name"
+              (keyup.enter)="confirmNewAlbum()"
+              autofocus
+            />
+            <button type="button" class="btn btn-primary" [disabled]="!newAlbumName.trim()" (click)="confirmNewAlbum()">
+              Create
+            </button>
+          </div>
+        } @else {
+          <button type="button" class="row new-album-row" (click)="startNewAlbum()">
+            <span class="dashed-circle">+</span>
+            <span class="row-label">New album</span>
+          </button>
+        }
+      </li>
+
+      @if (loading()) {
+        <li class="muted loading-row">Loading…</li>
+      } @else {
+        @for (membership of memberships(); track membership.albumId) {
+          <li>
+            <button
+              type="button"
+              class="row"
+              [class.busy]="busyAlbumId() === membership.albumId"
+              [disabled]="busyAlbumId() === membership.albumId"
+              (click)="toggleAlbum(membership)"
+            >
+              <span class="row-label">{{ membership.name }}</span>
+              <span class="toggle-dot" [class.included]="membership.containsAll">
+                @if (membership.containsAll) {
+                  ✓
+                }
+              </span>
+            </button>
+          </li>
+        }
+      }
+    </ul>
+  </div>
+</div>

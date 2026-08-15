@@ -7,10 +7,20 @@ export interface ReindexResult {
   failedFolders: string[];
 }
 
+export interface MediaItem {
+  pCloudFileId: number;
+  name: string;
+  mediaType: 'image' | 'video';
+  size: number;
+  createdAt: string | null;
+  modifiedAt: string | null;
+}
+
 export interface MediaSourcePage {
   total: number;
   page: number;
   pageSize: number;
+  items: MediaItem[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -21,7 +31,19 @@ export class MediaService {
     return this.http.post<ReindexResult>('/api/media/reindex', {});
   }
 
+  source(page: number, pageSize: number): Observable<MediaSourcePage> {
+    return this.http.get<MediaSourcePage>(`/api/media/source?page=${page}&pageSize=${pageSize}`);
+  }
+
   sourceCount(): Observable<MediaSourcePage> {
-    return this.http.get<MediaSourcePage>('/api/media/source?page=1&pageSize=1');
+    return this.source(1, 1);
+  }
+
+  reject(fileIds: number[]): Observable<{ rejected: number }> {
+    return this.http.post<{ rejected: number }>('/api/media/reject', { fileIds });
+  }
+
+  thumbnailUrl(fileId: number, size = 300): string {
+    return `/api/media/${fileId}/thumbnail?width=${size}&height=${size}`;
   }
 }
