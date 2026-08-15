@@ -46,6 +46,11 @@ public class MediaIndexService(
 
             var seenFileIds = new HashSet<long>();
             var failedFolders = new List<string>();
+            // Chargé une fois et tenu à jour en mémoire (pas re-requêté par fichier) : évite
+            // d'ajouter deux fois le même PCloudFileId (index unique) quand des dossiers source
+            // se chevauchent (un dossier imbriqué dans un autre, ou un fichier partagé entre deux),
+            // puisque SaveChangesAsync n'est appelé qu'une fois à la toute fin de l'indexation.
+            var existingByFileId = await db.MediaIndex.ToDictionaryAsync(m => m.PCloudFileId, ct);
 
             foreach (var folder in sourceFolders)
             {
@@ -76,7 +81,7 @@ public class MediaIndexService(
                     }
 
                     seenFileIds.Add(fileId);
-                    await UpsertAsync(fileId, item, mediaType, ct);
+                    Upsert(existingByFileId, fileId, item, mediaType);
                 }
             }
 
@@ -97,12 +102,20 @@ public class MediaIndexService(
         }
     }
 
-    private async Task UpsertAsync(long fileId, PCloudItem item, string mediaType, CancellationToken ct)
+    private void Upsert(Dictionary<long, MediaIndexEntry> existingByFileId, long fileId, PCloudItem item, string mediaType)
     {
-        var entry = await db.MediaIndex.FirstOrDefaultAsync(m => m.PCloudFileId == fileId, ct);
-        if (entry is null)
+        if (existingByFileId.TryGetValue(fileId, out var entry))
         {
-            db.MediaIndex.Add(new MediaIndexEntry
+            entry.Name = item.Name;
+            entry.Path = item.Path ?? "";
+            entry.Hash = item.Hash?.ToString() ?? "";
+            entry.ModifiedAt = ParseDate(item.Modified);
+            entry.Size = item.Size ?? 0;
+            entry.IndexedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            entry = new MediaIndexEntry
             {
                 PCloudFileId = fileId,
                 Name = item.Name,
@@ -113,16 +126,9 @@ public class MediaIndexService(
                 ModifiedAt = ParseDate(item.Modified),
                 Size = item.Size ?? 0,
                 IndexedAt = DateTime.UtcNow,
-            });
-        }
-        else
-        {
-            entry.Name = item.Name;
-            entry.Path = item.Path ?? "";
-            entry.Hash = item.Hash?.ToString() ?? "";
-            entry.ModifiedAt = ParseDate(item.Modified);
-            entry.Size = item.Size ?? 0;
-            entry.IndexedAt = DateTime.UtcNow;
+            };
+            db.MediaIndex.Add(entry);
+            existingByFileId[fileId] = entry;
         }
     }
 
