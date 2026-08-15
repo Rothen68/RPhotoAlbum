@@ -117,7 +117,7 @@ public class PCloudController(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Échec de la lecture du dossier pCloud {FolderId}.", folderId);
-            return StatusCode(StatusCodes.Status502BadGateway, new { error = "Impossible de lire ce dossier pCloud." });
+            return StatusCode(StatusCodes.Status502BadGateway, new { error = $"Impossible de lire ce dossier pCloud : {ex.Message}" });
         }
     }
 }

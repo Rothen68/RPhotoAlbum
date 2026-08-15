@@ -375,7 +375,7 @@ Les exigences minimales sont les suivantes :
 - journalisation sans fuite de token ni de mot de passe ;
 - validation stricte des IDs de dossiers et des entrées Markdown. [docs.pcloud](https://docs.pcloud.com/)
 
-Les jetons pCloud peuvent être utilisés via le paramètre `auth` dans les appels API, ce qui impose une vigilance forte sur les logs, les traces réseau et les erreurs applicatives pour ne jamais exposer ce paramètre côté client ou dans des fichiers de diagnostic. [docs.pcloud](https://docs.pcloud.com/methods/intro/authentication.html)
+Les jetons pCloud peuvent être utilisés via un paramètre dans les appels API — `auth` pour un jeton issu d'une authentification par mot de passe, `access_token` pour un jeton issu du flux OAuth 2.0 (utiliser `auth` avec un jeton OAuth échoue silencieusement avec l'erreur pCloud générique *"Log in failed"*, result 2000). Dans les deux cas, cela impose une vigilance forte sur les logs, les traces réseau et les erreurs applicatives pour ne jamais exposer ce paramètre côté client ou dans des fichiers de diagnostic. [docs.pcloud](https://docs.pcloud.com/methods/intro/authentication.html)
 
 ## 15. Observabilité et exploitation
 Le système doit fournir :

@@ -7,6 +7,13 @@ export interface PCloudFolderRef {
   path: string;
 }
 
+interface PCloudFolderApiResult {
+  id: number;
+  name: string;
+  path: string;
+  subfolders: { id: number; name: string }[];
+}
+
 interface PCloudFolderBrowseResult extends PCloudFolderRef {
   subfolders: { id: number; name: string }[];
 }
@@ -30,40 +37,45 @@ export class PCloudFolderPickerComponent implements OnInit {
   private readonly history: PCloudFolderRef[] = [];
 
   ngOnInit(): void {
-    this.browse(this.startFolderId);
+    this.browse(this.startFolderId, '/');
   }
 
   protected get canGoBack(): boolean {
     return this.history.length > 0;
   }
 
-  browse(folderId: number): void {
+  // pCloud ne renseigne le champ `path` de la réponse que pour la racine ; pour les
+  // sous-dossiers (navigation par folderid), le chemin est donc reconstruit ici plutôt
+  // que d'être pris tel quel dans la réponse API.
+  private browse(folderId: number, knownPath: string): void {
     this.loading.set(true);
     this.error.set(null);
-    this.http.get<PCloudFolderBrowseResult>(`/api/pcloud/folders/${folderId}`).subscribe({
+    this.http.get<PCloudFolderApiResult>(`/api/pcloud/folders/${folderId}`).subscribe({
       next: (result) => {
-        this.current.set(result);
+        this.current.set({ ...result, path: knownPath });
         this.loading.set(false);
       },
-      error: () => {
+      error: (err) => {
         this.loading.set(false);
-        this.error.set('Impossible de lire ce dossier pCloud.');
+        this.error.set(err.error?.error ?? 'Impossible de lire ce dossier pCloud.');
       },
     });
   }
 
   open(folder: { id: number; name: string }): void {
     const current = this.current();
-    if (current) {
-      this.history.push({ id: current.id, name: current.name, path: current.path });
+    if (!current) {
+      return;
     }
-    this.browse(folder.id);
+    this.history.push({ id: current.id, name: current.name, path: current.path });
+    const childPath = current.path === '/' ? `/${folder.name}` : `${current.path}/${folder.name}`;
+    this.browse(folder.id, childPath);
   }
 
   goBack(): void {
     const previous = this.history.pop();
     if (previous) {
-      this.browse(previous.id);
+      this.browse(previous.id, previous.path);
     }
   }
 

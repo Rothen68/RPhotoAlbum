@@ -4,11 +4,13 @@ namespace RPhotoAlbum.Api.PCloud;
 
 public record PCloudTokenResponse(
     [property: JsonPropertyName("result")] int Result,
+    [property: JsonPropertyName("error")] string? Error,
     [property: JsonPropertyName("access_token")] string AccessToken,
     [property: JsonPropertyName("uid")] long Uid);
 
 public record PCloudFolderListing(
     [property: JsonPropertyName("result")] int Result,
+    [property: JsonPropertyName("error")] string? Error,
     [property: JsonPropertyName("metadata")] PCloudFolderMetadata? Metadata);
 
 public record PCloudFolderMetadata(
@@ -26,7 +28,7 @@ public record PCloudItem(
     [property: JsonPropertyName("fileid")] long? FileId,
     [property: JsonPropertyName("folderid")] long? FolderId,
     [property: JsonPropertyName("size")] long? Size,
-    [property: JsonPropertyName("hash")] long? Hash,
+    [property: JsonPropertyName("hash")] ulong? Hash,
     [property: JsonPropertyName("contenttype")] string? ContentType,
     [property: JsonPropertyName("created")] string? Created,
     [property: JsonPropertyName("modified")] string? Modified,
@@ -36,5 +38,6 @@ public record PCloudItem(
 
 public record PCloudThumbLinkResponse(
     [property: JsonPropertyName("result")] int Result,
+    [property: JsonPropertyName("error")] string? Error,
     [property: JsonPropertyName("path")] string? Path,
     [property: JsonPropertyName("hosts")] string[]? Hosts);

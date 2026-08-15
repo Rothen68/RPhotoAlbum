@@ -124,7 +124,10 @@ export class ConfigComponent implements OnInit {
     this.mediaService.reindex().subscribe({
       next: (result) => {
         this.reindexing.set(false);
-        this.message.set(`Indexation terminée : ${result.indexed} médias.`);
+        const failures = result.failedFolders.length
+          ? ` Échec pour : ${result.failedFolders.join(', ')}.`
+          : '';
+        this.message.set(`Indexation terminée : ${result.indexed} médias.${failures}`);
         this.refreshIndexedCount();
       },
       error: (err) => {

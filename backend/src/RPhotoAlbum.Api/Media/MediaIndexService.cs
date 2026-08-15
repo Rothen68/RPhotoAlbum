@@ -6,6 +6,13 @@ using RPhotoAlbum.Api.PCloud;
 
 namespace RPhotoAlbum.Api.Media;
 
+public record MediaIndexResult(int Indexed, IReadOnlyList<string> FailedFolders)
+{
+    public bool IsAlreadyRunning { get; private init; }
+
+    public static MediaIndexResult AlreadyRunning { get; } = new(0, []) { IsAlreadyRunning = true };
+}
+
 // Scanne les dossiers source configurés et met à jour le cache local — voir ARCHITECTURE.md §9.4.
 public class MediaIndexService(
     CacheDbContext db,
@@ -16,11 +23,11 @@ public class MediaIndexService(
     // Statique : une seule indexation à la fois, tous appelants confondus (job périodique + déclenchement manuel).
     private static readonly SemaphoreSlim Lock = new(1, 1);
 
-    public async Task<int> ReindexAsync(CancellationToken ct = default)
+    public async Task<MediaIndexResult> ReindexAsync(CancellationToken ct = default)
     {
         if (!await Lock.WaitAsync(0, ct))
         {
-            return -1;
+            return MediaIndexResult.AlreadyRunning;
         }
 
         try
@@ -28,17 +35,17 @@ public class MediaIndexService(
             if (await tokenStore.GetAsync() is null)
             {
                 logger.LogDebug("Indexation ignorée : pCloud non connecté.");
-                return 0;
+                return new MediaIndexResult(0, []);
             }
 
             var sourceFolders = await db.SourceFolders.AsNoTracking().ToListAsync(ct);
             if (sourceFolders.Count == 0)
             {
-                return 0;
+                return new MediaIndexResult(0, []);
             }
 
             var seenFileIds = new HashSet<long>();
-            var anyFailures = false;
+            var failedFolders = new List<string>();
 
             foreach (var folder in sourceFolders)
             {
@@ -49,7 +56,7 @@ public class MediaIndexService(
                 }
                 catch (Exception ex)
                 {
-                    anyFailures = true;
+                    failedFolders.Add(folder.Label);
                     logger.LogWarning(ex, "Échec de l'indexation du dossier source {FolderId} ({Label}).",
                         folder.PCloudFolderId, folder.Label);
                     continue;
@@ -75,14 +82,14 @@ public class MediaIndexService(
 
             // Purge des entrées disparues des dossiers source — sautée si un dossier n'a pas pu être lu,
             // pour ne pas confondre une panne pCloud transitoire avec une suppression réelle.
-            if (!anyFailures)
+            if (failedFolders.Count == 0)
             {
                 var stale = await db.MediaIndex.Where(m => !seenFileIds.Contains(m.PCloudFileId)).ToListAsync(ct);
                 db.MediaIndex.RemoveRange(stale);
             }
 
             await db.SaveChangesAsync(ct);
-            return seenFileIds.Count;
+            return new MediaIndexResult(seenFileIds.Count, failedFolders);
         }
         finally
         {

@@ -40,7 +40,7 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
 
         if (payload.Result != 0)
         {
-            throw new InvalidOperationException($"Échec de l'échange du code pCloud (result={payload.Result}).");
+            throw new InvalidOperationException($"Échec de l'échange du code pCloud (result={payload.Result}: {payload.Error}).");
         }
 
         return payload;
@@ -52,7 +52,7 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
         var query = new Dictionary<string, string?>
         {
             ["folderid"] = folderId.ToString(),
-            ["auth"] = connection.AccessToken,
+            ["access_token"] = connection.AccessToken,
         };
         if (recursive) query["recursive"] = "1";
         if (nofiles) query["nofiles"] = "1";
@@ -64,7 +64,7 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
 
         if (listing.Result != 0)
         {
-            throw new InvalidOperationException($"Erreur pCloud listfolder (result={listing.Result}).");
+            throw new InvalidOperationException($"Erreur pCloud listfolder (result={listing.Result}: {listing.Error}).");
         }
 
         return listing;
@@ -77,7 +77,7 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
         {
             ["fileid"] = fileId.ToString(),
             ["size"] = $"{width}x{height}",
-            ["auth"] = connection.AccessToken,
+            ["access_token"] = connection.AccessToken,
         });
 
         var thumb = await httpClient.GetFromJsonAsync<PCloudThumbLinkResponse>(url)
@@ -85,7 +85,7 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
 
         if (thumb.Result != 0 || thumb.Hosts is not { Length: > 0 } || string.IsNullOrEmpty(thumb.Path))
         {
-            throw new InvalidOperationException($"Erreur pCloud getthumblink (result={thumb.Result}).");
+            throw new InvalidOperationException($"Erreur pCloud getthumblink (result={thumb.Result}: {thumb.Error}).");
         }
 
         return $"https://{thumb.Hosts[0]}{thumb.Path}";

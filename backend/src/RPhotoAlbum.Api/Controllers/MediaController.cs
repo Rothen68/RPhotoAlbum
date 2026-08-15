@@ -12,13 +12,13 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db) 
     [HttpPost("reindex")]
     public async Task<IActionResult> Reindex(CancellationToken ct)
     {
-        var count = await indexService.ReindexAsync(ct);
-        if (count < 0)
+        var result = await indexService.ReindexAsync(ct);
+        if (result.IsAlreadyRunning)
         {
             return Conflict(new { error = "Une indexation est déjà en cours." });
         }
 
-        return Ok(new { indexed = count });
+        return Ok(new { indexed = result.Indexed, failedFolders = result.FailedFolders });
     }
 
     [HttpGet("source")]

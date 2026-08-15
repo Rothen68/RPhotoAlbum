@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 export interface ReindexResult {
   indexed: number;
+  failedFolders: string[];
 }
 
 export interface MediaSourcePage {

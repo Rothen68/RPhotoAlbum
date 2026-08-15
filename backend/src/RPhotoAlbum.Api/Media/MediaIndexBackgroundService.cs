@@ -19,10 +19,12 @@ public class MediaIndexBackgroundService(
             {
                 using var scope = scopeFactory.CreateScope();
                 var indexService = scope.ServiceProvider.GetRequiredService<MediaIndexService>();
-                var count = await indexService.ReindexAsync(stoppingToken);
-                if (count >= 0)
+                var result = await indexService.ReindexAsync(stoppingToken);
+                if (!result.IsAlreadyRunning)
                 {
-                    logger.LogInformation("Indexation périodique pCloud terminée : {Count} médias.", count);
+                    logger.LogInformation(
+                        "Indexation périodique pCloud terminée : {Count} médias ({FailedCount} dossier(s) en échec).",
+                        result.Indexed, result.FailedFolders.Count);
                 }
             }
             catch (Exception ex)
