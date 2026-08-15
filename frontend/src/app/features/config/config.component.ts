@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { AlbumService } from '../../core/albums/album.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { AppConfiguration, ConfigService, SourceFolder } from '../../core/config/config.service';
 import { MediaService } from '../../core/media/media.service';
@@ -21,6 +22,7 @@ export class ConfigComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly configService = inject(ConfigService);
   private readonly mediaService = inject(MediaService);
+  private readonly albumsService = inject(AlbumService);
   private readonly pcloud = inject(PCloudService);
   private readonly auth = inject(AuthService);
 
@@ -29,6 +31,7 @@ export class ConfigComponent implements OnInit {
   protected readonly pickerMode = signal<PickerMode>(null);
   protected readonly saving = signal(false);
   protected readonly reindexing = signal(false);
+  protected readonly reindexingAlbums = signal(false);
   protected readonly indexedCount = signal<number | null>(null);
   protected readonly message = signal<string | null>(null);
   protected readonly connectUrl = this.pcloud.connectUrl;
@@ -117,6 +120,21 @@ export class ConfigComponent implements OnInit {
       error: (err) => {
         this.saving.set(false);
         this.message.set(err.error?.error ?? "Erreur lors de l'enregistrement.");
+      },
+    });
+  }
+
+  reindexAlbums(): void {
+    this.reindexingAlbums.set(true);
+    this.message.set(null);
+    this.albumsService.reindex().subscribe({
+      next: (result) => {
+        this.reindexingAlbums.set(false);
+        this.message.set(`${result.found} album(s) trouvé(s) sur pCloud.`);
+      },
+      error: (err) => {
+        this.reindexingAlbums.set(false);
+        this.message.set(err.error?.error ?? "Échec de la recherche des albums.");
       },
     });
   }

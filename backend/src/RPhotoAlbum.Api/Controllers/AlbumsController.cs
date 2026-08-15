@@ -26,6 +26,21 @@ public class AlbumsController(AlbumService albums) : ControllerBase
         return Ok(summaries.Select(ToDto));
     }
 
+    // Redécouvre les albums déjà présents sur pCloud — voir AlbumService.ReindexAsync.
+    [HttpPost("reindex")]
+    public async Task<IActionResult> Reindex(CancellationToken ct)
+    {
+        try
+        {
+            var found = await albums.ReindexAsync(ct);
+            return Ok(new { found });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create(CreateAlbumRequest request, CancellationToken ct)
     {

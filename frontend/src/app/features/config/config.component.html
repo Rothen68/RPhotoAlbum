@@ -29,6 +29,9 @@
     }
   }
   <button type="button" (click)="openAlbumFolderPicker()">Choisir un dossier</button>
+  <button type="button" (click)="reindexAlbums()" [disabled]="reindexingAlbums()">
+    {{ reindexingAlbums() ? 'Recherche…' : 'Rechercher les albums existants sur pCloud' }}
+  </button>
 </section>
 
 <section>

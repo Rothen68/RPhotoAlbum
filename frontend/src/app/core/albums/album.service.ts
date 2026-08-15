@@ -46,6 +46,10 @@ export class AlbumService {
     return this.http.get<AlbumSummary[]>('/api/albums');
   }
 
+  reindex(): Observable<{ found: number }> {
+    return this.http.post<{ found: number }>('/api/albums/reindex', {});
+  }
+
   create(name: string, initialMediaFileIds?: number[]): Observable<AlbumDetail> {
     return this.http.post<AlbumDetail>('/api/albums', { name, initialMediaFileIds });
   }

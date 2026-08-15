@@ -18,6 +18,94 @@ public class AlbumService(CacheDbContext db, PCloudClient client, ILogger<AlbumS
     public async Task<List<AlbumSummary>> ListAsync(CancellationToken ct = default)
         => await db.AlbumSummaries.AsNoTracking().OrderByDescending(a => a.UpdatedAt).ToListAsync(ct);
 
+    // Redécouvre les albums déjà présents sur pCloud (album.json dans chaque sous-dossier du
+    // dossier parent) et reconstruit AlbumSummaries en conséquence — nécessaire quand le cache
+    // local est vide alors que des albums existent déjà sur pCloud (ex. migration vers un nouveau
+    // déploiement pointé sur le même dossier), voir ARCHITECTURE.md §3 (cache reconstructible).
+    public async Task<int> ReindexAsync(CancellationToken ct = default)
+    {
+        var config = await db.AppConfigurations.AsNoTracking().FirstOrDefaultAsync(c => c.Id == 1, ct);
+        if (config?.AlbumParentFolderId is not { } parentFolderId)
+        {
+            throw new InvalidOperationException("Dossier des albums non configuré (voir la page Configuration).");
+        }
+
+        var listing = await client.ListFolderAsync(parentFolderId, recursive: true);
+        var discovered = new List<AlbumSummary>();
+
+        foreach (var folder in listing.Metadata?.Contents ?? [])
+        {
+            if (!folder.IsFolder || folder.FolderId is not { } folderId)
+            {
+                continue;
+            }
+
+            var jsonEntry = folder.Contents?.FirstOrDefault(c => !c.IsFolder && c.Name == "album.json");
+            if (jsonEntry?.FileId is not { } jsonFileId)
+            {
+                continue;
+            }
+
+            AlbumDocument? doc;
+            try
+            {
+                var json = await client.DownloadTextFileAsync(jsonFileId);
+                doc = JsonSerializer.Deserialize<AlbumDocument>(json, JsonOptions);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Échec de lecture de album.json dans le dossier {FolderId}, ignoré.", folderId);
+                continue;
+            }
+
+            if (doc is null)
+            {
+                continue;
+            }
+
+            discovered.Add(new AlbumSummary
+            {
+                Id = doc.Id,
+                Slug = doc.Slug,
+                Name = doc.Name,
+                AlbumFolderId = folderId,
+                AlbumFolderPath = folder.Path ?? doc.AlbumFolder.Path,
+                AlbumJsonFileId = jsonFileId,
+                ItemCount = doc.Items.Count,
+                CoverFileId = doc.Items.FirstOrDefault(i => i.Type == "media")?.AlbumCopy?.FileId,
+                UpdatedAt = doc.UpdatedAt,
+            });
+        }
+
+        var existing = await db.AlbumSummaries.ToListAsync(ct);
+        var discoveredIds = discovered.Select(d => d.Id).ToHashSet();
+
+        db.AlbumSummaries.RemoveRange(existing.Where(e => !discoveredIds.Contains(e.Id)));
+
+        foreach (var found in discovered)
+        {
+            var current = existing.FirstOrDefault(e => e.Id == found.Id);
+            if (current is null)
+            {
+                db.AlbumSummaries.Add(found);
+            }
+            else
+            {
+                current.Slug = found.Slug;
+                current.Name = found.Name;
+                current.AlbumFolderId = found.AlbumFolderId;
+                current.AlbumFolderPath = found.AlbumFolderPath;
+                current.AlbumJsonFileId = found.AlbumJsonFileId;
+                current.ItemCount = found.ItemCount;
+                current.CoverFileId = found.CoverFileId;
+                current.UpdatedAt = found.UpdatedAt;
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+        return discovered.Count;
+    }
+
     public async Task<AlbumDocument> CreateAsync(string name, List<long>? initialMediaFileIds, CancellationToken ct = default)
     {
         var config = await db.AppConfigurations.AsNoTracking().FirstOrDefaultAsync(c => c.Id == 1, ct);
