@@ -12,6 +12,7 @@
   --color-danger: #ef4444;
   --radius: 8px;
   --elev-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --app-max-width: 480px;
 }
 
 * {
@@ -40,6 +41,48 @@ textarea {
 
 a {
   color: var(--color-accent);
+}
+
+/* Icônes (Material Symbols) — voir https://fonts.google.com/icons */
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+.icon {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+/* Centre la mise en page sur les grands écrans (l'app reste une colonne
+   mobile-first, pas un layout desktop à part) — voir ARCHITECTURE.md §19. */
+.page {
+  max-width: var(--app-max-width);
+  margin: 0 auto;
+  min-height: 100%;
+  position: relative;
+
+  @media (min-width: 560px) {
+    border-left: 1px solid var(--color-border);
+    border-right: 1px solid var(--color-border);
+  }
+}
+
+.fixed-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--app-max-width);
 }
 
 /* Boutons */

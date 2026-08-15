@@ -22,7 +22,9 @@
           </div>
         } @else {
           <button type="button" class="row new-album-row" (click)="startNewAlbum()">
-            <span class="dashed-circle">+</span>
+            <span class="dashed-circle">
+              <span class="icon material-symbols-outlined">add</span>
+            </span>
             <span class="row-label">New album</span>
           </button>
         }
@@ -43,7 +45,7 @@
               <span class="row-label">{{ membership.name }}</span>
               <span class="toggle-dot" [class.included]="membership.containsAll">
                 @if (membership.containsAll) {
-                  ✓
+                  <span class="icon material-symbols-outlined">check</span>
                 }
               </span>
             </button>

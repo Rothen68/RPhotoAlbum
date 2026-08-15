@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { MediaItem, MediaService } from '../../core/media/media.service';
 import { AddToAlbumSheetComponent } from '../../shared/add-to-album-sheet/add-to-album-sheet.component';
+import { VideoPopupComponent } from '../../shared/video-popup/video-popup.component';
 
 const PAGE_SIZE = 60;
 const COLUMNS_STORAGE_KEY = 'rphotoalbum.gallery.columns';
@@ -8,7 +9,7 @@ const COLUMNS_STORAGE_KEY = 'rphotoalbum.gallery.columns';
 @Component({
   selector: 'app-gallery',
   standalone: true,
-  imports: [AddToAlbumSheetComponent],
+  imports: [AddToAlbumSheetComponent, VideoPopupComponent],
   templateUrl: './gallery.component.html',
   styleUrl: './gallery.component.scss',
 })
@@ -25,6 +26,7 @@ export class GalleryComponent implements OnInit {
   protected readonly showAddToAlbumSheet = signal(false);
   protected readonly rejecting = signal(false);
   protected readonly selectedFileIdsArray = computed(() => [...this.selectedIds()]);
+  protected readonly playingVideoUrl = signal<string | null>(null);
 
   private page = 0;
 
@@ -75,11 +77,18 @@ export class GalleryComponent implements OnInit {
     this.selectedIds.set(new Set());
   }
 
-  toggleSelect(item: MediaItem): void {
-    if (!this.selectionMode()) {
+  onTileClick(item: MediaItem): void {
+    if (this.selectionMode()) {
+      this.toggleSelect(item);
       return;
     }
 
+    if (item.mediaType === 'video') {
+      this.playingVideoUrl.set(this.mediaService.streamUrl(item.pCloudFileId));
+    }
+  }
+
+  private toggleSelect(item: MediaItem): void {
     this.selectedIds.update((current) => {
       const next = new Set(current);
       if (next.has(item.pCloudFileId)) {

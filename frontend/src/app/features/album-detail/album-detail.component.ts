@@ -9,6 +9,7 @@ import { AlbumDetail, AlbumItem, AlbumService } from '../../core/albums/album.se
   imports: [FormsModule],
   templateUrl: './album-detail.component.html',
   styleUrl: './album-detail.component.scss',
+  host: { class: 'page' },
 })
 export class AlbumDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
@@ -46,6 +47,10 @@ export class AlbumDetailComponent implements OnInit {
 
   thumbnailUrl(fileId: number): string {
     return this.albumService.thumbnailUrl(fileId, 800);
+  }
+
+  streamUrl(fileId: number): string {
+    return this.albumService.streamUrl(fileId);
   }
 
   toggleReorder(): void {

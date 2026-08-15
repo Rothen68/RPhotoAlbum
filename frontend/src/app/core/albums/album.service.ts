@@ -89,4 +89,8 @@ export class AlbumService {
   thumbnailUrl(fileId: number, size = 300): string {
     return `/api/media/${fileId}/thumbnail?width=${size}&height=${size}`;
   }
+
+  streamUrl(fileId: number): string {
+    return `/api/media/${fileId}/stream`;
+  }
 }

@@ -223,7 +223,9 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
         return response.FileIds[0];
     }
 
-    public async Task<string> DownloadTextFileAsync(long fileId)
+    // Lien direct vers le fichier original (pas une miniature) — utilisé pour la lecture
+    // vidéo et pour télécharger le contenu texte de album.json.
+    public async Task<string> GetFileLinkAsync(long fileId)
     {
         var connection = await RequireConnectionAsync();
         var url = QueryHelpers.AddQueryString($"https://{connection.Hostname}/getfilelink", new Dictionary<string, string?>
@@ -240,7 +242,13 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
             throw new InvalidOperationException($"Erreur pCloud getfilelink (result={link.Result}: {link.Error}).");
         }
 
-        return await httpClient.GetStringAsync($"https://{link.Hosts[0]}{link.Path}");
+        return $"https://{link.Hosts[0]}{link.Path}";
+    }
+
+    public async Task<string> DownloadTextFileAsync(long fileId)
+    {
+        var url = await GetFileLinkAsync(fileId);
+        return await httpClient.GetStringAsync(url);
     }
 
     private async Task<PCloudConnectionInfo> RequireConnectionAsync()

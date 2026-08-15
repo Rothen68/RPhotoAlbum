@@ -1,0 +1,6 @@
+<div class="video-backdrop" (click)="closed.emit()">
+  <button type="button" class="btn-icon close-btn" (click)="closed.emit()" aria-label="Close">
+    <span class="icon material-symbols-outlined">close</span>
+  </button>
+  <video [src]="src" controls autoplay (click)="$event.stopPropagation()"></video>
+</div>

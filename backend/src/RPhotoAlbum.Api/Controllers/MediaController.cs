@@ -70,4 +70,20 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db, 
             return NotFound();
         }
     }
+
+    // Redirige vers le fichier original pour la lecture vidéo — voir ARCHITECTURE.md §5.4.
+    [HttpGet("{fileId:long}/stream")]
+    public async Task<IActionResult> Stream(long fileId)
+    {
+        try
+        {
+            var url = await client.GetFileLinkAsync(fileId);
+            return Redirect(url);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Échec de la récupération du flux pour le fichier {FileId}.", fileId);
+            return NotFound();
+        }
+    }
 }

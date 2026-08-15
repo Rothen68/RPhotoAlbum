@@ -1,19 +1,14 @@
-<router-outlet />
+<div class="page">
+  <router-outlet />
+</div>
 
-<nav class="tab-bar">
+<nav class="tab-bar fixed-bar">
   <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
-    </svg>
+    <span class="icon material-symbols-outlined">photo_library</span>
     <span>Gallery</span>
   </a>
   <a routerLink="/albums" routerLinkActive="active">
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M4 7a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" />
-    </svg>
+    <span class="icon material-symbols-outlined">collections_bookmark</span>
     <span>Albums</span>
   </a>
 </nav>

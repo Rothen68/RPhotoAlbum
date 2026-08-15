@@ -1,0 +1,33 @@
+.video-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  animation: fade-in 150ms ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+video {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.close-btn {
+  position: absolute;
+  top: max(env(safe-area-inset-top), 12px);
+  right: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+
+  .icon {
+    font-size: 24px;
+  }
+}

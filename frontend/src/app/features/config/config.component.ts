@@ -14,6 +14,7 @@ type PickerMode = 'album' | 'source' | null;
   imports: [RouterLink, PCloudFolderPickerComponent],
   templateUrl: './config.component.html',
   styleUrl: './config.component.scss',
+  host: { class: 'page' },
 })
 export class ConfigComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);

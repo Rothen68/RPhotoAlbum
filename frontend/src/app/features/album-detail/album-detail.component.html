@@ -1,5 +1,7 @@
 <header class="page-header">
-  <button type="button" class="btn-icon back-btn" (click)="goBack()" aria-label="Back">←</button>
+  <button type="button" class="btn-icon back-btn" (click)="goBack()" aria-label="Back">
+    <span class="icon material-symbols-outlined">arrow_back</span>
+  </button>
   <span class="album-name">{{ album()?.name }}</span>
   <button type="button" class="btn-link" (click)="toggleReorder()">{{ reorderMode() ? 'Done' : 'Reorder' }}</button>
 </header>
@@ -24,7 +26,9 @@
           ></textarea>
         } @else {
           <button type="button" class="insert-affordance" (click)="startInsert(null)" aria-label="Insert note here">
-            <span class="dashed-circle">+</span>
+            <span class="dashed-circle">
+              <span class="icon material-symbols-outlined">add</span>
+            </span>
           </button>
         }
       </div>
@@ -43,10 +47,14 @@
       >
         @if (reorderMode()) {
           <div class="reorder-controls">
-            <span class="drag-handle">⠿</span>
+            <span class="icon material-symbols-outlined drag-handle">drag_indicator</span>
             <div class="stack-buttons">
-              <button type="button" class="btn-icon" [disabled]="idx === 0" (click)="moveUp(idx)" aria-label="Move up">▲</button>
-              <button type="button" class="btn-icon" [disabled]="idx === a.items.length - 1" (click)="moveDown(idx)" aria-label="Move down">▼</button>
+              <button type="button" class="btn-icon" [disabled]="idx === 0" (click)="moveUp(idx)" aria-label="Move up">
+                <span class="icon material-symbols-outlined">keyboard_arrow_up</span>
+              </button>
+              <button type="button" class="btn-icon" [disabled]="idx === a.items.length - 1" (click)="moveDown(idx)" aria-label="Move down">
+                <span class="icon material-symbols-outlined">keyboard_arrow_down</span>
+              </button>
             </div>
           </div>
         }
@@ -54,9 +62,10 @@
         <div class="block-content">
           @if (item.type === 'media') {
             <div class="media-block">
-              <img [src]="thumbnailUrl(item.albumCopy!.fileId)" [alt]="item.albumCopy?.name" />
               @if (item.mediaType === 'video') {
-                <span class="video-glyph">▶</span>
+                <video [src]="streamUrl(item.albumCopy!.fileId)" [poster]="thumbnailUrl(item.albumCopy!.fileId)" controls></video>
+              } @else {
+                <img [src]="thumbnailUrl(item.albumCopy!.fileId)" [alt]="item.albumCopy?.name" />
               }
             </div>
           } @else {
@@ -74,7 +83,9 @@
         </div>
 
         @if (reorderMode()) {
-          <button type="button" class="btn-icon remove-btn" (click)="removeItem(item.id)" aria-label="Remove block">✕</button>
+          <button type="button" class="btn-icon remove-btn" (click)="removeItem(item.id)" aria-label="Remove block">
+            <span class="icon material-symbols-outlined">close</span>
+          </button>
         }
       </div>
 
@@ -90,7 +101,9 @@
             ></textarea>
           } @else {
             <button type="button" class="insert-affordance" (click)="startInsert(item.id)" aria-label="Insert note here">
-              <span class="dashed-circle">+</span>
+              <span class="dashed-circle">
+                <span class="icon material-symbols-outlined">add</span>
+              </span>
             </button>
           }
         </div>

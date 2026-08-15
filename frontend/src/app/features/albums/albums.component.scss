@@ -67,9 +67,15 @@
   position: absolute;
   top: 6px;
   right: 6px;
+  min-width: 32px;
+  min-height: 32px;
   background: rgba(0, 0, 0, 0.45);
   color: white;
   border-radius: 6px;
+
+  .icon {
+    font-size: 20px;
+  }
 }
 
 .info {

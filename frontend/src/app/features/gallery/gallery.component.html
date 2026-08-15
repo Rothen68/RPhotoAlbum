@@ -30,18 +30,18 @@
       type="button"
       class="tile"
       [class.selected]="isSelected(item)"
-      (click)="toggleSelect(item)"
+      (click)="onTileClick(item)"
     >
       <img [src]="thumbnailUrl(item.pCloudFileId)" [alt]="item.name" />
 
       @if (item.mediaType === 'video') {
-        <span class="video-glyph">▶</span>
+        <span class="icon material-symbols-outlined video-glyph">play_circle</span>
       }
 
       @if (selectionMode()) {
         <span class="check-dot" [class.checked]="isSelected(item)">
           @if (isSelected(item)) {
-            ✓
+            <span class="icon material-symbols-outlined">check</span>
           }
         </span>
       }
@@ -58,7 +58,7 @@
 }
 
 @if (selectionMode()) {
-  <div class="selection-bar">
+  <div class="selection-bar fixed-bar">
     <span class="muted">{{ selectedIds().size }} selected</span>
     <div class="actions">
       <button type="button" class="btn btn-danger" [disabled]="selectedIds().size === 0 || rejecting()" (click)="reject()">
@@ -73,4 +73,8 @@
 
 @if (showAddToAlbumSheet()) {
   <app-add-to-album-sheet [selectedFileIds]="selectedFileIdsArray()" (closed)="onSheetClosed()" />
+}
+
+@if (playingVideoUrl(); as url) {
+  <app-video-popup [src]="url" (closed)="playingVideoUrl.set(null)" />
 }
