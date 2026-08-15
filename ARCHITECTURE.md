@@ -284,6 +284,8 @@ L'API applicative peut exposer les routes suivantes.
 | PUT | `/api/config` | Enregistrement des IDs de dossiers source et dossier parent |
 | GET | `/api/auth/pcloud/start` | Démarrage OAuth pCloud |
 | GET | `/api/auth/pcloud/callback` | Retour OAuth pCloud |
+| GET | `/api/pcloud/status` | État de la connexion pCloud (connecté/hostname) |
+| POST | `/api/pcloud/disconnect` | Déconnexion du compte pCloud |
 | GET | `/api/media/source?page=&pageSize=` | Liste paginée des médias source (via cache) |
 | POST | `/api/media/reindex` | Reconstruction du cache local depuis pCloud |
 | POST | `/api/albums` | Création d'un album |

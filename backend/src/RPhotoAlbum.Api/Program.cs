@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using RPhotoAlbum.Api.Auth;
 using RPhotoAlbum.Api.Data;
+using RPhotoAlbum.Api.PCloud;
 using Serilog;
 
 if (args is ["hash-password", var password])
@@ -27,6 +28,9 @@ builder.Services.AddDbContext<CacheDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Cache")));
 
 builder.Services.Configure<AppAuthOptions>(builder.Configuration.GetSection("App"));
+builder.Services.Configure<PCloudOptions>(builder.Configuration.GetSection("PCloud"));
+builder.Services.AddScoped<PCloudTokenStore>();
+builder.Services.AddHttpClient<PCloudClient>();
 
 var keysPath = builder.Environment.IsDevelopment()
     ? Path.Combine(builder.Environment.ContentRootPath, ".keys")
@@ -62,6 +66,11 @@ builder.Services.AddAuthorizationBuilder()
         .Build());
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    scope.ServiceProvider.GetRequiredService<CacheDbContext>().Database.EnsureCreated();
+}
 
 if (app.Environment.IsDevelopment())
 {

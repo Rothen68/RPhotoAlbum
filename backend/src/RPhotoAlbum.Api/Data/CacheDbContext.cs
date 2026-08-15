@@ -1,14 +1,17 @@
 using Microsoft.EntityFrameworkCore;
 using RPhotoAlbum.Api.Models;
+using RPhotoAlbum.Api.PCloud;
 
 namespace RPhotoAlbum.Api.Data;
 
 // Cache local (SQLite) : index de performance reconstructible depuis pCloud.
 // N'est jamais la source de vérité métier — voir ARCHITECTURE.md §3 et §6.1.
+// Exception : PCloudConnections stocke le jeton OAuth chiffré, qui n'existe pas côté pCloud.
 public class CacheDbContext(DbContextOptions<CacheDbContext> options) : DbContext(options)
 {
     public DbSet<MediaIndexEntry> MediaIndex => Set<MediaIndexEntry>();
     public DbSet<AlbumSummary> AlbumSummaries => Set<AlbumSummary>();
+    public DbSet<PCloudConnection> PCloudConnections => Set<PCloudConnection>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -18,5 +21,8 @@ public class CacheDbContext(DbContextOptions<CacheDbContext> options) : DbContex
 
         modelBuilder.Entity<AlbumSummary>()
             .HasKey(a => a.Id);
+
+        modelBuilder.Entity<PCloudConnection>()
+            .HasKey(c => c.Id);
     }
 }
