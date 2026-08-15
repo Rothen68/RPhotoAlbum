@@ -1,0 +1,29 @@
+<div class="picker-backdrop">
+  <div class="picker">
+    <p class="picker-path">{{ current()?.path || '/' }}</p>
+
+    @if (loading()) {
+      <p>Chargement…</p>
+    } @else if (error(); as message) {
+      <p class="error">{{ message }}</p>
+    } @else if (current(); as folder) {
+      <ul class="folder-list">
+        @for (sub of folder.subfolders; track sub.id) {
+          <li>
+            <button type="button" (click)="open(sub)">📁 {{ sub.name }}</button>
+          </li>
+        } @empty {
+          <li class="empty">Aucun sous-dossier.</li>
+        }
+      </ul>
+    }
+
+    <div class="picker-actions">
+      <button type="button" (click)="goBack()" [disabled]="!canGoBack">← Retour</button>
+      <button type="button" (click)="cancel()">Annuler</button>
+      <button type="button" class="primary" (click)="confirm()" [disabled]="loading() || !current()">
+        Sélectionner ce dossier
+      </button>
+    </div>
+  </div>
+</div>

@@ -12,6 +12,8 @@ public class CacheDbContext(DbContextOptions<CacheDbContext> options) : DbContex
     public DbSet<MediaIndexEntry> MediaIndex => Set<MediaIndexEntry>();
     public DbSet<AlbumSummary> AlbumSummaries => Set<AlbumSummary>();
     public DbSet<PCloudConnection> PCloudConnections => Set<PCloudConnection>();
+    public DbSet<SourceFolder> SourceFolders => Set<SourceFolder>();
+    public DbSet<AppConfiguration> AppConfigurations => Set<AppConfiguration>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -23,6 +25,13 @@ public class CacheDbContext(DbContextOptions<CacheDbContext> options) : DbContex
             .HasKey(a => a.Id);
 
         modelBuilder.Entity<PCloudConnection>()
+            .HasKey(c => c.Id);
+
+        modelBuilder.Entity<SourceFolder>()
+            .HasIndex(f => f.PCloudFolderId)
+            .IsUnique();
+
+        modelBuilder.Entity<AppConfiguration>()
             .HasKey(c => c.Id);
     }
 }

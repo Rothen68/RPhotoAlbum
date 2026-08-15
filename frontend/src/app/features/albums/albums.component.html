@@ -1,21 +1,7 @@
 <header>
   <span>Connecté en tant que {{ auth.username() }}</span>
+  <a routerLink="/config">Configuration</a>
   <button type="button" (click)="logout()">Se déconnecter</button>
 </header>
-
-<section class="pcloud-status">
-  @if (pcloudMessage(); as message) {
-    <p>{{ message }}</p>
-  }
-
-  @if (pcloudStatus(); as status) {
-    @if (status.connected) {
-      <p>pCloud connecté ({{ status.hostname }})</p>
-      <button type="button" (click)="disconnectPCloud()">Déconnecter pCloud</button>
-    } @else {
-      <a [href]="connectUrl">Connecter mon compte pCloud</a>
-    }
-  }
-</section>
 
 <p>Liste des albums — à venir.</p>

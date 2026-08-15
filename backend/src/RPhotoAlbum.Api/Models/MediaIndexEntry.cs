@@ -10,11 +10,12 @@ public class MediaIndexEntry
     public required string Path { get; set; }
     public required string Hash { get; set; }
     public required string MediaType { get; set; } // "image" | "video"
-    public DateTimeOffset? CreatedAt { get; set; }
-    public DateTimeOffset? ModifiedAt { get; set; }
+    // DateTime UTC plutôt que DateTimeOffset : SQLite/EF Core ne sait pas trier sur DateTimeOffset.
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? ModifiedAt { get; set; }
     public int? Width { get; set; }
     public int? Height { get; set; }
     public long Size { get; set; }
     public string? ThumbnailUrl { get; set; }
-    public DateTimeOffset IndexedAt { get; set; }
+    public DateTime IndexedAt { get; set; }
 }

@@ -8,5 +8,5 @@ public class AlbumSummary
     public required string Slug { get; set; }
     public required string Name { get; set; }
     public required string AlbumJsonPath { get; set; }
-    public DateTimeOffset UpdatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
 }

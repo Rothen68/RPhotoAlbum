@@ -34,14 +34,14 @@ public class PCloudTokenStore
                 Id = SingletonId,
                 Hostname = hostname,
                 EncryptedAccessToken = encrypted,
-                ConnectedAt = DateTimeOffset.UtcNow,
+                ConnectedAt = DateTime.UtcNow,
             });
         }
         else
         {
             existing.Hostname = hostname;
             existing.EncryptedAccessToken = encrypted;
-            existing.ConnectedAt = DateTimeOffset.UtcNow;
+            existing.ConnectedAt = DateTime.UtcNow;
         }
 
         await _db.SaveChangesAsync();

@@ -7,5 +7,5 @@ public class PCloudConnection
     public int Id { get; set; }
     public required string Hostname { get; set; }
     public required string EncryptedAccessToken { get; set; }
-    public DateTimeOffset ConnectedAt { get; set; }
+    public DateTime ConnectedAt { get; set; }
 }

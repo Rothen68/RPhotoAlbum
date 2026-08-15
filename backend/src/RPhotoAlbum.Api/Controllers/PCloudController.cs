@@ -91,4 +91,33 @@ public class PCloudController(
         await tokenStore.ClearAsync();
         return Ok();
     }
+
+    // Navigation de dossiers pour le sélecteur (dossier des albums / dossiers sources) — voir ARCHITECTURE.md §11.1.
+    [HttpGet("api/pcloud/folders/{folderId:long}")]
+    public async Task<IActionResult> Folders(long folderId)
+    {
+        try
+        {
+            var listing = await client.ListFolderAsync(folderId, nofiles: true);
+            var metadata = listing.Metadata!;
+
+            var subfolders = (metadata.Contents ?? [])
+                .Where(c => c.IsFolder && c.FolderId is not null)
+                .Select(c => new { id = c.FolderId, name = c.Name })
+                .ToList();
+
+            return Ok(new
+            {
+                id = metadata.FolderId ?? folderId,
+                name = metadata.Name,
+                path = metadata.Path ?? "/",
+                subfolders,
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Échec de la lecture du dossier pCloud {FolderId}.", folderId);
+            return StatusCode(StatusCodes.Status502BadGateway, new { error = "Impossible de lire ce dossier pCloud." });
+        }
+    }
 }

@@ -1,0 +1,72 @@
+<header>
+  <a routerLink="/">← Albums</a>
+  <h1>Configuration</h1>
+</header>
+
+@if (message(); as msg) {
+  <p class="message">{{ msg }}</p>
+}
+
+<section>
+  <h2>Compte pCloud</h2>
+  @if (pcloudStatus(); as status) {
+    @if (status.connected) {
+      <p>Connecté ({{ status.hostname }})</p>
+      <button type="button" (click)="disconnectPCloud()">Déconnecter pCloud</button>
+    } @else {
+      <a [href]="connectUrl">Connecter mon compte pCloud</a>
+    }
+  }
+</section>
+
+<section>
+  <h2>Dossier des albums</h2>
+  @if (config(); as cfg) {
+    @if (cfg.albumParentFolder; as folder) {
+      <p>{{ folder.path }}</p>
+    } @else {
+      <p class="muted">Aucun dossier sélectionné.</p>
+    }
+  }
+  <button type="button" (click)="openAlbumFolderPicker()">Choisir un dossier</button>
+</section>
+
+<section>
+  <h2>Dossiers sources</h2>
+  @if (config(); as cfg) {
+    @if (cfg.sourceFolders.length > 0) {
+      <ul class="source-folder-list">
+        @for (folder of cfg.sourceFolders; track folder.folderId; let i = $index) {
+          <li>
+            <span>{{ folder.label }} — {{ folder.path }}</span>
+            <button type="button" (click)="removeSourceFolder(i)">Retirer</button>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="muted">Aucun dossier source configuré.</p>
+    }
+  }
+  <button type="button" (click)="openSourceFolderPicker()">Ajouter un dossier source</button>
+</section>
+
+<button type="button" class="primary" (click)="save()" [disabled]="saving()">
+  {{ saving() ? 'Enregistrement…' : 'Enregistrer la configuration' }}
+</button>
+
+<section>
+  <h2>Indexation</h2>
+  @if (indexedCount(); as count) {
+    <p>{{ count }} médias indexés.</p>
+  } @else {
+    <p class="muted">Aucun média indexé pour le moment.</p>
+  }
+  <p class="muted">Une réindexation automatique s'exécute en arrière-plan à intervalle régulier.</p>
+  <button type="button" (click)="reindex()" [disabled]="reindexing()">
+    {{ reindexing() ? 'Indexation…' : 'Réindexer maintenant' }}
+  </button>
+</section>
+
+@if (pickerMode(); as mode) {
+  <app-pcloud-folder-picker (folderSelected)="onFolderSelected($event)" (cancelled)="closePicker()" />
+}

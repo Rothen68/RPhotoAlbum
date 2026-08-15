@@ -46,14 +46,18 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
         return payload;
     }
 
-    public async Task<PCloudFolderListing> ListFolderAsync(long folderId)
+    public async Task<PCloudFolderListing> ListFolderAsync(long folderId, bool recursive = false, bool nofiles = false)
     {
         var connection = await RequireConnectionAsync();
-        var url = QueryHelpers.AddQueryString($"https://{connection.Hostname}/listfolder", new Dictionary<string, string?>
+        var query = new Dictionary<string, string?>
         {
             ["folderid"] = folderId.ToString(),
             ["auth"] = connection.AccessToken,
-        });
+        };
+        if (recursive) query["recursive"] = "1";
+        if (nofiles) query["nofiles"] = "1";
+
+        var url = QueryHelpers.AddQueryString($"https://{connection.Hostname}/listfolder", query);
 
         var listing = await httpClient.GetFromJsonAsync<PCloudFolderListing>(url)
             ?? throw new InvalidOperationException("Réponse pCloud invalide (listfolder).");

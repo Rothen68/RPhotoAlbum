@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using RPhotoAlbum.Api.Auth;
 using RPhotoAlbum.Api.Data;
+using RPhotoAlbum.Api.Media;
 using RPhotoAlbum.Api.PCloud;
 using Serilog;
 
@@ -31,6 +32,10 @@ builder.Services.Configure<AppAuthOptions>(builder.Configuration.GetSection("App
 builder.Services.Configure<PCloudOptions>(builder.Configuration.GetSection("PCloud"));
 builder.Services.AddScoped<PCloudTokenStore>();
 builder.Services.AddHttpClient<PCloudClient>();
+
+builder.Services.Configure<IndexingOptions>(builder.Configuration.GetSection("Indexing"));
+builder.Services.AddScoped<MediaIndexService>();
+builder.Services.AddHostedService<MediaIndexBackgroundService>();
 
 var keysPath = builder.Environment.IsDevelopment()
     ? Path.Combine(builder.Environment.ContentRootPath, ".keys")
@@ -69,7 +74,7 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    scope.ServiceProvider.GetRequiredService<CacheDbContext>().Database.EnsureCreated();
+    scope.ServiceProvider.GetRequiredService<CacheDbContext>().Database.Migrate();
 }
 
 if (app.Environment.IsDevelopment())
