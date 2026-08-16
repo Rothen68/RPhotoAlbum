@@ -23,6 +23,8 @@ Architecture cible :
 
 Aucun conteneur de traitement média (`worker`) n'est prévu dans cette version : la compression est en standby (voir §13).
 
+Un conteneur optionnel **logs** ([Dozzle](https://dozzle.dev/)) expose une interface de consultation des logs Docker en temps réel (port dédié, hors reverse-proxy), pour le diagnostic en exploitation. Il lit le socket Docker en lecture seule et n'a accès à aucune donnée applicative ; sa protection repose sur le même périmètre réseau (VPN/LAN) que le reste du déploiement.
+
 ## 3. Principes directeurs
 Les choix d'architecture doivent respecter les principes suivants :
 - pCloud comme source de vérité pour les albums et médias ;

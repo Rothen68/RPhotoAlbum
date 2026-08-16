@@ -31,5 +31,16 @@ services:
       - frontend
     restart: unless-stopped
 
+  # Visualiseur de logs Docker en temps réel (tous les conteneurs de l'hôte, pas seulement
+  # ceux de cette stack) — accès direct sur le port ci-dessous, protégé par le même
+  # périmètre réseau (VPN/LAN) que le reste de l'application, voir ARCHITECTURE.md §2.
+  logs:
+    image: amir20/dozzle:latest
+    ports:
+      - "8888:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
 volumes:
   backend-data:
