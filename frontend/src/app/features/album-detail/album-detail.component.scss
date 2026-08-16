@@ -36,6 +36,15 @@
   padding: 0 0.75rem;
 }
 
+// Une rangée = sa propre mini-grille à N colonnes (N = nombre de médias groupés) : un
+// grid partagé par tout le fil ne peut pas donner à une rangée de 2 photos une largeur
+// 50/50 et à une rangée de 3 une largeur 33/33/33 avec des colonnes de largeur uniforme.
+.row {
+  display: grid;
+  grid-template-columns: repeat(var(--row-cols, 1), 1fr);
+  gap: 0.5rem;
+}
+
 .insert-gap {
   display: flex;
   justify-content: center;
@@ -111,6 +120,18 @@
   }
 }
 
+// Une photo seule garde son ratio naturel (comportement actuel, image complète visible).
+// Groupée, elle serait sinon aussi haute que la plus haute du lot (chaque cellule de la
+// mini-grille de la rangée a la même largeur mais l'image y garde sa hauteur naturelle) —
+// object-fit: cover + ratio carré donne une rangée régulière, à l'image des tuiles Gallery.
+.block.grouped .media-block {
+  img,
+  video {
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+  }
+}
+
 .text-block {
   padding: 0.75rem;
 
@@ -154,6 +175,23 @@
   position: absolute;
   top: 4px;
   right: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  color: white;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 999px;
+
+  .icon {
+    font-size: 18px;
+  }
+}
+
+.group-btn {
+  position: absolute;
+  top: 4px;
+  left: 4px;
   background: rgba(0, 0, 0, 0.45);
   color: white;
   width: 28px;

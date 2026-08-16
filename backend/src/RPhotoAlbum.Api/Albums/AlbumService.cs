@@ -281,13 +281,29 @@ public class AlbumService(CacheDbContext db, PCloudClient client, ILogger<AlbumS
         return doc;
     }
 
-    public async Task<AlbumDocument> ReorderAsync(string id, List<string> itemIds, CancellationToken ct = default)
+    // rowSpans : nouvelle valeur de RowSpan par id d'item ancre (facultatif) — transportée en
+    // plus de l'ordre pour n'avoir qu'un seul appel / une seule réécriture d'album.json, y
+    // compris pour un simple "Grouper avec le suivant" qui ne change pas l'ordre (voir action
+    // Edit d'album étape 7).
+    public async Task<AlbumDocument> ReorderAsync(
+        string id, List<string> itemIds, Dictionary<string, int>? rowSpans = null, CancellationToken ct = default)
     {
         var (summary, doc) = await LoadAsync(id, ct);
         var byId = doc.Items.ToDictionary(i => i.Id);
         var reordered = itemIds.Where(byId.ContainsKey).Select(iid => byId[iid]).ToList();
         var missing = doc.Items.Where(i => !itemIds.Contains(i.Id));
         doc.Items = reordered.Concat(missing).ToList();
+
+        if (rowSpans is not null)
+        {
+            foreach (var (itemId, span) in rowSpans)
+            {
+                if (byId.TryGetValue(itemId, out var item))
+                {
+                    item.RowSpan = span;
+                }
+            }
+        }
 
         await PersistAsync(summary, doc, ct);
         return doc;
@@ -336,6 +352,7 @@ public class AlbumService(CacheDbContext db, PCloudClient client, ILogger<AlbumS
 
     private async Task PersistAsync(AlbumSummary summary, AlbumDocument doc, CancellationToken ct)
     {
+        NormalizeRowSpans(doc);
         doc.UpdatedAt = DateTime.UtcNow;
         var jsonFileId = await client.UploadTextFileAsync(
             summary.AlbumFolderId, "album.json", JsonSerializer.Serialize(doc, JsonOptions));
@@ -347,6 +364,45 @@ public class AlbumService(CacheDbContext db, PCloudClient client, ILogger<AlbumS
         summary.UpdatedAt = doc.UpdatedAt;
 
         await db.SaveChangesAsync(ct);
+    }
+
+    // Validation serveur avant persistance : plafonne RowSpan à [1,3] et le réduit au nombre
+    // réel d'items média consécutifs disponibles derrière l'ancre — corrige silencieusement
+    // les incohérences plutôt que d'échouer, car album.json est la source de vérité réelle
+    // (pas un cache reconstructible) et toute mutation (insertion de texte au milieu d'une
+    // rangée, suppression de l'ancre ou d'un item de la rangée, reorder qui casse la
+    // contiguïté) peut la rendre incohérente. Appelé à chaque écriture, quel que soit le
+    // point d'entrée (AddMedia/RemoveMedia/AddText/RemoveItem/Reorder).
+    private static void NormalizeRowSpans(AlbumDocument doc)
+    {
+        var items = doc.Items;
+        var i = 0;
+        while (i < items.Count)
+        {
+            var anchor = items[i];
+            if (anchor.Type != "media")
+            {
+                anchor.RowSpan = 1;
+                i++;
+                continue;
+            }
+
+            var available = 1;
+            while (i + available < items.Count && items[i + available].Type == "media" && available < 3)
+            {
+                available++;
+            }
+
+            var span = Math.Clamp(anchor.RowSpan, 1, available);
+            anchor.RowSpan = span;
+
+            for (var k = 1; k < span; k++)
+            {
+                items[i + k].RowSpan = 1;
+            }
+
+            i += span;
+        }
     }
 
     private async Task TryDeleteAlbumCopyAsync(AlbumItemDocument item)

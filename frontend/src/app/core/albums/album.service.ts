@@ -23,6 +23,7 @@ export interface AlbumItem {
   source: AlbumMediaRef | null;
   albumCopy: AlbumMediaRef | null;
   markdown: string | null;
+  rowSpan: number;
 }
 
 export interface AlbumDetail {
@@ -86,8 +87,8 @@ export class AlbumService {
     return this.http.delete<AlbumDetail>(`/api/albums/${id}/items/${itemId}`);
   }
 
-  reorder(id: string, itemIds: string[]): Observable<AlbumDetail> {
-    return this.http.put<AlbumDetail>(`/api/albums/${id}/order`, { itemIds });
+  reorder(id: string, itemIds: string[], rowSpans?: Record<string, number>): Observable<AlbumDetail> {
+    return this.http.put<AlbumDetail>(`/api/albums/${id}/order`, { itemIds, rowSpans });
   }
 
   thumbnailUrl(fileId: number, size = 300): string {

@@ -34,61 +34,90 @@
       </div>
     }
 
-    @for (item of a.items; track item.id; let idx = $index) {
-      <div
-        class="block"
-        cdkDrag
-        [cdkDragDisabled]="!editMode()"
-        (cdkDragMoved)="onDragMoved($event)"
-        (cdkDragEnded)="onDragEnded()"
-      >
-        @if (editMode()) {
-          <div class="reorder-controls">
-            <span class="icon material-symbols-outlined drag-handle" cdkDragHandle>drag_indicator</span>
-            <div class="stack-buttons">
-              <button type="button" class="btn-icon" [disabled]="idx === 0" (click)="moveUp(idx)" aria-label="Move up">
-                <span class="icon material-symbols-outlined">keyboard_arrow_up</span>
-              </button>
-              <button type="button" class="btn-icon" [disabled]="idx === a.items.length - 1" (click)="moveDown(idx)" aria-label="Move down">
-                <span class="icon material-symbols-outlined">keyboard_arrow_down</span>
-              </button>
-            </div>
-          </div>
-        }
+    @for (row of rows(); track row.items[0].id) {
+      @let grouped = row.items.length > 1;
+      @let lastItemId = row.items[row.items.length - 1].id;
 
-        <div class="block-content">
-          @if (item.type === 'media') {
-            <div class="media-block">
-              @if (item.mediaType === 'video') {
-                <video [src]="streamUrl(item.albumCopy!.fileId)" [poster]="thumbnailUrl(item.albumCopy!.fileId)" controls></video>
+      <div class="row" [style.--row-cols]="row.items.length">
+        @for (item of row.items; track item.id; let k = $index) {
+          @let idx = row.startIndex + k;
+
+          <div
+            class="block"
+            [class.grouped]="grouped"
+            cdkDrag
+            [cdkDragDisabled]="!editMode() || grouped"
+            (cdkDragMoved)="onDragMoved($event)"
+            (cdkDragEnded)="onDragEnded()"
+          >
+            @if (editMode() && !grouped) {
+              <div class="reorder-controls">
+                <span class="icon material-symbols-outlined drag-handle" cdkDragHandle>drag_indicator</span>
+                <div class="stack-buttons">
+                  <button type="button" class="btn-icon" [disabled]="idx === 0" (click)="moveUp(idx)" aria-label="Move up">
+                    <span class="icon material-symbols-outlined">keyboard_arrow_up</span>
+                  </button>
+                  <button type="button" class="btn-icon" [disabled]="idx === a.items.length - 1" (click)="moveDown(idx)" aria-label="Move down">
+                    <span class="icon material-symbols-outlined">keyboard_arrow_down</span>
+                  </button>
+                </div>
+              </div>
+            }
+
+            <div class="block-content">
+              @if (item.type === 'media') {
+                <div class="media-block">
+                  @if (item.mediaType === 'video') {
+                    <video [src]="streamUrl(item.albumCopy!.fileId)" [poster]="thumbnailUrl(item.albumCopy!.fileId)" controls></video>
+                  } @else {
+                    <img [src]="thumbnailUrl(item.albumCopy!.fileId)" [alt]="item.albumCopy?.name" />
+                  }
+                </div>
               } @else {
-                <img [src]="thumbnailUrl(item.albumCopy!.fileId)" [alt]="item.albumCopy?.name" />
+                @if (editingItemId() === item.id) {
+                  <app-markdown-editor class="insert-editor" [value]="draftText" (valueChange)="draftText = $event" (blurred)="commitEditText(item)" />
+                } @else {
+                  <div
+                    class="text-block card markdown-body"
+                    [class.editable]="editMode()"
+                    (click)="startEditText(item)"
+                    [innerHTML]="item.markdown | markdown"
+                  ></div>
+                }
               }
             </div>
-          } @else {
-            @if (editingItemId() === item.id) {
-              <app-markdown-editor class="insert-editor" [value]="draftText" (valueChange)="draftText = $event" (blurred)="commitEditText(item)" />
-            } @else {
-              <div
-                class="text-block card markdown-body"
-                [class.editable]="editMode()"
-                (click)="startEditText(item)"
-                [innerHTML]="item.markdown | markdown"
-              ></div>
-            }
-          }
-        </div>
 
-        @if (editMode()) {
-          <button type="button" class="btn-icon remove-btn" (click)="removeItem(item.id)" aria-label="Remove block">
-            <span class="icon material-symbols-outlined">close</span>
-          </button>
+            @if (editMode() && k === 0 && item.type === 'media') {
+              @if (grouped) {
+                <button type="button" class="btn-icon group-btn" (click)="splitGroup(row)" aria-label="Separate" title="Séparer">
+                  <span class="icon material-symbols-outlined">view_agenda</span>
+                </button>
+              } @else {
+                <button
+                  type="button"
+                  class="btn-icon group-btn"
+                  [disabled]="!row.canGrow"
+                  (click)="groupWithNext(row)"
+                  aria-label="Group with next"
+                  title="Grouper avec le suivant"
+                >
+                  <span class="icon material-symbols-outlined">view_column</span>
+                </button>
+              }
+            }
+
+            @if (editMode()) {
+              <button type="button" class="btn-icon remove-btn" (click)="removeItem(item.id)" aria-label="Remove block">
+                <span class="icon material-symbols-outlined">close</span>
+              </button>
+            }
+          </div>
         }
       </div>
 
       @if (editMode()) {
         <div class="insert-gap">
-          @if (insertingAt() === item.id) {
+          @if (insertingAt() === lastItemId) {
             <app-markdown-editor
               class="insert-editor"
               [value]="draftText"
@@ -97,7 +126,7 @@
               (blurred)="commitInsert()"
             />
           } @else {
-            <button type="button" class="insert-affordance" (click)="startInsert(item.id)" aria-label="Insert note here">
+            <button type="button" class="insert-affordance" (click)="startInsert(lastItemId)" aria-label="Insert note here">
               <span class="dashed-circle">
                 <span class="icon material-symbols-outlined">add</span>
               </span>

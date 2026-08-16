@@ -29,6 +29,12 @@ public class AlbumItemDocument
     public AlbumMediaRef? Source { get; set; }
     public AlbumMediaRef? AlbumCopy { get; set; }
     public string? Markdown { get; set; }
+
+    // Nombre d'items média consécutifs (1 à 3) formant une même rangée dans la grille de
+    // l'album, porté UNIQUEMENT par le premier item de la rangée (les suivants ont une
+    // valeur non significative, remise à 1 par AlbumService.NormalizeRowSpans). Modèle
+    // "ancré" plutôt que relatif : voir ARCHITECTURE.md / plan V2 étape 7.
+    public int RowSpan { get; set; } = 1;
 }
 
 public class AlbumMediaRef

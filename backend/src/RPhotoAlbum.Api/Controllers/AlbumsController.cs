@@ -7,11 +7,11 @@ public record CreateAlbumRequest(string Name, List<long>? InitialMediaFileIds);
 public record MediaFileIdsRequest(List<long> FileIds);
 public record AddTextRequest(string? AfterItemId, string Markdown);
 public record UpdateTextRequest(string Markdown);
-public record ReorderRequest(List<string> ItemIds);
+public record ReorderRequest(List<string> ItemIds, Dictionary<string, int>? RowSpans);
 
 public record AlbumSummaryDto(string Id, string Name, int ItemCount, long? CoverFileId, DateTime UpdatedAt);
 public record AlbumMediaRefDto(long FileId, string Name);
-public record AlbumItemDto(string Id, string Type, string? MediaType, DateTime? Date, AlbumMediaRefDto? Source, AlbumMediaRefDto? AlbumCopy, string? Markdown);
+public record AlbumItemDto(string Id, string Type, string? MediaType, DateTime? Date, AlbumMediaRefDto? Source, AlbumMediaRefDto? AlbumCopy, string? Markdown, int RowSpan);
 public record AlbumDetailDto(string Id, string Name, DateTime UpdatedAt, List<AlbumItemDto> Items);
 public record AlbumMembershipDto(string AlbumId, string Name, bool ContainsAll);
 
@@ -170,7 +170,7 @@ public class AlbumsController(AlbumService albums) : ControllerBase
     {
         try
         {
-            var doc = await albums.ReorderAsync(id, request.ItemIds, ct);
+            var doc = await albums.ReorderAsync(id, request.ItemIds, request.RowSpans, ct);
             return Ok(ToDto(doc));
         }
         catch (KeyNotFoundException)
@@ -193,5 +193,6 @@ public class AlbumsController(AlbumService albums) : ControllerBase
             item.Date,
             item.Source is { } s ? new AlbumMediaRefDto(s.FileId, s.Name) : null,
             item.AlbumCopy is { } c ? new AlbumMediaRefDto(c.FileId, c.Name) : null,
-            item.Markdown);
+            item.Markdown,
+            item.RowSpan);
 }

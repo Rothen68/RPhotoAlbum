@@ -1,9 +1,10 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CdkDragDrop, CdkDragMove, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlbumDetail, AlbumItem, AlbumService } from '../../core/albums/album.service';
 import { MarkdownEditorComponent } from '../../shared/markdown-editor/markdown-editor.component';
 import { MarkdownPipe } from '../../shared/markdown.pipe';
+import { AlbumRow, groupIntoRows } from './album-layout';
 
 // CDK n'auto-scrolle de façon fiable que les conteneurs explicitement scrollables
 // (overflow: auto/scroll) — pas le scroll naturel de la page/fenêtre utilisé ici,
@@ -38,6 +39,8 @@ export class AlbumDetailComponent implements OnInit {
   protected readonly insertingAt = signal<string | null | undefined>(undefined);
   protected readonly editingItemId = signal<string | null>(null);
   protected draftText = '';
+
+  protected readonly rows = computed(() => groupIntoRows(this.album()?.items ?? []));
 
   private autoScrollSpeed = 0;
   private autoScrollFrame: number | null = null;
@@ -116,6 +119,27 @@ export class AlbumDetailComponent implements OnInit {
     }
 
     this.albumService.updateText(this.albumId, item.id, text).subscribe((album) => this.album.set(album));
+  }
+
+  // --- Layout en grille (§11.7) ---
+
+  // Bouton unique par rangée média : regroupe avec le suivant si pas encore groupée (ou pas
+  // au maximum), sépare si déjà groupée — voir plan V2 étape 7 (UI volontairement simple,
+  // pas de glisser-déposer spatial à ce stade, réservé à l'étape 8).
+  groupWithNext(row: AlbumRow): void {
+    if (row.items.length !== 1 || !row.canGrow) {
+      return;
+    }
+    this.setRowSpan(row.items[0].id, row.items.length + 1);
+  }
+
+  splitGroup(row: AlbumRow): void {
+    this.setRowSpan(row.items[0].id, 1);
+  }
+
+  private setRowSpan(itemId: string, span: number): void {
+    const ids = (this.album()?.items ?? []).map((i) => i.id);
+    this.albumService.reorder(this.albumId, ids, { [itemId]: span }).subscribe((album) => this.album.set(album));
   }
 
   // --- Reorder (§11.6) ---
