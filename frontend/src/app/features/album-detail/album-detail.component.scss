@@ -79,13 +79,18 @@
   align-items: flex-start;
   gap: 0.5rem;
 
-  &.dragging {
-    opacity: 0.4;
+  &.cdk-drag-preview {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    border-radius: var(--radius);
   }
 
-  &.drop-target {
-    box-shadow: inset 0 2px 0 var(--color-accent);
+  &.cdk-drag-placeholder {
+    opacity: 0.3;
   }
+}
+
+.cdk-drop-list-dragging .block:not(.cdk-drag-placeholder) {
+  transition: transform 200ms ease;
 }
 
 .block-content {
@@ -124,6 +129,7 @@
     cursor: grab;
     color: var(--color-neutral-500);
     font-size: 20px;
+    touch-action: none;
   }
 
   .stack-buttons {

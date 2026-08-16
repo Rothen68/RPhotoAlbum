@@ -1,4 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlbumDetail, AlbumItem, AlbumService } from '../../core/albums/album.service';
@@ -6,7 +7,7 @@ import { AlbumDetail, AlbumItem, AlbumService } from '../../core/albums/album.se
 @Component({
   selector: 'app-album-detail',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, DragDropModule],
   templateUrl: './album-detail.component.html',
   styleUrl: './album-detail.component.scss',
   host: { class: 'page' },
@@ -25,9 +26,6 @@ export class AlbumDetailComponent implements OnInit {
   protected readonly insertingAt = signal<string | null | undefined>(undefined);
   protected readonly editingItemId = signal<string | null>(null);
   protected draftText = '';
-
-  protected readonly draggedItemId = signal<string | null>(null);
-  protected readonly dropTargetId = signal<string | null>(null);
 
   ngOnInit(): void {
     this.albumId = this.route.snapshot.paramMap.get('id')!;
@@ -132,40 +130,14 @@ export class AlbumDetailComponent implements OnInit {
     this.reorderTo(ids);
   }
 
-  onDragStart(item: AlbumItem): void {
-    this.draggedItemId.set(item.id);
-  }
-
-  onDragOver(event: DragEvent, item: AlbumItem): void {
-    event.preventDefault();
-    if (this.draggedItemId() && this.draggedItemId() !== item.id) {
-      this.dropTargetId.set(item.id);
-    }
-  }
-
-  onDragEnd(): void {
-    this.draggedItemId.set(null);
-    this.dropTargetId.set(null);
-  }
-
-  onDrop(target: AlbumItem): void {
-    const draggedId = this.draggedItemId();
-    this.draggedItemId.set(null);
-    this.dropTargetId.set(null);
-    if (!draggedId || draggedId === target.id) {
+  onCdkDrop(event: CdkDragDrop<AlbumItem[]>): void {
+    if (event.previousIndex === event.currentIndex) {
       return;
     }
 
     const items = this.album()?.items ?? [];
     const ids = items.map((i) => i.id);
-    const fromIndex = ids.indexOf(draggedId);
-    if (fromIndex < 0) {
-      return;
-    }
-    ids.splice(fromIndex, 1);
-    const toIndex = ids.indexOf(target.id);
-    ids.splice(toIndex, 0, draggedId);
-
+    moveItemInArray(ids, event.previousIndex, event.currentIndex);
     this.reorderTo(ids);
   }
 

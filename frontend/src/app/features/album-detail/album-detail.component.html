@@ -13,7 +13,7 @@
     <p class="muted empty-state">No media yet. Add photos from the Gallery.</p>
   }
 
-  <div class="feed">
+  <div class="feed" cdkDropList [cdkDropListData]="a.items" (cdkDropListDropped)="onCdkDrop($event)">
     @if (!reorderMode()) {
       <div class="insert-gap">
         @if (insertingAt() === null) {
@@ -35,19 +35,10 @@
     }
 
     @for (item of a.items; track item.id; let idx = $index) {
-      <div
-        class="block"
-        [class.dragging]="draggedItemId() === item.id"
-        [class.drop-target]="dropTargetId() === item.id"
-        [attr.draggable]="reorderMode()"
-        (dragstart)="onDragStart(item)"
-        (dragover)="onDragOver($event, item)"
-        (drop)="onDrop(item)"
-        (dragend)="onDragEnd()"
-      >
+      <div class="block" cdkDrag [cdkDragDisabled]="!reorderMode()">
         @if (reorderMode()) {
           <div class="reorder-controls">
-            <span class="icon material-symbols-outlined drag-handle">drag_indicator</span>
+            <span class="icon material-symbols-outlined drag-handle" cdkDragHandle>drag_indicator</span>
             <div class="stack-buttons">
               <button type="button" class="btn-icon" [disabled]="idx === 0" (click)="moveUp(idx)" aria-label="Move up">
                 <span class="icon material-symbols-outlined">keyboard_arrow_up</span>
