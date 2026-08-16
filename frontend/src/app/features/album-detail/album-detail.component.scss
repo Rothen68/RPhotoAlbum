@@ -29,6 +29,18 @@
   padding: 0 1rem;
 }
 
+.selection-status {
+  position: sticky;
+  top: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: var(--color-bg);
+  z-index: 9;
+}
+
 .feed {
   display: flex;
   flex-direction: column;
@@ -112,11 +124,38 @@
   position: relative;
   border-radius: var(--radius);
   overflow: hidden;
+  cursor: pointer;
 
   img,
   video {
     width: 100%;
     display: block;
+  }
+}
+
+.check-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 2px solid white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  background: rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+
+  .icon {
+    font-size: 15px;
+  }
+
+  &.checked {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-accent-contrast);
   }
 }
 

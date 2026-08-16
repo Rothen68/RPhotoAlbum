@@ -91,8 +91,8 @@ export class AlbumService {
     return this.http.put<AlbumDetail>(`/api/albums/${id}/order`, { itemIds, rowSpans });
   }
 
-  thumbnailUrl(fileId: number, size = 300): string {
-    return `/api/media/${fileId}/thumbnail?width=${size}&height=${size}`;
+  thumbnailUrl(fileId: number, size = 300, crop = true): string {
+    return `/api/media/${fileId}/thumbnail?width=${size}&height=${size}&crop=${crop}`;
   }
 
   streamUrl(fileId: number): string {

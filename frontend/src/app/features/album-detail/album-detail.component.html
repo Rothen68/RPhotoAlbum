@@ -6,6 +6,13 @@
   <button type="button" class="btn-link" (click)="toggleEdit()">{{ editMode() ? 'Done' : 'Edit' }}</button>
 </header>
 
+@if (editMode() && selectedIds().size > 0) {
+  <div class="selection-status">
+    <span class="muted">{{ selectedIds().size }} sélectionné(s)</span>
+    <button type="button" class="btn-link" (click)="clearSelection()">Désélectionner</button>
+  </div>
+}
+
 @if (loading()) {
   <p class="muted">Loading…</p>
 } @else if (album(); as a) {
@@ -46,6 +53,7 @@
             class="block"
             [class.grouped]="grouped"
             cdkDrag
+            [cdkDragData]="item"
             [cdkDragDisabled]="!editMode() || grouped"
             (cdkDragMoved)="onDragMoved($event)"
             (cdkDragEnded)="onDragEnded()"
@@ -66,11 +74,18 @@
 
             <div class="block-content">
               @if (item.type === 'media') {
-                <div class="media-block">
+                <div class="media-block" appLongPress (longPress)="onLongPress(item)" (click)="onMediaClick(item)">
                   @if (item.mediaType === 'video') {
                     <video [src]="streamUrl(item.albumCopy!.fileId)" [poster]="thumbnailUrl(item.albumCopy!.fileId)" controls></video>
                   } @else {
                     <img [src]="thumbnailUrl(item.albumCopy!.fileId)" [alt]="item.albumCopy?.name" />
+                  }
+                  @if (editMode()) {
+                    <span class="check-dot" [class.checked]="isSelected(item)">
+                      @if (isSelected(item)) {
+                        <span class="icon material-symbols-outlined">check</span>
+                      }
+                    </span>
                   }
                 </div>
               } @else {
@@ -132,4 +147,16 @@
       }
     }
   </div>
+}
+
+@let startIndex = viewerIndex();
+@if (startIndex !== null) {
+  <app-media-viewer
+    [items]="viewerItems()"
+    [startIndex]="startIndex"
+    [posterUrl]="posterUrlFn"
+    [imageUrl]="imageUrlFn"
+    [streamUrl]="streamUrlFn"
+    (closed)="viewerIndex.set(null)"
+  />
 }
