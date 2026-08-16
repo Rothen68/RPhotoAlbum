@@ -35,7 +35,13 @@
     }
 
     @for (item of a.items; track item.id; let idx = $index) {
-      <div class="block" cdkDrag [cdkDragDisabled]="!reorderMode()">
+      <div
+        class="block"
+        cdkDrag
+        [cdkDragDisabled]="!reorderMode()"
+        (cdkDragMoved)="onDragMoved($event)"
+        (cdkDragEnded)="onDragEnded()"
+      >
         @if (reorderMode()) {
           <div class="reorder-controls">
             <span class="icon material-symbols-outlined drag-handle" cdkDragHandle>drag_indicator</span>

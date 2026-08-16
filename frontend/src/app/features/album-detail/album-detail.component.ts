@@ -1,8 +1,15 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
+import { CdkDragDrop, CdkDragMove, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlbumDetail, AlbumItem, AlbumService } from '../../core/albums/album.service';
+
+// CDK n'auto-scrolle de façon fiable que les conteneurs explicitement scrollables
+// (overflow: auto/scroll) — pas le scroll naturel de la page/fenêtre utilisé ici,
+// constaté en test réel (PC et mobile) : impossible de sortir un item de la zone
+// visible pendant un glisser. Implémentation manuelle du scroll auto près des bords.
+const AUTO_SCROLL_EDGE_PX = 80;
+const AUTO_SCROLL_MAX_SPEED = 18;
 
 @Component({
   selector: 'app-album-detail',
@@ -26,6 +33,9 @@ export class AlbumDetailComponent implements OnInit {
   protected readonly insertingAt = signal<string | null | undefined>(undefined);
   protected readonly editingItemId = signal<string | null>(null);
   protected draftText = '';
+
+  private autoScrollSpeed = 0;
+  private autoScrollFrame: number | null = null;
 
   ngOnInit(): void {
     this.albumId = this.route.snapshot.paramMap.get('id')!;
@@ -131,6 +141,7 @@ export class AlbumDetailComponent implements OnInit {
   }
 
   onCdkDrop(event: CdkDragDrop<AlbumItem[]>): void {
+    this.stopAutoScroll();
     if (event.previousIndex === event.currentIndex) {
       return;
     }
@@ -139,6 +150,52 @@ export class AlbumDetailComponent implements OnInit {
     const ids = items.map((i) => i.id);
     moveItemInArray(ids, event.previousIndex, event.currentIndex);
     this.reorderTo(ids);
+  }
+
+  onDragMoved(event: CdkDragMove): void {
+    const y = event.pointerPosition.y;
+    const viewportHeight = window.innerHeight;
+
+    if (y < AUTO_SCROLL_EDGE_PX) {
+      this.autoScrollSpeed = -this.scrollSpeedFor(AUTO_SCROLL_EDGE_PX - y);
+    } else if (y > viewportHeight - AUTO_SCROLL_EDGE_PX) {
+      this.autoScrollSpeed = this.scrollSpeedFor(y - (viewportHeight - AUTO_SCROLL_EDGE_PX));
+    } else {
+      this.autoScrollSpeed = 0;
+    }
+
+    if (this.autoScrollSpeed !== 0 && this.autoScrollFrame === null) {
+      this.runAutoScroll();
+    }
+  }
+
+  onDragEnded(): void {
+    this.stopAutoScroll();
+  }
+
+  private scrollSpeedFor(distanceIntoEdgeZone: number): number {
+    const ratio = Math.min(distanceIntoEdgeZone / AUTO_SCROLL_EDGE_PX, 1);
+    return ratio * AUTO_SCROLL_MAX_SPEED;
+  }
+
+  private runAutoScroll(): void {
+    const step = (): void => {
+      if (this.autoScrollSpeed === 0) {
+        this.autoScrollFrame = null;
+        return;
+      }
+      window.scrollBy(0, this.autoScrollSpeed);
+      this.autoScrollFrame = requestAnimationFrame(step);
+    };
+    this.autoScrollFrame = requestAnimationFrame(step);
+  }
+
+  private stopAutoScroll(): void {
+    this.autoScrollSpeed = 0;
+    if (this.autoScrollFrame !== null) {
+      cancelAnimationFrame(this.autoScrollFrame);
+      this.autoScrollFrame = null;
+    }
   }
 
   private reorderTo(ids: string[]): void {
