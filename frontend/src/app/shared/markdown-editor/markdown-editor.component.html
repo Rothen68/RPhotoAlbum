@@ -1,0 +1,46 @@
+<div class="md-editor">
+  <!-- preventDefault sur mousedown : sans ça, cliquer un bouton de la barre d'outils fait
+       perdre le focus au textarea AVANT le click, ce qui déclenche (blur) côté parent et
+       ferme l'éditeur avant que l'action (gras, lien, etc.) ait pu s'appliquer. -->
+  <div class="md-toolbar" (mousedown)="$event.preventDefault()">
+    <button type="button" class="btn-icon" (click)="wrap('**')" aria-label="Gras" title="Gras">
+      <span class="icon material-symbols-outlined">format_bold</span>
+    </button>
+    <button type="button" class="btn-icon" (click)="wrap('*')" aria-label="Italique" title="Italique">
+      <span class="icon material-symbols-outlined">format_italic</span>
+    </button>
+    <button type="button" class="btn-icon" (click)="insertLink()" aria-label="Lien" title="Lien">
+      <span class="icon material-symbols-outlined">link</span>
+    </button>
+    <button type="button" class="btn-icon" (click)="insertLinePrefix('## ')" aria-label="Titre" title="Titre">
+      <span class="icon material-symbols-outlined">title</span>
+    </button>
+    <button type="button" class="btn-icon" (click)="insertLinePrefix('- ')" aria-label="Liste" title="Liste">
+      <span class="icon material-symbols-outlined">format_list_bulleted</span>
+    </button>
+    <button
+      type="button"
+      class="btn-icon preview-toggle"
+      [class.active]="previewMode()"
+      (click)="togglePreview()"
+      aria-label="Aperçu"
+      title="Aperçu"
+    >
+      <span class="icon material-symbols-outlined">visibility</span>
+    </button>
+  </div>
+
+  @if (previewMode()) {
+    <div class="md-preview markdown-body" [innerHTML]="value | markdown"></div>
+  } @else {
+    <textarea
+      #ta
+      class="input md-textarea"
+      [value]="value"
+      [placeholder]="placeholder"
+      (input)="onInput($any($event.target).value)"
+      (blur)="blurred.emit()"
+      autofocus
+    ></textarea>
+  }
+</div>

@@ -182,7 +182,6 @@ textarea.input {
   min-height: 3.5rem;
   padding: 0.5rem 0.75rem;
   resize: vertical;
-  font-style: italic;
 }
 
 /* Cartes */
@@ -194,6 +193,43 @@ textarea.input {
 
 .elev-sm {
   box-shadow: var(--elev-sm);
+}
+
+/* Contenu Markdown rendu (via [innerHTML]) : les styles scopés d'un composant ne s'appliquent
+   pas à du HTML injecté par [innerHTML] (Angular ne l'annote pas pour l'encapsulation), donc
+   ces règles vivent ici, globalement, plutôt que dans le SCSS d'un composant. */
+.markdown-body {
+  p {
+    margin: 0 0 0.5rem;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  ul,
+  ol {
+    margin: 0 0 0.5rem;
+    padding-left: 1.25rem;
+  }
+
+  h1,
+  h2,
+  h3 {
+    margin: 0 0 0.5rem;
+    line-height: 1.25;
+  }
+
+  a {
+    color: var(--color-accent);
+  }
+
+  code {
+    background: var(--color-surface-2);
+    border-radius: 4px;
+    padding: 0.1rem 0.3rem;
+    font-size: 0.875em;
+  }
 }
 
 /* Dialogues et bottom sheets */

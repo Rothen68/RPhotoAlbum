@@ -17,13 +17,13 @@
     @if (editMode()) {
       <div class="insert-gap">
         @if (insertingAt() === null) {
-          <textarea
-            class="input insert-textarea"
-            [(ngModel)]="draftText"
+          <app-markdown-editor
+            class="insert-editor"
+            [value]="draftText"
+            (valueChange)="draftText = $event"
             placeholder="Add a note…"
-            (blur)="commitInsert()"
-            autofocus
-          ></textarea>
+            (blurred)="commitInsert()"
+          />
         } @else {
           <button type="button" class="insert-affordance" (click)="startInsert(null)" aria-label="Insert note here">
             <span class="dashed-circle">
@@ -67,14 +67,14 @@
             </div>
           } @else {
             @if (editingItemId() === item.id) {
-              <textarea
-                class="input insert-textarea"
-                [(ngModel)]="draftText"
-                (blur)="commitEditText(item)"
-                autofocus
-              ></textarea>
+              <app-markdown-editor class="insert-editor" [value]="draftText" (valueChange)="draftText = $event" (blurred)="commitEditText(item)" />
             } @else {
-              <p class="text-block card" [class.editable]="editMode()" (click)="startEditText(item)">{{ item.markdown }}</p>
+              <div
+                class="text-block card markdown-body"
+                [class.editable]="editMode()"
+                (click)="startEditText(item)"
+                [innerHTML]="item.markdown | markdown"
+              ></div>
             }
           }
         </div>
@@ -89,13 +89,13 @@
       @if (editMode()) {
         <div class="insert-gap">
           @if (insertingAt() === item.id) {
-            <textarea
-              class="input insert-textarea"
-              [(ngModel)]="draftText"
+            <app-markdown-editor
+              class="insert-editor"
+              [value]="draftText"
+              (valueChange)="draftText = $event"
               placeholder="Add a note…"
-              (blur)="commitInsert()"
-              autofocus
-            ></textarea>
+              (blurred)="commitInsert()"
+            />
           } @else {
             <button type="button" class="insert-affordance" (click)="startInsert(item.id)" aria-label="Insert note here">
               <span class="dashed-circle">

@@ -1,8 +1,9 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CdkDragDrop, CdkDragMove, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
-import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlbumDetail, AlbumItem, AlbumService } from '../../core/albums/album.service';
+import { MarkdownEditorComponent } from '../../shared/markdown-editor/markdown-editor.component';
+import { MarkdownPipe } from '../../shared/markdown.pipe';
 
 // CDK n'auto-scrolle de façon fiable que les conteneurs explicitement scrollables
 // (overflow: auto/scroll) — pas le scroll naturel de la page/fenêtre utilisé ici,
@@ -14,7 +15,7 @@ const AUTO_SCROLL_MAX_SPEED = 18;
 @Component({
   selector: 'app-album-detail',
   standalone: true,
-  imports: [FormsModule, DragDropModule],
+  imports: [DragDropModule, MarkdownEditorComponent, MarkdownPipe],
   templateUrl: './album-detail.component.html',
   styleUrl: './album-detail.component.scss',
   host: { class: 'page' },

@@ -70,7 +70,7 @@
   }
 }
 
-.insert-textarea {
+.insert-editor {
   width: 100%;
 }
 
@@ -112,10 +112,7 @@
 }
 
 .text-block {
-  margin: 0;
   padding: 0.75rem;
-  font-style: italic;
-  white-space: pre-wrap;
 
   &.editable {
     cursor: text;
