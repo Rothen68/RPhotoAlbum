@@ -1,0 +1,46 @@
+<div
+  class="viewer-backdrop"
+  (click)="closed.emit()"
+  (touchstart)="onTouchStart($event)"
+  (touchend)="onTouchEnd($event)"
+>
+  <button type="button" class="btn-icon close-btn" (click)="closed.emit()" aria-label="Close">
+    <span class="icon material-symbols-outlined">close</span>
+  </button>
+
+  @if (hasPrevious()) {
+    <button
+      type="button"
+      class="btn-icon nav-btn nav-prev"
+      (click)="$event.stopPropagation(); previous()"
+      aria-label="Previous"
+    >
+      <span class="icon material-symbols-outlined">chevron_left</span>
+    </button>
+  }
+
+  @if (current(); as item) {
+    @if (item.mediaType === 'video') {
+      <video
+        [src]="streamUrl(item.fileId)"
+        [poster]="thumbnailUrl(item.fileId)"
+        controls
+        autoplay
+        (click)="$event.stopPropagation()"
+      ></video>
+    } @else {
+      <img [src]="streamUrl(item.fileId)" (click)="$event.stopPropagation()" alt="" />
+    }
+  }
+
+  @if (hasNext()) {
+    <button
+      type="button"
+      class="btn-icon nav-btn nav-next"
+      (click)="$event.stopPropagation(); next()"
+      aria-label="Next"
+    >
+      <span class="icon material-symbols-outlined">chevron_right</span>
+    </button>
+  }
+</div>
