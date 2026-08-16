@@ -103,17 +103,9 @@
   }
 }
 
-// Enveloppe partagée par le viewport CDK et la barre de date : lui donner exactement les
-// mêmes bornes (au lieu de deviner des offsets en pixels côté barre de date) garantit que la
-// piste de la barre custom correspond pixel pour pixel à la vraie scrollbar native.
-.viewport-row {
+.virtual-viewport {
   flex: 1 1 auto;
   min-height: 0;
-  position: relative;
-}
-
-.virtual-viewport {
-  height: 100%;
 }
 
 .v-row {

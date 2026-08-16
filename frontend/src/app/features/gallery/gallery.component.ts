@@ -14,7 +14,6 @@ import { ScrollingModule } from '@angular/cdk/scrolling';
 import { Subscription } from 'rxjs';
 import { DateGroup, MediaFilters, MediaItem, MediaService } from '../../core/media/media.service';
 import { AddToAlbumSheetComponent } from '../../shared/add-to-album-sheet/add-to-album-sheet.component';
-import { DateScrubberComponent } from '../../shared/date-scrubber/date-scrubber.component';
 import { LongPressDirective } from '../../shared/long-press.directive';
 import { MediaViewerComponent } from '../../shared/media-viewer/media-viewer.component';
 import { GalleryDataSource, GalleryVirtualScrollDirective, VirtualRow, buildRows, formatDateLabel } from './gallery-virtual';
@@ -33,7 +32,6 @@ const GRID_GAP_PX = 6;
     LongPressDirective,
     ScrollingModule,
     GalleryVirtualScrollDirective,
-    DateScrubberComponent,
   ],
   templateUrl: './gallery.component.html',
   styleUrl: './gallery.component.scss',
@@ -87,8 +85,6 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
     (page, items) => this.onPageLoaded(page, items),
   );
 
-  protected readonly currentRowIndex = signal(0);
-
   protected readonly searchText = signal('');
   protected readonly mediaTypeFilter = signal<'' | 'image' | 'video'>('');
   protected readonly minSizeFilter = signal<number | undefined>(undefined);
@@ -107,11 +103,10 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
-    // CDK gère le scroll hors zone Angular (perf) : cette émission arrive donc elle aussi hors
-    // zone — sans ngZone.run, currentRowIndex se met à jour mais la vue (poignée de la barre de
-    // date) n'est jamais re-rendue. Même cause que le correctif ResizeObserver ci-dessous.
+    // Suit uniquement la date visible en haut (currentTopDate, un champ simple, pas un signal)
+    // pour resynchroniser le scroll après un changement de colonnes — pas besoin de ngZone.run
+    // ici puisque rien n'en dépend pour le rendu.
     this.scrolledIndexSub = this.scrollStrategy?.scrolledIndexChange.subscribe((index) => {
-      this.ngZone.run(() => this.currentRowIndex.set(index));
       const row = this.rows()[index];
       if (row) {
         this.currentTopDate = row.date;
@@ -194,10 +189,6 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
 
   thumbnailUrl(fileId: number): string {
     return this.mediaService.thumbnailUrl(fileId);
-  }
-
-  onScrubberIndex(index: number): void {
-    this.scrollStrategy?.scrollToIndex(index, 'auto');
   }
 
   onSearchInput(value: string): void {
