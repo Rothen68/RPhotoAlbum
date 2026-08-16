@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RPhotoAlbum.Api.Data;
 using RPhotoAlbum.Api.Media;
+using RPhotoAlbum.Api.Models;
 using RPhotoAlbum.Api.PCloud;
 
 namespace RPhotoAlbum.Api.Controllers;
@@ -26,14 +27,18 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db, 
 
     // Gallery : uniquement les médias non rejetés (§6.4, §11.4).
     [HttpGet("source")]
-    public async Task<IActionResult> Source([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+    public async Task<IActionResult> Source(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string? search = null,
+        [FromQuery] string? mediaType = null,
+        [FromQuery] long? minSize = null,
+        [FromQuery] long? maxSize = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var query = db.MediaIndex.AsNoTracking()
-            .Where(m => !m.IsRejected)
-            .OrderByDescending(m => m.ModifiedAt ?? m.CreatedAt ?? m.IndexedAt);
+        var query = BuildFilteredQuery(search, mediaType, minSize, maxSize);
 
         var total = await query.CountAsync();
         var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
@@ -41,14 +46,18 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db, 
         return Ok(new { total, page, pageSize, items });
     }
 
-    // Comptage par jour des médias non rejetés, même ordre que Source — utilisé par la
-    // Gallery pour le regroupement par date et la barre de défilement par date. Volontairement
-    // léger (pas de fileId par média) : chargé une fois pour toute la bibliothèque.
+    // Comptage par jour des médias non rejetés (mêmes filtres et ordre que Source) — utilisé
+    // par la Gallery pour le regroupement par date et la barre de défilement par date.
+    // Volontairement léger (pas de fileId par média) : chargé une fois pour toute la
+    // bibliothèque (filtrée), pas paginé.
     [HttpGet("date-groups")]
-    public async Task<IActionResult> DateGroups()
+    public async Task<IActionResult> DateGroups(
+        [FromQuery] string? search = null,
+        [FromQuery] string? mediaType = null,
+        [FromQuery] long? minSize = null,
+        [FromQuery] long? maxSize = null)
     {
-        var dates = await db.MediaIndex.AsNoTracking()
-            .Where(m => !m.IsRejected)
+        var dates = await BuildFilteredQuery(search, mediaType, minSize, maxSize)
             .Select(m => m.ModifiedAt ?? m.CreatedAt ?? m.IndexedAt)
             .ToListAsync();
 
@@ -58,6 +67,33 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db, 
             .Select(g => new { date = g.Key.ToString("yyyy-MM-dd"), count = g.Count() });
 
         return Ok(groups);
+    }
+
+    // Pas de filtre localisation : aucune donnée GPS/EXIF disponible sans télécharger chaque
+    // fichier — voir ARCHITECTURE.md (V2, décision utilisateur, hors scope).
+    private IOrderedQueryable<MediaIndexEntry> BuildFilteredQuery(
+        string? search, string? mediaType, long? minSize, long? maxSize)
+    {
+        var query = db.MediaIndex.AsNoTracking().Where(m => !m.IsRejected);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(m => m.Name.Contains(search));
+        }
+        if (!string.IsNullOrWhiteSpace(mediaType))
+        {
+            query = query.Where(m => m.MediaType == mediaType);
+        }
+        if (minSize.HasValue)
+        {
+            query = query.Where(m => m.Size >= minSize.Value);
+        }
+        if (maxSize.HasValue)
+        {
+            query = query.Where(m => m.Size <= maxSize.Value);
+        }
+
+        return query.OrderByDescending(m => m.ModifiedAt ?? m.CreatedAt ?? m.IndexedAt);
     }
 
     // Rejet global depuis le mode sélection de la Gallery — voir ARCHITECTURE.md §11.4.

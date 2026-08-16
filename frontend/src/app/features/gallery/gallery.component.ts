@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { Subscription } from 'rxjs';
-import { DateGroup, MediaItem, MediaService } from '../../core/media/media.service';
+import { DateGroup, MediaFilters, MediaItem, MediaService } from '../../core/media/media.service';
 import { AddToAlbumSheetComponent } from '../../shared/add-to-album-sheet/add-to-album-sheet.component';
 import { DateScrubberComponent } from '../../shared/date-scrubber/date-scrubber.component';
 import { LongPressDirective } from '../../shared/long-press.directive';
@@ -83,18 +83,24 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly dataSource = new GalleryDataSource(
     [],
     PAGE_SIZE,
-    (page) => this.mediaService.source(page, PAGE_SIZE),
+    (page) => this.mediaService.source(page, PAGE_SIZE, this.currentFilters()),
     (page, items) => this.onPageLoaded(page, items),
   );
 
   protected readonly currentRowIndex = signal(0);
+
+  protected readonly searchText = signal('');
+  protected readonly mediaTypeFilter = signal<'' | 'image' | 'video'>('');
+  protected readonly minSizeFilter = signal<number | undefined>(undefined);
+
+  private searchDebounceTimer?: ReturnType<typeof setTimeout>;
 
   private resizeObserver?: ResizeObserver;
   private scrolledIndexSub?: Subscription;
   private currentTopDate: string | null = null;
 
   ngOnInit(): void {
-    this.mediaService.dateGroups().subscribe((groups) => {
+    this.mediaService.dateGroups(this.currentFilters()).subscribe((groups) => {
       this.dateGroups.set(groups);
       this.recomputeRows();
     });
@@ -133,6 +139,7 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
     this.scrolledIndexSub?.unsubscribe();
+    clearTimeout(this.searchDebounceTimer);
   }
 
   setColumns(count: number): void {
@@ -188,6 +195,37 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
 
   onScrubberIndex(index: number): void {
     this.scrollStrategy?.scrollToIndex(index, 'auto');
+  }
+
+  onSearchInput(value: string): void {
+    this.searchText.set(value);
+    clearTimeout(this.searchDebounceTimer);
+    this.searchDebounceTimer = setTimeout(() => this.reloadFromScratch(), 300);
+  }
+
+  setMediaTypeFilter(value: '' | 'image' | 'video'): void {
+    this.mediaTypeFilter.set(value);
+    this.reloadFromScratch();
+  }
+
+  setMinSizeFilter(value: string): void {
+    this.minSizeFilter.set(value ? Number(value) : undefined);
+    this.reloadFromScratch();
+  }
+
+  private currentFilters(): MediaFilters {
+    const filters: MediaFilters = {};
+    const search = this.searchText().trim();
+    if (search) {
+      filters.search = search;
+    }
+    if (this.mediaTypeFilter()) {
+      filters.mediaType = this.mediaTypeFilter() as 'image' | 'video';
+    }
+    if (this.minSizeFilter() !== undefined) {
+      filters.minSize = this.minSizeFilter();
+    }
+    return filters;
   }
 
   enterSelectionMode(): void {
@@ -249,18 +287,23 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
       next: () => {
         this.rejecting.set(false);
         this.cancelSelection();
-        // Le rejet décale tous les index à plat après les éléments retirés — on ne peut pas
-        // corriger le cache en place sans risquer un décalage silencieux : rechargement complet.
-        this.dataSource.invalidateMediaCache();
-        this.loadedItems.set(new Map());
-        this.currentTopDate = null;
-        this.mediaService.dateGroups().subscribe((groups) => {
-          this.dateGroups.set(groups);
-          this.recomputeRows();
-          this.scrollStrategy?.scrollToIndex(0, 'auto');
-        });
+        this.reloadFromScratch();
       },
       error: () => this.rejecting.set(false),
+    });
+  }
+
+  // Toute action changeant l'ensemble/l'ordre des médias (filtre, recherche, rejet en masse)
+  // décale les index à plat sous-jacents — on ne peut pas corriger le cache en place sans
+  // risquer un décalage silencieux : rechargement complet depuis date-groups.
+  private reloadFromScratch(): void {
+    this.dataSource.invalidateMediaCache();
+    this.loadedItems.set(new Map());
+    this.currentTopDate = null;
+    this.mediaService.dateGroups(this.currentFilters()).subscribe((groups) => {
+      this.dateGroups.set(groups);
+      this.recomputeRows();
+      this.scrollStrategy?.scrollToIndex(0, 'auto');
     });
   }
 

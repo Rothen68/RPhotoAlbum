@@ -31,11 +31,61 @@
   }
 }
 
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0 0.5rem;
+  height: 40px;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+
+  .search-icon {
+    font-size: 20px;
+    color: var(--color-text-muted);
+  }
+}
+
+.search-input {
+  flex: 1;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.9375rem;
+
+  &:focus {
+    outline: none;
+  }
+
+  &::placeholder {
+    color: var(--color-text-muted);
+  }
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.filter-select {
+  height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  padding: 0 0.4rem;
+}
+
 .column-control {
   display: flex;
   justify-content: flex-end;
   gap: 0.25rem;
-  margin-top: 0.5rem;
+  margin-left: auto;
 }
 
 .column-btn {

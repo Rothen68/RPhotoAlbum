@@ -10,18 +10,43 @@
   </header>
 
   @if (!selectionMode()) {
-    <div class="column-control">
-      @for (count of columnOptions; track count) {
-        <button
-          type="button"
-          class="btn-icon column-btn"
-          [class.active]="columns() === count"
-          (click)="setColumns(count)"
-          [attr.aria-label]="count + ' columns'"
-        >
-          {{ count }}
-        </button>
-      }
+    <div class="search-row">
+      <span class="icon material-symbols-outlined search-icon">search</span>
+      <input
+        type="text"
+        class="search-input"
+        placeholder="Rechercher par nom…"
+        [value]="searchText()"
+        (input)="onSearchInput($any($event.target).value)"
+      />
+    </div>
+
+    <div class="filter-row">
+      <select class="filter-select" (change)="setMediaTypeFilter($any($event.target).value)">
+        <option value="">Tous types</option>
+        <option value="image">Photos</option>
+        <option value="video">Vidéos</option>
+      </select>
+      <select class="filter-select" (change)="setMinSizeFilter($any($event.target).value)">
+        <option value="">Toutes tailles</option>
+        <option value="5242880">&gt; 5 Mo</option>
+        <option value="20971520">&gt; 20 Mo</option>
+        <option value="52428800">&gt; 50 Mo</option>
+      </select>
+
+      <div class="column-control">
+        @for (count of columnOptions; track count) {
+          <button
+            type="button"
+            class="btn-icon column-btn"
+            [class.active]="columns() === count"
+            (click)="setColumns(count)"
+            [attr.aria-label]="count + ' columns'"
+          >
+            {{ count }}
+          </button>
+        }
+      </div>
     </div>
   }
 </div>
