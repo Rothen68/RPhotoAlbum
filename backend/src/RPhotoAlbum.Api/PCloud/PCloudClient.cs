@@ -240,7 +240,8 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
     }
 
     // Lien direct vers le fichier original (pas une miniature) — utilisé pour la lecture
-    // vidéo et pour télécharger le contenu texte de album.json.
+    // vidéo. Mis en cache : un fichier média uploadé une fois est immuable, un lien
+    // périmé de quelques minutes ne pose aucun problème.
     public async Task<string> GetFileLinkAsync(long fileId)
     {
         var cacheKey = $"file:{fileId}";
@@ -249,6 +250,26 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
             return cached!;
         }
 
+        var resolved = await ResolveFileLinkAsync(fileId);
+        cache.Set(cacheKey, resolved, LinkCacheDuration);
+        return resolved;
+    }
+
+    // Contrairement à GetFileLinkAsync, PAS de cache ici : album.json est réécrit EN PLACE à
+    // chaque mutation d'album (même fileid conservé — voir renameifexists=0 dans
+    // UploadTextFileAsync), donc un lien mis en cache pointerait vers du contenu périmé
+    // pendant toute la durée du cache (jusqu'à 20 min) après une écriture — constaté en
+    // pratique : un bloc texte ajouté disparaissait à la relecture suivante tant que le
+    // cache n'expirait pas. album.json est petit et lu rarement (une fois par ouverture
+    // d'album) : pas besoin de la même optimisation que les vignettes/vidéos.
+    public async Task<string> DownloadTextFileAsync(long fileId)
+    {
+        var url = await ResolveFileLinkAsync(fileId);
+        return await httpClient.GetStringAsync(url);
+    }
+
+    private async Task<string> ResolveFileLinkAsync(long fileId)
+    {
         var connection = await RequireConnectionAsync();
         var url = QueryHelpers.AddQueryString($"https://{connection.Hostname}/getfilelink", new Dictionary<string, string?>
         {
@@ -264,15 +285,7 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
             throw new InvalidOperationException($"Erreur pCloud getfilelink (result={link.Result}: {link.Error}).");
         }
 
-        var resolved = $"https://{link.Hosts[0]}{link.Path}";
-        cache.Set(cacheKey, resolved, LinkCacheDuration);
-        return resolved;
-    }
-
-    public async Task<string> DownloadTextFileAsync(long fileId)
-    {
-        var url = await GetFileLinkAsync(fileId);
-        return await httpClient.GetStringAsync(url);
+        return $"https://{link.Hosts[0]}{link.Path}";
     }
 
     private async Task<PCloudConnectionInfo> RequireConnectionAsync()
