@@ -107,14 +107,6 @@
     flex: 1;
     min-width: 0;
   }
-
-  // Retour visuel pendant un drag : cette rangée est la cible d'une fusion si on relâche
-  // maintenant (dépôt sur son centre — voir updateMergeTarget).
-  &.merge-target .row {
-    outline: 3px solid var(--color-accent);
-    outline-offset: 3px;
-    border-radius: var(--radius);
-  }
 }
 
 .cdk-drop-list-dragging .row-wrapper:not(.cdk-drag-placeholder) {

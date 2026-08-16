@@ -40,8 +40,6 @@
 
       <div
         class="row-wrapper"
-        [class.merge-target]="mergeTargetRowId() === row.items[0].id"
-        [attr.data-row-id]="row.items[0].id"
         cdkDrag
         [cdkDragData]="row"
         [cdkDragDisabled]="!editMode()"
