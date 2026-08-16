@@ -14,6 +14,7 @@ public class CacheDbContext(DbContextOptions<CacheDbContext> options) : DbContex
     public DbSet<PCloudConnection> PCloudConnections => Set<PCloudConnection>();
     public DbSet<SourceFolder> SourceFolders => Set<SourceFolder>();
     public DbSet<AppConfiguration> AppConfigurations => Set<AppConfiguration>();
+    public DbSet<GeoLocationCache> GeoLocationCache => Set<GeoLocationCache>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -33,5 +34,9 @@ public class CacheDbContext(DbContextOptions<CacheDbContext> options) : DbContex
 
         modelBuilder.Entity<AppConfiguration>()
             .HasKey(c => c.Id);
+
+        modelBuilder.Entity<GeoLocationCache>()
+            .HasIndex(g => new { g.RoundedLatitude, g.RoundedLongitude })
+            .IsUnique();
     }
 }

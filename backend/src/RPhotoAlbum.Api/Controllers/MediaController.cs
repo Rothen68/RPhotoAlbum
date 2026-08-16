@@ -11,7 +11,13 @@ public record RejectMediaRequest(List<long> FileIds);
 
 [ApiController]
 [Route("api/media")]
-public class MediaController(MediaIndexService indexService, CacheDbContext db, PCloudClient client, ILogger<MediaController> logger) : ControllerBase
+public class MediaController(
+    MediaIndexService indexService,
+    MediaExifService exifService,
+    GeoLookupService geoService,
+    CacheDbContext db,
+    PCloudClient client,
+    ILogger<MediaController> logger) : ControllerBase
 {
     [HttpPost("reindex")]
     public async Task<IActionResult> Reindex(CancellationToken ct)
@@ -33,12 +39,15 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db, 
         [FromQuery] string? search = null,
         [FromQuery] string? mediaType = null,
         [FromQuery] long? minSize = null,
-        [FromQuery] long? maxSize = null)
+        [FromQuery] long? maxSize = null,
+        [FromQuery] string? country = null,
+        [FromQuery] string? region = null,
+        [FromQuery] string? city = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var query = BuildFilteredQuery(search, mediaType, minSize, maxSize);
+        var query = BuildFilteredQuery(search, mediaType, minSize, maxSize, country, region, city);
 
         var total = await query.CountAsync();
         var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
@@ -55,10 +64,13 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db, 
         [FromQuery] string? search = null,
         [FromQuery] string? mediaType = null,
         [FromQuery] long? minSize = null,
-        [FromQuery] long? maxSize = null)
+        [FromQuery] long? maxSize = null,
+        [FromQuery] string? country = null,
+        [FromQuery] string? region = null,
+        [FromQuery] string? city = null)
     {
-        var dates = await BuildFilteredQuery(search, mediaType, minSize, maxSize)
-            .Select(m => m.ModifiedAt ?? m.CreatedAt ?? m.IndexedAt)
+        var dates = await BuildFilteredQuery(search, mediaType, minSize, maxSize, country, region, city)
+            .Select(m => m.DateTaken ?? m.ModifiedAt ?? m.CreatedAt ?? m.IndexedAt)
             .ToListAsync();
 
         var groups = dates
@@ -69,10 +81,23 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db, 
         return Ok(groups);
     }
 
-    // Pas de filtre localisation : aucune donnée GPS/EXIF disponible sans télécharger chaque
-    // fichier — voir ARCHITECTURE.md (V2, décision utilisateur, hors scope).
+    // Valeurs distinctes de localisation déjà résolues (étape 9), pour peupler les filtres de
+    // la Gallery sans texte libre — un pays/région/ville mal orthographié dans un champ libre
+    // ne retournerait simplement rien.
+    [HttpGet("locations")]
+    public async Task<IActionResult> Locations()
+    {
+        var query = db.MediaIndex.AsNoTracking().Where(m => !m.IsRejected);
+
+        var countries = await query.Where(m => m.Country != null).Select(m => m.Country!).Distinct().OrderBy(c => c).ToListAsync();
+        var regions = await query.Where(m => m.Region != null).Select(m => m.Region!).Distinct().OrderBy(c => c).ToListAsync();
+        var cities = await query.Where(m => m.City != null).Select(m => m.City!).Distinct().OrderBy(c => c).ToListAsync();
+
+        return Ok(new { countries, regions, cities });
+    }
+
     private IOrderedQueryable<MediaIndexEntry> BuildFilteredQuery(
-        string? search, string? mediaType, long? minSize, long? maxSize)
+        string? search, string? mediaType, long? minSize, long? maxSize, string? country, string? region, string? city)
     {
         var query = db.MediaIndex.AsNoTracking().Where(m => !m.IsRejected);
 
@@ -92,8 +117,56 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db, 
         {
             query = query.Where(m => m.Size <= maxSize.Value);
         }
+        if (!string.IsNullOrWhiteSpace(country))
+        {
+            query = query.Where(m => m.Country == country);
+        }
+        if (!string.IsNullOrWhiteSpace(region))
+        {
+            query = query.Where(m => m.Region == region);
+        }
+        if (!string.IsNullOrWhiteSpace(city))
+        {
+            query = query.Where(m => m.City == city);
+        }
 
-        return query.OrderByDescending(m => m.ModifiedAt ?? m.CreatedAt ?? m.IndexedAt);
+        return query.OrderByDescending(m => m.DateTaken ?? m.ModifiedAt ?? m.CreatedAt ?? m.IndexedAt);
+    }
+
+    // --- Extraction EXIF + géolocalisation (étape 9) ---
+
+    [HttpPost("exif/start")]
+    public async Task<IActionResult> StartExif()
+    {
+        await exifService.StartAsync();
+        return Ok();
+    }
+
+    [HttpGet("exif/status")]
+    public async Task<IActionResult> ExifStatus(CancellationToken ct) => Ok(await exifService.GetStatusAsync(ct));
+
+    [HttpPost("exif/stop")]
+    public IActionResult StopExif()
+    {
+        exifService.Stop();
+        return Ok();
+    }
+
+    [HttpPost("geo/start")]
+    public async Task<IActionResult> StartGeo()
+    {
+        await geoService.StartAsync();
+        return Ok();
+    }
+
+    [HttpGet("geo/status")]
+    public async Task<IActionResult> GeoStatus(CancellationToken ct) => Ok(await geoService.GetStatusAsync(ct));
+
+    [HttpPost("geo/stop")]
+    public IActionResult StopGeo()
+    {
+        geoService.Stop();
+        return Ok();
     }
 
     // Rejet global depuis le mode sélection de la Gallery — voir ARCHITECTURE.md §11.4.

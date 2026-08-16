@@ -28,14 +28,31 @@ export interface DateGroup {
   count: number;
 }
 
-// Pas de filtre localisation : aucune donnée GPS/EXIF disponible sans télécharger chaque
-// fichier — hors scope (voir ARCHITECTURE.md).
 export interface MediaFilters {
   search?: string;
   mediaType?: 'image' | 'video';
   minSize?: number;
   maxSize?: number;
+  country?: string;
+  region?: string;
+  city?: string;
 }
+
+export interface MediaLocations {
+  countries: string[];
+  regions: string[];
+  cities: string[];
+}
+
+export interface ExifJobStatus {
+  running: boolean;
+  processed: number;
+  total: number;
+  startedAt: string | null;
+  lastError: string | null;
+}
+
+export type GeoJobStatus = ExifJobStatus;
 
 @Injectable({ providedIn: 'root' })
 export class MediaService {
@@ -62,6 +79,34 @@ export class MediaService {
     return this.http.post<{ rejected: number }>('/api/media/reject', { fileIds });
   }
 
+  locations(): Observable<MediaLocations> {
+    return this.http.get<MediaLocations>('/api/media/locations');
+  }
+
+  startExif(): Observable<void> {
+    return this.http.post<void>('/api/media/exif/start', {});
+  }
+
+  exifStatus(): Observable<ExifJobStatus> {
+    return this.http.get<ExifJobStatus>('/api/media/exif/status');
+  }
+
+  stopExif(): Observable<void> {
+    return this.http.post<void>('/api/media/exif/stop', {});
+  }
+
+  startGeo(): Observable<void> {
+    return this.http.post<void>('/api/media/geo/start', {});
+  }
+
+  geoStatus(): Observable<GeoJobStatus> {
+    return this.http.get<GeoJobStatus>('/api/media/geo/status');
+  }
+
+  stopGeo(): Observable<void> {
+    return this.http.post<void>('/api/media/geo/stop', {});
+  }
+
   thumbnailUrl(fileId: number, size = 300, crop = true): string {
     return `/api/media/${fileId}/thumbnail?width=${size}&height=${size}&crop=${crop}`;
   }
@@ -83,6 +128,15 @@ export class MediaService {
     }
     if (filters.maxSize !== undefined) {
       params = params.set('maxSize', filters.maxSize);
+    }
+    if (filters.country) {
+      params = params.set('country', filters.country);
+    }
+    if (filters.region) {
+      params = params.set('region', filters.region);
+    }
+    if (filters.city) {
+      params = params.set('city', filters.city);
     }
     return params;
   }

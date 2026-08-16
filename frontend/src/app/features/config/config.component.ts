@@ -1,12 +1,14 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AlbumService } from '../../core/albums/album.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { AppConfiguration, ConfigService, SourceFolder } from '../../core/config/config.service';
-import { MediaService } from '../../core/media/media.service';
+import { ExifJobStatus, GeoJobStatus, MediaService } from '../../core/media/media.service';
 import { PCloudService, PCloudStatus } from '../../core/pcloud/pcloud.service';
 import { PCloudFolderPickerComponent, PCloudFolderRef } from '../../shared/pcloud-folder-picker/pcloud-folder-picker.component';
 import { APP_VERSION } from '../../core/version';
+
+const STATUS_POLL_MS = 3000;
 
 type PickerMode = 'album' | 'source' | null;
 
@@ -18,7 +20,7 @@ type PickerMode = 'album' | 'source' | null;
   styleUrl: './config.component.scss',
   host: { class: 'page' },
 })
-export class ConfigComponent implements OnInit {
+export class ConfigComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly configService = inject(ConfigService);
@@ -38,6 +40,12 @@ export class ConfigComponent implements OnInit {
   protected readonly appVersion = APP_VERSION;
   protected readonly connectUrl = this.pcloud.connectUrl;
 
+  protected readonly exifStatus = signal<ExifJobStatus | null>(null);
+  protected readonly geoStatus = signal<GeoJobStatus | null>(null);
+
+  private exifPollTimer?: ReturnType<typeof setTimeout>;
+  private geoPollTimer?: ReturnType<typeof setTimeout>;
+
   ngOnInit(): void {
     const result = this.route.snapshot.queryParamMap.get('pcloud');
     if (result === 'connected') {
@@ -51,6 +59,13 @@ export class ConfigComponent implements OnInit {
     this.refreshPCloudStatus();
     this.loadConfig();
     this.refreshIndexedCount();
+    this.refreshExifStatus();
+    this.refreshGeoStatus();
+  }
+
+  ngOnDestroy(): void {
+    clearTimeout(this.exifPollTimer);
+    clearTimeout(this.geoPollTimer);
   }
 
   private refreshPCloudStatus(): void {
@@ -162,5 +177,46 @@ export class ConfigComponent implements OnInit {
 
   logout(): void {
     this.auth.logout().subscribe(() => this.router.navigateByUrl('/login'));
+  }
+
+  // --- Extraction EXIF + géolocalisation (étape 9) ---
+
+  startExif(): void {
+    this.mediaService.startExif().subscribe(() => this.refreshExifStatus());
+  }
+
+  stopExif(): void {
+    this.mediaService.stopExif().subscribe(() => this.refreshExifStatus());
+  }
+
+  startGeo(): void {
+    this.mediaService.startGeo().subscribe(() => this.refreshGeoStatus());
+  }
+
+  stopGeo(): void {
+    this.mediaService.stopGeo().subscribe(() => this.refreshGeoStatus());
+  }
+
+  // Re-sondage tant que le job tourne (setTimeout plutôt qu'un intervalle fixe : évite
+  // d'empiler des requêtes si une réponse tarde) — la progression elle-même vient toujours du
+  // serveur (recalculée depuis la base), jamais estimée côté client.
+  private refreshExifStatus(): void {
+    clearTimeout(this.exifPollTimer);
+    this.mediaService.exifStatus().subscribe((status) => {
+      this.exifStatus.set(status);
+      if (status.running) {
+        this.exifPollTimer = setTimeout(() => this.refreshExifStatus(), STATUS_POLL_MS);
+      }
+    });
+  }
+
+  private refreshGeoStatus(): void {
+    clearTimeout(this.geoPollTimer);
+    this.mediaService.geoStatus().subscribe((status) => {
+      this.geoStatus.set(status);
+      if (status.running) {
+        this.geoPollTimer = setTimeout(() => this.refreshGeoStatus(), STATUS_POLL_MS);
+      }
+    });
   }
 }

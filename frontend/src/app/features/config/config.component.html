@@ -72,6 +72,52 @@
 </section>
 
 <section>
+  <h2>Dates de prise de vue (EXIF)</h2>
+  <p class="muted">
+    Lit la date réelle de prise de vue (et les coordonnées GPS si présentes) dans chaque photo,
+    pour un regroupement par date plus précis que la date d'import.
+  </p>
+  @if (exifStatus(); as status) {
+    <p>{{ status.processed }} / {{ status.total }} photos traitées.</p>
+    <div class="progress-bar">
+      <div class="progress-bar-fill" [style.width.%]="status.total > 0 ? (status.processed / status.total) * 100 : 0"></div>
+    </div>
+    @if (status.lastError) {
+      <p class="error">{{ status.lastError }}</p>
+    }
+    @if (status.running) {
+      <button type="button" (click)="stopExif()">Arrêter</button>
+    } @else {
+      <button type="button" (click)="startExif()">Démarrer l'extraction EXIF</button>
+    }
+  }
+</section>
+
+<section>
+  <h2>Géolocalisation (pays / région / département / ville)</h2>
+  <p class="muted">
+    Résout pays/région/département/ville pour les photos avec coordonnées GPS, via
+    OpenStreetMap Nominatim. Nécessite d'avoir déjà extrait l'EXIF ci-dessus. Volontairement
+    lent (limite d'usage de Nominatim) : les photos prises au même endroit ne comptent qu'une
+    seule requête.
+  </p>
+  @if (geoStatus(); as status) {
+    <p>{{ status.processed }} / {{ status.total }} lieux résolus.</p>
+    <div class="progress-bar">
+      <div class="progress-bar-fill" [style.width.%]="status.total > 0 ? (status.processed / status.total) * 100 : 0"></div>
+    </div>
+    @if (status.lastError) {
+      <p class="error">{{ status.lastError }}</p>
+    }
+    @if (status.running) {
+      <button type="button" (click)="stopGeo()">Arrêter</button>
+    } @else {
+      <button type="button" (click)="startGeo()">Démarrer la géolocalisation</button>
+    }
+  }
+</section>
+
+<section>
   <button type="button" (click)="logout()">Se déconnecter</button>
 </section>
 

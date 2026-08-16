@@ -48,6 +48,33 @@
         }
       </div>
     </div>
+
+    @if (locations().countries.length > 0) {
+      <div class="filter-row">
+        <select class="filter-select" (change)="setCountryFilter($any($event.target).value)">
+          <option value="">Tous pays</option>
+          @for (country of locations().countries; track country) {
+            <option [value]="country">{{ country }}</option>
+          }
+        </select>
+        @if (locations().regions.length > 0) {
+          <select class="filter-select" (change)="setRegionFilter($any($event.target).value)">
+            <option value="">Toutes régions</option>
+            @for (region of locations().regions; track region) {
+              <option [value]="region">{{ region }}</option>
+            }
+          </select>
+        }
+        @if (locations().cities.length > 0) {
+          <select class="filter-select" (change)="setCityFilter($any($event.target).value)">
+            <option value="">Toutes villes</option>
+            @for (city of locations().cities; track city) {
+              <option [value]="city">{{ city }}</option>
+            }
+          </select>
+        }
+      </div>
+    }
   }
 </div>
 

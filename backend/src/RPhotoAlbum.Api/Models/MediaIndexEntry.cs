@@ -20,4 +20,25 @@ public class MediaIndexEntry
 
     // Rejet global (choix utilisateur, pas une donnée reconstructible) — voir ARCHITECTURE.md §6.4, §12.
     public bool IsRejected { get; set; }
+
+    // --- EXIF (étape 9) — reconstructible depuis le fichier pCloud, comme le reste de l'index. ---
+
+    // Date de prise de vue réelle (EXIF DateTimeOriginal), par opposition à ModifiedAt/CreatedAt
+    // qui reflètent la date d'upload sur pCloud — voir constat V2 : ~70% de la bibliothèque
+    // importée en une fois partage la même date de fichier.
+    public DateTime? DateTaken { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
+    // Marque le passage du job d'extraction EXIF, que des données aient été trouvées ou non —
+    // distingue "jamais traité" de "traité, rien à extraire" (sinon un JPEG sans EXIF serait
+    // retraité indéfiniment à chaque lancement du job).
+    public DateTime? ExifProcessedAt { get; set; }
+
+    // Résultat du géocodage inverse (Nominatim) des coordonnées ci-dessus, via GeoLocationCache.
+    public string? Country { get; set; }
+    public string? Region { get; set; }
+    public string? County { get; set; }
+    public string? City { get; set; }
+    public DateTime? GeoProcessedAt { get; set; }
 }

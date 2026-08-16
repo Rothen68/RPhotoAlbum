@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { Subscription } from 'rxjs';
-import { DateGroup, MediaFilters, MediaItem, MediaService } from '../../core/media/media.service';
+import { DateGroup, MediaFilters, MediaItem, MediaLocations, MediaService } from '../../core/media/media.service';
 import { AddToAlbumSheetComponent } from '../../shared/add-to-album-sheet/add-to-album-sheet.component';
 import { LongPressDirective } from '../../shared/long-press.directive';
 import { MediaViewerComponent } from '../../shared/media-viewer/media-viewer.component';
@@ -89,6 +89,13 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly mediaTypeFilter = signal<'' | 'image' | 'video'>('');
   protected readonly minSizeFilter = signal<number | undefined>(undefined);
 
+  // Peuplées uniquement avec des valeurs déjà résolues (étape 9) — pas de texte libre, un pays
+  // mal orthographié ne retournerait simplement rien.
+  protected readonly locations = signal<MediaLocations>({ countries: [], regions: [], cities: [] });
+  protected readonly countryFilter = signal('');
+  protected readonly regionFilter = signal('');
+  protected readonly cityFilter = signal('');
+
   private searchDebounceTimer?: ReturnType<typeof setTimeout>;
 
   private resizeObserver?: ResizeObserver;
@@ -100,6 +107,7 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
       this.dateGroups.set(groups);
       this.recomputeRows();
     });
+    this.mediaService.locations().subscribe((locations) => this.locations.set(locations));
   }
 
   ngAfterViewInit(): void {
@@ -207,6 +215,21 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
     this.reloadFromScratch();
   }
 
+  setCountryFilter(value: string): void {
+    this.countryFilter.set(value);
+    this.reloadFromScratch();
+  }
+
+  setRegionFilter(value: string): void {
+    this.regionFilter.set(value);
+    this.reloadFromScratch();
+  }
+
+  setCityFilter(value: string): void {
+    this.cityFilter.set(value);
+    this.reloadFromScratch();
+  }
+
   private currentFilters(): MediaFilters {
     const filters: MediaFilters = {};
     const search = this.searchText().trim();
@@ -218,6 +241,15 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     if (this.minSizeFilter() !== undefined) {
       filters.minSize = this.minSizeFilter();
+    }
+    if (this.countryFilter()) {
+      filters.country = this.countryFilter();
+    }
+    if (this.regionFilter()) {
+      filters.region = this.regionFilter();
+    }
+    if (this.cityFilter()) {
+      filters.city = this.cityFilter();
     }
     return filters;
   }

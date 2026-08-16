@@ -39,6 +39,15 @@ builder.Services.Configure<IndexingOptions>(builder.Configuration.GetSection("In
 builder.Services.AddScoped<MediaIndexService>();
 builder.Services.AddHostedService<MediaIndexBackgroundService>();
 
+builder.Services.AddScoped<MediaExifService>();
+
+// User-Agent personnalisé obligatoire par la politique d'usage Nominatim (pas celui, générique,
+// de HttpClient) — voir GeoLookupService.
+builder.Services.AddHttpClient<GeoLookupService>(client =>
+{
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("RPhotoAlbum/1.0 (usage personnel, self-hosted)");
+});
+
 builder.Services.AddScoped<AlbumService>();
 
 var keysPath = builder.Environment.IsDevelopment()

@@ -268,6 +268,21 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
         return await httpClient.GetStringAsync(url);
     }
 
+    // Téléchargement partiel (en-tête HTTP Range) — l'EXIF (et le TIFF/IFD dont dérivent les
+    // formats RAW comme le CR2) se trouve en tête de fichier, pas besoin des dizaines de Mo
+    // du fichier complet pour l'extraire (étape 9). Réutilise GetFileLinkAsync (mis en cache,
+    // fichier immuable une fois uploadé).
+    public async Task<byte[]> DownloadPartialAsync(long fileId, int maxBytes, CancellationToken ct = default)
+    {
+        var url = await GetFileLinkAsync(fileId);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Range = new RangeHeaderValue(0, maxBytes - 1);
+
+        using var response = await httpClient.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsByteArrayAsync(ct);
+    }
+
     private async Task<string> ResolveFileLinkAsync(long fileId)
     {
         var connection = await RequireConnectionAsync();
