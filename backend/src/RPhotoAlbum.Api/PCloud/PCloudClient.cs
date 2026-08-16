@@ -3,13 +3,21 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 namespace RPhotoAlbum.Api.PCloud;
 
 // Encapsule les appels API pCloud — voir ARCHITECTURE.md §9.3.
-public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options, PCloudTokenStore tokenStore)
+public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options, PCloudTokenStore tokenStore, IMemoryCache cache)
 {
+    // Durée de mise en cache des liens résolus (miniature/fichier), volontairement bien plus
+    // courte que la durée de validité réelle des liens pCloud (non documentée précisément,
+    // mais très supérieure à ça en pratique) — réduit les appels répétés à getthumblink/
+    // getfilelink (coûteux, et pCloud peut être lent à générer une miniature jamais demandée
+    // avant) sans risquer de servir un lien expiré. Voir retour utilisateur du 16/08 : chargement
+    // de plusieurs minutes sur un lot de ~45k photos jamais miniaturées par pCloud auparavant.
+    private static readonly TimeSpan LinkCacheDuration = TimeSpan.FromMinutes(20);
     private const string AuthorizeUrl = "https://my.pcloud.com/oauth2/authorize";
 
     public string BuildAuthorizeUrl(string state)
@@ -75,6 +83,12 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
 
     public async Task<string> GetThumbLinkAsync(long fileId, int width, int height, bool crop = false)
     {
+        var cacheKey = $"thumb:{fileId}:{width}x{height}:{crop}";
+        if (cache.TryGetValue(cacheKey, out string? cached))
+        {
+            return cached!;
+        }
+
         var connection = await RequireConnectionAsync();
         var query = new Dictionary<string, string?>
         {
@@ -94,7 +108,9 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
             throw new InvalidOperationException($"Erreur pCloud getthumblink (result={thumb.Result}: {thumb.Error}).");
         }
 
-        return $"https://{thumb.Hosts[0]}{thumb.Path}";
+        var resolved = $"https://{thumb.Hosts[0]}{thumb.Path}";
+        cache.Set(cacheKey, resolved, LinkCacheDuration);
+        return resolved;
     }
 
     public async Task<(long FolderId, string Path)> CreateFolderAsync(long parentFolderId, string name)
@@ -227,6 +243,12 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
     // vidéo et pour télécharger le contenu texte de album.json.
     public async Task<string> GetFileLinkAsync(long fileId)
     {
+        var cacheKey = $"file:{fileId}";
+        if (cache.TryGetValue(cacheKey, out string? cached))
+        {
+            return cached!;
+        }
+
         var connection = await RequireConnectionAsync();
         var url = QueryHelpers.AddQueryString($"https://{connection.Hostname}/getfilelink", new Dictionary<string, string?>
         {
@@ -242,7 +264,9 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
             throw new InvalidOperationException($"Erreur pCloud getfilelink (result={link.Result}: {link.Error}).");
         }
 
-        return $"https://{link.Hosts[0]}{link.Path}";
+        var resolved = $"https://{link.Hosts[0]}{link.Path}";
+        cache.Set(cacheKey, resolved, LinkCacheDuration);
+        return resolved;
     }
 
     public async Task<string> DownloadTextFileAsync(long fileId)

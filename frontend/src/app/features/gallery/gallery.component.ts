@@ -87,6 +87,8 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
     (page, items) => this.onPageLoaded(page, items),
   );
 
+  protected readonly currentRowIndex = signal(0);
+
   private resizeObserver?: ResizeObserver;
   private scrolledIndexSub?: Subscription;
   private currentTopDate: string | null = null;
@@ -100,6 +102,7 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.scrolledIndexSub = this.scrollStrategy?.scrolledIndexChange.subscribe((index) => {
+      this.currentRowIndex.set(index);
       const row = this.rows()[index];
       if (row) {
         this.currentTopDate = row.date;

@@ -32,6 +32,7 @@ builder.Services.AddDbContext<CacheDbContext>(options =>
 builder.Services.Configure<AppAuthOptions>(builder.Configuration.GetSection("App"));
 builder.Services.Configure<PCloudOptions>(builder.Configuration.GetSection("PCloud"));
 builder.Services.AddScoped<PCloudTokenStore>();
+builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<PCloudClient>();
 
 builder.Services.Configure<IndexingOptions>(builder.Configuration.GetSection("Indexing"));

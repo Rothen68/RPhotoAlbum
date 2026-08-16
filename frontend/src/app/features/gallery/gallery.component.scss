@@ -89,12 +89,27 @@
   background: var(--color-surface);
   cursor: pointer;
   transition: transform 120ms ease-out;
+  // pCloud peut mettre du temps à générer une miniature jamais demandée avant (retour
+  // utilisateur : plusieurs minutes sur un lot de photos jamais vues via aucune interface
+  // pCloud) — pulsation tant que l'image n'a pas fini de charger, pour ne pas donner
+  // l'impression d'un affichage cassé pendant l'attente.
+  animation: tile-pulse 1.6s ease-in-out infinite;
 
   img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
+    opacity: 0;
+    transition: opacity 200ms ease-out;
+
+    &.loaded {
+      opacity: 1;
+    }
+  }
+
+  &:has(img.loaded) {
+    animation: none;
   }
 
   &.selected {
@@ -104,10 +119,20 @@
   }
 }
 
+@keyframes tile-pulse {
+  0%,
+  100% {
+    background: var(--color-surface);
+  }
+  50% {
+    background: var(--color-surface-2);
+  }
+}
+
 .tile-placeholder {
   height: 100%;
   border-radius: 8px;
-  background: var(--color-surface);
+  animation: tile-pulse 1.6s ease-in-out infinite;
 }
 
 .video-glyph {

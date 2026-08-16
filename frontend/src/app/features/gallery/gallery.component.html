@@ -47,7 +47,11 @@
               appLongPress
               (longPress)="onLongPress(media)"
             >
-              <img [src]="thumbnailUrl(media.pCloudFileId)" [alt]="media.name" />
+              <img
+                [src]="thumbnailUrl(media.pCloudFileId)"
+                [alt]="media.name"
+                (load)="$event.target.classList.add('loaded')"
+              />
 
               @if (media.mediaType === 'video') {
                 <span class="icon material-symbols-outlined video-glyph">play_circle</span>
@@ -71,7 +75,7 @@
 </cdk-virtual-scroll-viewport>
 
 @if (!selectionMode() && rows().length > 0) {
-  <app-date-scrubber [rows]="rows()" (indexChange)="onScrubberIndex($event)" />
+  <app-date-scrubber [rows]="rows()" [currentIndex]="currentRowIndex()" (indexChange)="onScrubberIndex($event)" />
 }
 
 @if (selectionMode()) {

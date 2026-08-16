@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Input, Output, computed, signal } from '@angular/core';
 import { VirtualRow, formatDateLabel } from '../../features/gallery/gallery-virtual';
 
 // Barre de défilement rapide par date, façon Google Photos/iOS Photos : une poignée
@@ -13,10 +13,18 @@ import { VirtualRow, formatDateLabel } from '../../features/gallery/gallery-virt
 })
 export class DateScrubberComponent {
   @Input({ required: true }) rows!: VirtualRow[];
+  // Index de la rangée actuellement en haut du viewport, mis à jour par le parent quel que
+  // soit le mécanisme de scroll (molette, barre native, ou la poignée elle-même) — sans ça,
+  // la poignée ne reflétait que ses propres interactions de drag, pas le scroll réel (bug
+  // signalé : la poignée violette ne correspondait pas à la position de la barre native).
+  @Input() currentIndex = 0;
   @Output() indexChange = new EventEmitter<number>();
 
   protected readonly dragging = signal(false);
-  protected readonly thumbRatio = signal(0);
+  private readonly dragRatio = signal(0);
+  protected readonly thumbRatio = computed(() =>
+    this.dragging() ? this.dragRatio() : this.rows.length > 0 ? Math.min(1, this.currentIndex / this.rows.length) : 0,
+  );
   protected readonly label = signal('');
 
   onPointerDown(event: PointerEvent): void {
@@ -50,7 +58,7 @@ export class DateScrubberComponent {
     const index = Math.min(this.rows.length - 1, Math.floor(ratio * this.rows.length));
     const row = this.rows[index];
 
-    this.thumbRatio.set(ratio);
+    this.dragRatio.set(ratio);
     this.label.set(formatDateLabel(row.date));
     this.indexChange.emit(index);
   }

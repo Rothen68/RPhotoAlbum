@@ -83,12 +83,15 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db, 
     }
 
     // Redirige vers la miniature pCloud sans exposer le jeton d'accès au frontend — voir ARCHITECTURE.md §5.4.
+    // Cache-Control sur la redirection elle-même (en plus du cache mémoire côté PCloudClient) :
+    // évite de repasser par le backend pour un média déjà vu dans la session (scroll aller-retour).
     [HttpGet("{fileId:long}/thumbnail")]
     public async Task<IActionResult> Thumbnail(long fileId, [FromQuery] int width = 300, [FromQuery] int height = 300, [FromQuery] bool crop = true)
     {
         try
         {
             var url = await client.GetThumbLinkAsync(fileId, width, height, crop);
+            Response.Headers.CacheControl = "private, max-age=1200";
             return Redirect(url);
         }
         catch (Exception ex)
@@ -105,6 +108,7 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db, 
         try
         {
             var url = await client.GetFileLinkAsync(fileId);
+            Response.Headers.CacheControl = "private, max-age=1200";
             return Redirect(url);
         }
         catch (Exception ex)
