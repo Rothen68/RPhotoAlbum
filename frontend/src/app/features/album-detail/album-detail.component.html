@@ -88,22 +88,18 @@
             </div>
 
             @if (editMode() && k === 0 && item.type === 'media') {
-              @if (grouped) {
-                <button type="button" class="btn-icon group-btn" (click)="splitGroup(row)" aria-label="Separate" title="Séparer">
-                  <span class="icon material-symbols-outlined">view_agenda</span>
-                </button>
-              } @else {
-                <button
-                  type="button"
-                  class="btn-icon group-btn"
-                  [disabled]="!row.canGrow"
-                  (click)="groupWithNext(row)"
-                  aria-label="Group with next"
-                  title="Grouper avec le suivant"
-                >
-                  <span class="icon material-symbols-outlined">view_column</span>
-                </button>
-              }
+              <div class="group-controls">
+                @if (row.canGrow) {
+                  <button type="button" class="btn-icon group-btn" (click)="groupWithNext(row)" aria-label="Group with next" title="Grouper avec le suivant">
+                    <span class="icon material-symbols-outlined">view_column</span>
+                  </button>
+                }
+                @if (grouped) {
+                  <button type="button" class="btn-icon group-btn" (click)="splitGroup(row)" aria-label="Separate" title="Séparer">
+                    <span class="icon material-symbols-outlined">view_agenda</span>
+                  </button>
+                }
+              </div>
             }
 
             @if (editMode()) {

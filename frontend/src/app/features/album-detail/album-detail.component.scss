@@ -188,10 +188,19 @@
   }
 }
 
-.group-btn {
+// Conteneur plutôt que positionner chaque bouton individuellement : "Grouper avec le
+// suivant" et "Séparer" peuvent être visibles simultanément (une rangée de 2 peut à la fois
+// grandir à 3 et être séparée) et ne doivent pas se superposer dans le coin.
+.group-controls {
   position: absolute;
   top: 4px;
   left: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.group-btn {
   background: rgba(0, 0, 0, 0.45);
   color: white;
   width: 28px;

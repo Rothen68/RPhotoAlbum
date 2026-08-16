@@ -123,11 +123,11 @@ export class AlbumDetailComponent implements OnInit {
 
   // --- Layout en grille (§11.7) ---
 
-  // Bouton unique par rangée média : regroupe avec le suivant si pas encore groupée (ou pas
-  // au maximum), sépare si déjà groupée — voir plan V2 étape 7 (UI volontairement simple,
-  // pas de glisser-déposer spatial à ce stade, réservé à l'étape 8).
+  // "Grouper avec le suivant" et "Séparer" sont deux actions indépendantes, pas les deux états
+  // d'un même bouton : une rangée déjà groupée à 2 doit pouvoir grandir à 3 (canGrow) ET être
+  // séparée (retour à 1) — les afficher l'un XOR l'autre empêchait de dépasser un groupe de 2.
   groupWithNext(row: AlbumRow): void {
-    if (row.items.length !== 1 || !row.canGrow) {
+    if (!row.canGrow) {
       return;
     }
     this.setRowSpan(row.items[0].id, row.items.length + 1);
