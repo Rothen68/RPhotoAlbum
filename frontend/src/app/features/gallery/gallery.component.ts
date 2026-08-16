@@ -1,7 +1,8 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { MediaItem, MediaService } from '../../core/media/media.service';
 import { AddToAlbumSheetComponent } from '../../shared/add-to-album-sheet/add-to-album-sheet.component';
-import { VideoPopupComponent } from '../../shared/video-popup/video-popup.component';
+import { LongPressDirective } from '../../shared/long-press.directive';
+import { MediaViewerComponent } from '../../shared/media-viewer/media-viewer.component';
 
 const PAGE_SIZE = 60;
 const COLUMNS_STORAGE_KEY = 'rphotoalbum.gallery.columns';
@@ -9,7 +10,7 @@ const COLUMNS_STORAGE_KEY = 'rphotoalbum.gallery.columns';
 @Component({
   selector: 'app-gallery',
   standalone: true,
-  imports: [AddToAlbumSheetComponent, VideoPopupComponent],
+  imports: [AddToAlbumSheetComponent, MediaViewerComponent, LongPressDirective],
   templateUrl: './gallery.component.html',
   styleUrl: './gallery.component.scss',
 })
@@ -26,7 +27,10 @@ export class GalleryComponent implements OnInit {
   protected readonly showAddToAlbumSheet = signal(false);
   protected readonly rejecting = signal(false);
   protected readonly selectedFileIdsArray = computed(() => [...this.selectedIds()]);
-  protected readonly playingVideoUrl = signal<string | null>(null);
+  protected readonly viewerItems = computed(() =>
+    this.items().map((item) => ({ fileId: item.pCloudFileId, mediaType: item.mediaType })),
+  );
+  protected readonly viewerIndex = signal<number | null>(null);
 
   private page = 0;
 
@@ -83,9 +87,21 @@ export class GalleryComponent implements OnInit {
       return;
     }
 
-    if (item.mediaType === 'video') {
-      this.playingVideoUrl.set(this.mediaService.streamUrl(item.pCloudFileId));
+    const index = this.items().findIndex((i) => i.pCloudFileId === item.pCloudFileId);
+    if (index >= 0) {
+      this.viewerIndex.set(index);
     }
+  }
+
+  posterUrlFn = (fileId: number): string => this.mediaService.thumbnailUrl(fileId);
+  imageUrlFn = (fileId: number): string => this.mediaService.thumbnailUrl(fileId, 1600, false);
+  streamUrlFn = (fileId: number): string => this.mediaService.streamUrl(fileId);
+
+  onLongPress(item: MediaItem): void {
+    if (!this.selectionMode()) {
+      this.enterSelectionMode();
+    }
+    this.toggleSelect(item);
   }
 
   private toggleSelect(item: MediaItem): void {

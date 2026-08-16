@@ -43,8 +43,8 @@ export class MediaService {
     return this.http.post<{ rejected: number }>('/api/media/reject', { fileIds });
   }
 
-  thumbnailUrl(fileId: number, size = 300): string {
-    return `/api/media/${fileId}/thumbnail?width=${size}&height=${size}`;
+  thumbnailUrl(fileId: number, size = 300, crop = true): string {
+    return `/api/media/${fileId}/thumbnail?width=${size}&height=${size}&crop=${crop}`;
   }
 
   streamUrl(fileId: number): string {

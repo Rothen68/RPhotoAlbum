@@ -65,11 +65,11 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db, 
 
     // Redirige vers la miniature pCloud sans exposer le jeton d'accès au frontend — voir ARCHITECTURE.md §5.4.
     [HttpGet("{fileId:long}/thumbnail")]
-    public async Task<IActionResult> Thumbnail(long fileId, [FromQuery] int width = 300, [FromQuery] int height = 300)
+    public async Task<IActionResult> Thumbnail(long fileId, [FromQuery] int width = 300, [FromQuery] int height = 300, [FromQuery] bool crop = true)
     {
         try
         {
-            var url = await client.GetThumbLinkAsync(fileId, width, height, crop: true);
+            var url = await client.GetThumbLinkAsync(fileId, width, height, crop);
             return Redirect(url);
         }
         catch (Exception ex)

@@ -31,6 +31,8 @@
       class="tile"
       [class.selected]="isSelected(item)"
       (click)="onTileClick(item)"
+      appLongPress
+      (longPress)="onLongPress(item)"
     >
       <img [src]="thumbnailUrl(item.pCloudFileId)" [alt]="item.name" />
 
@@ -75,6 +77,14 @@
   <app-add-to-album-sheet [selectedFileIds]="selectedFileIdsArray()" (closed)="onSheetClosed()" />
 }
 
-@if (playingVideoUrl(); as url) {
-  <app-video-popup [src]="url" (closed)="playingVideoUrl.set(null)" />
+@let startIndex = viewerIndex();
+@if (startIndex !== null) {
+  <app-media-viewer
+    [items]="viewerItems()"
+    [startIndex]="startIndex"
+    [posterUrl]="posterUrlFn"
+    [imageUrl]="imageUrlFn"
+    [streamUrl]="streamUrlFn"
+    (closed)="viewerIndex.set(null)"
+  />
 }

@@ -18,7 +18,12 @@ const SWIPE_THRESHOLD_PX = 50;
 export class MediaViewerComponent implements OnInit {
   @Input({ required: true }) items!: MediaViewerItem[];
   @Input({ required: true }) startIndex!: number;
-  @Input({ required: true }) thumbnailUrl!: (fileId: number) => string;
+  // Miniature vidéo (poster) — petite taille, comme dans la grille.
+  @Input({ required: true }) posterUrl!: (fileId: number) => string;
+  // Affichage plein écran d'une image : une grande miniature non recadrée générée par
+  // pCloud, pas le fichier brut — les formats RAW (ex. .CR2) ne sont pas décodables par
+  // un <img>, et pCloud peut renvoyer une erreur sur le lien direct pour ces fichiers.
+  @Input({ required: true }) imageUrl!: (fileId: number) => string;
   @Input({ required: true }) streamUrl!: (fileId: number) => string;
   @Output() closed = new EventEmitter<void>();
 

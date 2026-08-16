@@ -23,13 +23,13 @@
     @if (item.mediaType === 'video') {
       <video
         [src]="streamUrl(item.fileId)"
-        [poster]="thumbnailUrl(item.fileId)"
+        [poster]="posterUrl(item.fileId)"
         controls
         autoplay
         (click)="$event.stopPropagation()"
       ></video>
     } @else {
-      <img [src]="streamUrl(item.fileId)" (click)="$event.stopPropagation()" alt="" />
+      <img [src]="imageUrl(item.fileId)" (click)="$event.stopPropagation()" alt="" />
     }
   }
 
