@@ -2,14 +2,13 @@
   display: block;
 }
 
+// position: absolute + inset: 0 dans .viewport-row (le parent partagé avec le viewport CDK,
+// voir gallery.component.scss) : la piste colle exactement aux bornes réelles du viewport,
+// au lieu des offsets en pixels devinés (top/bottom fixes) utilisés avant — c'est cet écart
+// de géométrie qui causait le décalage visible entre la poignée custom et la scrollbar native.
 .scrubber-wrapper {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: var(--app-max-width);
-  top: 96px;
-  bottom: 64px;
+  position: absolute;
+  inset: 0;
   pointer-events: none;
   z-index: 25;
 }
