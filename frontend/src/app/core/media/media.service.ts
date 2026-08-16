@@ -23,6 +23,11 @@ export interface MediaSourcePage {
   items: MediaItem[];
 }
 
+export interface DateGroup {
+  date: string;
+  count: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class MediaService {
   private readonly http = inject(HttpClient);
@@ -37,6 +42,10 @@ export class MediaService {
 
   sourceCount(): Observable<MediaSourcePage> {
     return this.source(1, 1);
+  }
+
+  dateGroups(): Observable<DateGroup[]> {
+    return this.http.get<DateGroup[]>('/api/media/date-groups');
   }
 
   reject(fileIds: number[]): Observable<{ rejected: number }> {

@@ -1,13 +1,17 @@
+// La virtualisation CDK a besoin d'un viewport de hauteur bornée qui scrolle en interne —
+// incompatible avec le scroll naturel de page utilisé ailleurs dans l'app. 56px = hauteur de
+// la tab bar fixe du Shell (déjà réservée par son padding-bottom) ; ce calc évite un double
+// espace / un scroll de document résiduel.
 :host {
-  display: block;
-  padding: 0.75rem 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 56px);
+  padding: 0.75rem 0.75rem 0;
 }
 
 .header-bar {
-  position: sticky;
-  top: 0;
+  flex: 0 0 auto;
   background: var(--color-bg);
-  z-index: 30;
   padding-bottom: 0.5rem;
 }
 
@@ -49,7 +53,27 @@
   }
 }
 
-.grid {
+.virtual-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.v-row {
+  box-sizing: border-box;
+  padding-bottom: 6px;
+}
+
+.date-header {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.grid-row {
+  height: 100%;
   display: grid;
   grid-template-columns: repeat(var(--columns, 3), 1fr);
   gap: 6px;
@@ -57,7 +81,7 @@
 
 .tile {
   position: relative;
-  aspect-ratio: 1 / 1;
+  height: 100%;
   padding: 0;
   border: none;
   border-radius: 8px;
@@ -78,6 +102,12 @@
     outline: 2px solid var(--color-accent);
     outline-offset: -2px;
   }
+}
+
+.tile-placeholder {
+  height: 100%;
+  border-radius: 8px;
+  background: var(--color-surface);
 }
 
 .video-glyph {
@@ -112,12 +142,6 @@
     border-color: var(--color-accent);
     color: var(--color-accent-contrast);
   }
-}
-
-.load-more {
-  display: flex;
-  justify-content: center;
-  margin-top: 1rem;
 }
 
 .selection-bar {

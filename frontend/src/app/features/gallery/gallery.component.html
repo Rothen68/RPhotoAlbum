@@ -26,39 +26,52 @@
   }
 </div>
 
-<div class="grid" [style.--columns]="columns()">
-  @for (item of items(); track item.pCloudFileId) {
-    <button
-      type="button"
-      class="tile"
-      [class.selected]="isSelected(item)"
-      (click)="onTileClick(item)"
-      appLongPress
-      (longPress)="onLongPress(item)"
-    >
-      <img [src]="thumbnailUrl(item.pCloudFileId)" [alt]="item.name" />
+<cdk-virtual-scroll-viewport appGalleryVirtualScroll class="virtual-viewport">
+  <div
+    *cdkVirtualFor="let row of dataSource; let i = index"
+    class="v-row"
+    [style.height.px]="rowHeights()[i] ?? (row.type === 'header' ? headerHeightPx : rowHeightPx())"
+  >
+    @if (row.type === 'header') {
+      <div class="date-header">{{ formatDateLabel(row.date) }}</div>
+    } @else {
+      <div class="grid-row" [style.--columns]="columns()">
+        @for (i of row.indices; track i) {
+          @let media = loadedItems().get(row.startOffset + i);
+          @if (media) {
+            <button
+              type="button"
+              class="tile"
+              [class.selected]="isSelected(media)"
+              (click)="onTileClick(media, row.startOffset + i)"
+              appLongPress
+              (longPress)="onLongPress(media)"
+            >
+              <img [src]="thumbnailUrl(media.pCloudFileId)" [alt]="media.name" />
 
-      @if (item.mediaType === 'video') {
-        <span class="icon material-symbols-outlined video-glyph">play_circle</span>
-      }
+              @if (media.mediaType === 'video') {
+                <span class="icon material-symbols-outlined video-glyph">play_circle</span>
+              }
 
-      @if (selectionMode()) {
-        <span class="check-dot" [class.checked]="isSelected(item)">
-          @if (isSelected(item)) {
-            <span class="icon material-symbols-outlined">check</span>
+              @if (selectionMode()) {
+                <span class="check-dot" [class.checked]="isSelected(media)">
+                  @if (isSelected(media)) {
+                    <span class="icon material-symbols-outlined">check</span>
+                  }
+                </span>
+              }
+            </button>
+          } @else {
+            <div class="tile tile-placeholder"></div>
           }
-        </span>
-      }
-    </button>
-  }
-</div>
-
-@if (hasMore()) {
-  <div class="load-more">
-    <button type="button" class="btn" [disabled]="loading()" (click)="loadNextPage()">
-      {{ loading() ? 'Loading…' : 'Load more' }}
-    </button>
+        }
+      </div>
+    }
   </div>
+</cdk-virtual-scroll-viewport>
+
+@if (!selectionMode() && rows().length > 0) {
+  <app-date-scrubber [rows]="rows()" (indexChange)="onScrubberIndex($event)" />
 }
 
 @if (selectionMode()) {

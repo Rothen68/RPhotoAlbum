@@ -41,6 +41,25 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db, 
         return Ok(new { total, page, pageSize, items });
     }
 
+    // Comptage par jour des médias non rejetés, même ordre que Source — utilisé par la
+    // Gallery pour le regroupement par date et la barre de défilement par date. Volontairement
+    // léger (pas de fileId par média) : chargé une fois pour toute la bibliothèque.
+    [HttpGet("date-groups")]
+    public async Task<IActionResult> DateGroups()
+    {
+        var dates = await db.MediaIndex.AsNoTracking()
+            .Where(m => !m.IsRejected)
+            .Select(m => m.ModifiedAt ?? m.CreatedAt ?? m.IndexedAt)
+            .ToListAsync();
+
+        var groups = dates
+            .GroupBy(d => d.Date)
+            .OrderByDescending(g => g.Key)
+            .Select(g => new { date = g.Key.ToString("yyyy-MM-dd"), count = g.Count() });
+
+        return Ok(groups);
+    }
+
     // Rejet global depuis le mode sélection de la Gallery — voir ARCHITECTURE.md §11.4.
     [HttpPost("reject")]
     public async Task<IActionResult> Reject(RejectMediaRequest request)
