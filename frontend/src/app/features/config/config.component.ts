@@ -6,6 +6,7 @@ import { AppConfiguration, ConfigService, SourceFolder } from '../../core/config
 import { MediaService } from '../../core/media/media.service';
 import { PCloudService, PCloudStatus } from '../../core/pcloud/pcloud.service';
 import { PCloudFolderPickerComponent, PCloudFolderRef } from '../../shared/pcloud-folder-picker/pcloud-folder-picker.component';
+import { APP_VERSION } from '../../core/version';
 
 type PickerMode = 'album' | 'source' | null;
 
@@ -34,6 +35,7 @@ export class ConfigComponent implements OnInit {
   protected readonly reindexingAlbums = signal(false);
   protected readonly indexedCount = signal<number | null>(null);
   protected readonly message = signal<string | null>(null);
+  protected readonly appVersion = APP_VERSION;
   protected readonly connectUrl = this.pcloud.connectUrl;
 
   ngOnInit(): void {
