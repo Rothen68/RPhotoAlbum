@@ -258,7 +258,21 @@ export class AlbumDetailComponent implements OnInit {
     }
   }
 
+  // Réordonne l'état local IMMÉDIATEMENT (avant même l'appel réseau) : CDK annule son propre
+  // rendu de drag (transform de prévisualisation) dès le drop, en s'attendant à ce que les
+  // données sous-jacentes reflètent déjà le nouvel ordre au même tick — sans ça, l'item revient
+  // un instant à sa position d'origine avant de sauter à sa position finale une fois la réponse
+  // serveur arrivée (constaté par l'utilisateur, PC et mobile). L'appel serveur suit derrière
+  // pour persister ; sa réponse re-synchronise l'état au cas où (rare) où le serveur aurait dû
+  // ajuster quelque chose (ex. normalisation de RowSpan).
   private reorderTo(ids: string[]): void {
+    const current = this.album();
+    if (current) {
+      const byId = new Map(current.items.map((i) => [i.id, i]));
+      const reordered = ids.map((id) => byId.get(id)).filter((i): i is AlbumItem => !!i);
+      this.album.set({ ...current, items: reordered });
+    }
+
     this.albumService.reorder(this.albumId, ids).subscribe((album) => this.album.set(album));
   }
 
