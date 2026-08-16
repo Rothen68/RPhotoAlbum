@@ -28,7 +28,11 @@ export class AlbumDetailComponent implements OnInit {
 
   protected readonly album = signal<AlbumDetail | null>(null);
   protected readonly loading = signal(true);
-  protected readonly reorderMode = signal(false);
+  // Mode unique regroupant édition de texte, ajout/suppression et réorganisation des
+  // médias — la vue de base reste purement dédiée à la consultation (voir retour
+  // utilisateur : avoir un mode "Reorder" séparé du texte éditable en permanence
+  // en vue normale était source de confusion).
+  protected readonly editMode = signal(false);
 
   protected readonly insertingAt = signal<string | null | undefined>(undefined);
   protected readonly editingItemId = signal<string | null>(null);
@@ -61,8 +65,8 @@ export class AlbumDetailComponent implements OnInit {
     return this.albumService.streamUrl(fileId);
   }
 
-  toggleReorder(): void {
-    this.reorderMode.update((v) => !v);
+  toggleEdit(): void {
+    this.editMode.update((v) => !v);
     this.insertingAt.set(undefined);
     this.editingItemId.set(null);
   }
@@ -70,9 +74,6 @@ export class AlbumDetailComponent implements OnInit {
   // --- Insertion de texte en ligne (§11.5) ---
 
   startInsert(afterItemId: string | null): void {
-    if (this.reorderMode()) {
-      return;
-    }
     this.draftText = '';
     this.insertingAt.set(afterItemId);
   }
@@ -92,7 +93,9 @@ export class AlbumDetailComponent implements OnInit {
   }
 
   startEditText(item: AlbumItem): void {
-    if (this.reorderMode()) {
+    // Le bloc texte reste affiché en vue de base (hors mode Edit), mais uniquement
+    // pour consultation — cliquer dessus n'y ouvre pas l'édition.
+    if (!this.editMode()) {
       return;
     }
     this.draftText = item.markdown ?? '';

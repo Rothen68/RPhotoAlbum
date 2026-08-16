@@ -3,7 +3,7 @@
     <span class="icon material-symbols-outlined">arrow_back</span>
   </button>
   <span class="album-name">{{ album()?.name }}</span>
-  <button type="button" class="btn-link" (click)="toggleReorder()">{{ reorderMode() ? 'Done' : 'Reorder' }}</button>
+  <button type="button" class="btn-link" (click)="toggleEdit()">{{ editMode() ? 'Done' : 'Edit' }}</button>
 </header>
 
 @if (loading()) {
@@ -14,7 +14,7 @@
   }
 
   <div class="feed" cdkDropList [cdkDropListData]="a.items" (cdkDropListDropped)="onCdkDrop($event)">
-    @if (!reorderMode()) {
+    @if (editMode()) {
       <div class="insert-gap">
         @if (insertingAt() === null) {
           <textarea
@@ -38,11 +38,11 @@
       <div
         class="block"
         cdkDrag
-        [cdkDragDisabled]="!reorderMode()"
+        [cdkDragDisabled]="!editMode()"
         (cdkDragMoved)="onDragMoved($event)"
         (cdkDragEnded)="onDragEnded()"
       >
-        @if (reorderMode()) {
+        @if (editMode()) {
           <div class="reorder-controls">
             <span class="icon material-symbols-outlined drag-handle" cdkDragHandle>drag_indicator</span>
             <div class="stack-buttons">
@@ -74,19 +74,19 @@
                 autofocus
               ></textarea>
             } @else {
-              <p class="text-block card" (click)="startEditText(item)">{{ item.markdown }}</p>
+              <p class="text-block card" [class.editable]="editMode()" (click)="startEditText(item)">{{ item.markdown }}</p>
             }
           }
         </div>
 
-        @if (reorderMode()) {
+        @if (editMode()) {
           <button type="button" class="btn-icon remove-btn" (click)="removeItem(item.id)" aria-label="Remove block">
             <span class="icon material-symbols-outlined">close</span>
           </button>
         }
       </div>
 
-      @if (!reorderMode()) {
+      @if (editMode()) {
         <div class="insert-gap">
           @if (insertingAt() === item.id) {
             <textarea
