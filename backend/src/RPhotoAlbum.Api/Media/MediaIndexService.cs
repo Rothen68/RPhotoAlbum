@@ -87,9 +87,12 @@ public class MediaIndexService(
 
             // Purge des entrées disparues des dossiers source — sautée si un dossier n'a pas pu être lu,
             // pour ne pas confondre une panne pCloud transitoire avec une suppression réelle.
+            // Filtrage en mémoire sur existingByFileId (déjà chargé intégralement) plutôt qu'une
+            // clause SQL "NOT IN" sur seenFileIds : avec un grand dossier source, cette liste peut
+            // dépasser la limite de paramètres de SQLite ("too many SQL variables").
             if (failedFolders.Count == 0)
             {
-                var stale = await db.MediaIndex.Where(m => !seenFileIds.Contains(m.PCloudFileId)).ToListAsync(ct);
+                var stale = existingByFileId.Values.Where(e => !seenFileIds.Contains(e.PCloudFileId));
                 db.MediaIndex.RemoveRange(stale);
             }
 

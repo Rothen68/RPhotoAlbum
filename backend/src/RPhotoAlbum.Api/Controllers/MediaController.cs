@@ -45,14 +45,22 @@ public class MediaController(MediaIndexService indexService, CacheDbContext db, 
     [HttpPost("reject")]
     public async Task<IActionResult> Reject(RejectMediaRequest request)
     {
-        var entries = await db.MediaIndex.Where(m => request.FileIds.Contains(m.PCloudFileId)).ToListAsync();
-        foreach (var entry in entries)
+        var rejected = 0;
+        // Découpage par lots : une sélection nombreuse dépasserait la limite de paramètres
+        // SQLite ("too many SQL variables") sur une clause IN unique.
+        foreach (var chunk in request.FileIds.Distinct().Chunk(500))
         {
-            entry.IsRejected = true;
+            var entries = await db.MediaIndex.Where(m => chunk.Contains(m.PCloudFileId)).ToListAsync();
+            foreach (var entry in entries)
+            {
+                entry.IsRejected = true;
+            }
+            rejected += entries.Count;
         }
+
         await db.SaveChangesAsync();
 
-        return Ok(new { rejected = entries.Count });
+        return Ok(new { rejected });
     }
 
     // Redirige vers la miniature pCloud sans exposer le jeton d'accès au frontend — voir ARCHITECTURE.md §5.4.
