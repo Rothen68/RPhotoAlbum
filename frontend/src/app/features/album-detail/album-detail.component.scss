@@ -29,18 +29,6 @@
   padding: 0 1rem;
 }
 
-.selection-status {
-  position: sticky;
-  top: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.25rem 0.75rem;
-  background: var(--color-bg);
-  z-index: 9;
-}
-
 .feed {
   display: flex;
   flex-direction: column;
@@ -95,7 +83,11 @@
   width: 100%;
 }
 
-.block {
+// L'unité de drag-and-drop est la RANGÉE, pas l'item individuel (voir retour utilisateur : la
+// poignée de réorganisation par item se superposait avec les boutons de layout/suppression sur
+// les rangées groupées, et la sélection multiple par item s'est avérée trop complexe pour peu
+// de bénéfice une fois la rangée disponible comme unité naturelle depuis l'étape 7).
+.row-wrapper {
   position: relative;
   display: flex;
   align-items: flex-start;
@@ -109,15 +101,20 @@
   &.cdk-drag-placeholder {
     opacity: 0.3;
   }
+
+  // La mini-grille de la rangée doit occuper tout l'espace restant à côté de la poignée.
+  .row {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
-.cdk-drop-list-dragging .block:not(.cdk-drag-placeholder) {
+.cdk-drop-list-dragging .row-wrapper:not(.cdk-drag-placeholder) {
   transition: transform 200ms ease;
 }
 
-.block-content {
-  flex: 1;
-  min-width: 0;
+.block {
+  position: relative;
 }
 
 .media-block {
@@ -130,32 +127,6 @@
   video {
     width: 100%;
     display: block;
-  }
-}
-
-.check-dot {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  border: 2px solid white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: transparent;
-  background: rgba(0, 0, 0, 0.25);
-  pointer-events: none;
-
-  .icon {
-    font-size: 15px;
-  }
-
-  &.checked {
-    background: var(--color-accent);
-    border-color: var(--color-accent);
-    color: var(--color-accent-contrast);
   }
 }
 

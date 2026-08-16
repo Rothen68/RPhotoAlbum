@@ -6,13 +6,6 @@
   <button type="button" class="btn-link" (click)="toggleEdit()">{{ editMode() ? 'Done' : 'Edit' }}</button>
 </header>
 
-@if (editMode() && selectedIds().size > 0) {
-  <div class="selection-status">
-    <span class="muted">{{ selectedIds().size }} sélectionné(s)</span>
-    <button type="button" class="btn-link" (click)="clearSelection()">Désélectionner</button>
-  </div>
-}
-
 @if (loading()) {
   <p class="muted">Loading…</p>
 } @else if (album(); as a) {
@@ -20,7 +13,7 @@
     <p class="muted empty-state">No media yet. Add photos from the Gallery.</p>
   }
 
-  <div class="feed" cdkDropList [cdkDropListData]="a.items" (cdkDropListDropped)="onCdkDrop($event)">
+  <div class="feed" cdkDropList [cdkDropListData]="rows()" (cdkDropListDropped)="onCdkDrop($event)">
     @if (editMode()) {
       <div class="insert-gap">
         @if (insertingAt() === null) {
@@ -41,89 +34,81 @@
       </div>
     }
 
-    @for (row of rows(); track row.items[0].id) {
+    @for (row of rows(); track row.items[0].id; let rowIdx = $index) {
       @let grouped = row.items.length > 1;
       @let lastItemId = row.items[row.items.length - 1].id;
 
-      <div class="row" [style.--row-cols]="row.items.length">
-        @for (item of row.items; track item.id; let k = $index) {
-          @let idx = row.startIndex + k;
-
-          <div
-            class="block"
-            [class.grouped]="grouped"
-            cdkDrag
-            [cdkDragData]="item"
-            [cdkDragDisabled]="!editMode() || grouped"
-            (cdkDragMoved)="onDragMoved($event)"
-            (cdkDragEnded)="onDragEnded()"
-          >
-            @if (editMode() && !grouped) {
-              <div class="reorder-controls">
-                <span class="icon material-symbols-outlined drag-handle" cdkDragHandle>drag_indicator</span>
-                <div class="stack-buttons">
-                  <button type="button" class="btn-icon" [disabled]="idx === 0" (click)="moveUp(idx)" aria-label="Move up">
-                    <span class="icon material-symbols-outlined">keyboard_arrow_up</span>
-                  </button>
-                  <button type="button" class="btn-icon" [disabled]="idx === a.items.length - 1" (click)="moveDown(idx)" aria-label="Move down">
-                    <span class="icon material-symbols-outlined">keyboard_arrow_down</span>
-                  </button>
-                </div>
-              </div>
-            }
-
-            <div class="block-content">
-              @if (item.type === 'media') {
-                <div class="media-block" appLongPress (longPress)="onLongPress(item)" (click)="onMediaClick(item)">
-                  @if (item.mediaType === 'video') {
-                    <video [src]="streamUrl(item.albumCopy!.fileId)" [poster]="thumbnailUrl(item.albumCopy!.fileId)" controls></video>
-                  } @else {
-                    <img [src]="thumbnailUrl(item.albumCopy!.fileId)" [alt]="item.albumCopy?.name" />
-                  }
-                  @if (editMode()) {
-                    <span class="check-dot" [class.checked]="isSelected(item)">
-                      @if (isSelected(item)) {
-                        <span class="icon material-symbols-outlined">check</span>
-                      }
-                    </span>
-                  }
-                </div>
-              } @else {
-                @if (editingItemId() === item.id) {
-                  <app-markdown-editor class="insert-editor" [value]="draftText" (valueChange)="draftText = $event" (blurred)="commitEditText(item)" />
-                } @else {
-                  <div
-                    class="text-block card markdown-body"
-                    [class.editable]="editMode()"
-                    (click)="startEditText(item)"
-                    [innerHTML]="item.markdown | markdown"
-                  ></div>
-                }
-              }
-            </div>
-
-            @if (editMode() && k === 0 && item.type === 'media') {
-              <div class="group-controls">
-                @if (row.canGrow) {
-                  <button type="button" class="btn-icon group-btn" (click)="groupWithNext(row)" aria-label="Group with next" title="Grouper avec le suivant">
-                    <span class="icon material-symbols-outlined">view_column</span>
-                  </button>
-                }
-                @if (grouped) {
-                  <button type="button" class="btn-icon group-btn" (click)="splitGroup(row)" aria-label="Separate" title="Séparer">
-                    <span class="icon material-symbols-outlined">view_agenda</span>
-                  </button>
-                }
-              </div>
-            }
-
-            @if (editMode()) {
-              <button type="button" class="btn-icon remove-btn" (click)="removeItem(item.id)" aria-label="Remove block">
-                <span class="icon material-symbols-outlined">close</span>
+      <div
+        class="row-wrapper"
+        cdkDrag
+        [cdkDragData]="row"
+        [cdkDragDisabled]="!editMode()"
+        (cdkDragMoved)="onDragMoved($event)"
+        (cdkDragEnded)="onDragEnded()"
+      >
+        @if (editMode()) {
+          <div class="reorder-controls">
+            <span class="icon material-symbols-outlined drag-handle" cdkDragHandle>drag_indicator</span>
+            <div class="stack-buttons">
+              <button type="button" class="btn-icon" [disabled]="rowIdx === 0" (click)="moveRowUp(rowIdx)" aria-label="Move up">
+                <span class="icon material-symbols-outlined">keyboard_arrow_up</span>
               </button>
-            }
+              <button type="button" class="btn-icon" [disabled]="rowIdx === rows().length - 1" (click)="moveRowDown(rowIdx)" aria-label="Move down">
+                <span class="icon material-symbols-outlined">keyboard_arrow_down</span>
+              </button>
+            </div>
           </div>
         }
+
+        <div class="row" [style.--row-cols]="row.items.length">
+          @for (item of row.items; track item.id; let k = $index) {
+            <div class="block" [class.grouped]="grouped">
+              <div class="block-content">
+                @if (item.type === 'media') {
+                  <div class="media-block" (click)="onMediaClick(item)">
+                    @if (item.mediaType === 'video') {
+                      <video [src]="streamUrl(item.albumCopy!.fileId)" [poster]="thumbnailUrl(item.albumCopy!.fileId)" controls></video>
+                    } @else {
+                      <img [src]="thumbnailUrl(item.albumCopy!.fileId)" [alt]="item.albumCopy?.name" />
+                    }
+                  </div>
+                } @else {
+                  @if (editingItemId() === item.id) {
+                    <app-markdown-editor class="insert-editor" [value]="draftText" (valueChange)="draftText = $event" (blurred)="commitEditText(item)" />
+                  } @else {
+                    <div
+                      class="text-block card markdown-body"
+                      [class.editable]="editMode()"
+                      (click)="startEditText(item)"
+                      [innerHTML]="item.markdown | markdown"
+                    ></div>
+                  }
+                }
+              </div>
+
+              @if (editMode() && k === 0 && item.type === 'media') {
+                <div class="group-controls">
+                  @if (row.canGrow) {
+                    <button type="button" class="btn-icon group-btn" (click)="groupWithNext(row)" aria-label="Group with next" title="Grouper avec le suivant">
+                      <span class="icon material-symbols-outlined">view_column</span>
+                    </button>
+                  }
+                  @if (grouped) {
+                    <button type="button" class="btn-icon group-btn" (click)="splitGroup(row)" aria-label="Separate" title="Séparer">
+                      <span class="icon material-symbols-outlined">view_agenda</span>
+                    </button>
+                  }
+                </div>
+              }
+
+              @if (editMode()) {
+                <button type="button" class="btn-icon remove-btn" (click)="removeItem(item.id)" aria-label="Remove block">
+                  <span class="icon material-symbols-outlined">close</span>
+                </button>
+              }
+            </div>
+          }
+        </div>
       </div>
 
       @if (editMode()) {

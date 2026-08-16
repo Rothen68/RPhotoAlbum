@@ -2,7 +2,6 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CdkDragDrop, CdkDragMove, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlbumDetail, AlbumItem, AlbumService } from '../../core/albums/album.service';
-import { LongPressDirective } from '../../shared/long-press.directive';
 import { MarkdownEditorComponent } from '../../shared/markdown-editor/markdown-editor.component';
 import { MarkdownPipe } from '../../shared/markdown.pipe';
 import { MediaViewerComponent } from '../../shared/media-viewer/media-viewer.component';
@@ -18,7 +17,7 @@ const AUTO_SCROLL_MAX_SPEED = 18;
 @Component({
   selector: 'app-album-detail',
   standalone: true,
-  imports: [DragDropModule, LongPressDirective, MarkdownEditorComponent, MarkdownPipe, MediaViewerComponent],
+  imports: [DragDropModule, MarkdownEditorComponent, MarkdownPipe, MediaViewerComponent],
   templateUrl: './album-detail.component.html',
   styleUrl: './album-detail.component.scss',
   host: { class: 'page' },
@@ -44,10 +43,6 @@ export class AlbumDetailComponent implements OnInit {
 
   protected readonly rows = computed(() => groupIntoRows(this.album()?.items ?? []));
 
-  // Multi-sélection en mode Edit — mêmes signaux/pattern que Gallery. Seul usage pour
-  // l'instant : déplacer tout un bloc sélectionné d'un coup au drag (voir onCdkDrop),
-  // pas d'action groupée dédiée (suppression/etc. restent par item, via le bouton "x").
-  protected readonly selectedIds = signal<Set<string>>(new Set());
   protected readonly viewerIndex = signal<number | null>(null);
 
   protected readonly mediaItems = computed(() => (this.album()?.items ?? []).filter((i) => i.type === 'media'));
@@ -90,21 +85,14 @@ export class AlbumDetailComponent implements OnInit {
     this.editMode.update((v) => !v);
     this.insertingAt.set(undefined);
     this.editingItemId.set(null);
-    this.selectedIds.set(new Set());
   }
 
-  // --- Visionneuse + sélection (§11.8) ---
+  // --- Visionneuse (§11.8) ---
 
   onMediaClick(item: AlbumItem): void {
-    if (this.editMode()) {
-      this.toggleSelect(item.id);
-      return;
-    }
-
-    // Les vidéos gardent leur lecture inline (<video controls>, comportement existant) en vue
-    // de base — ouvrir la visionneuse plein écran par-dessus gênerait plus qu'autre chose vu
-    // qu'on peut déjà les lire directement dans le fil. Utile surtout pour les photos, dont
-    // la miniature du fil est petite.
+    // Les vidéos gardent leur lecture inline (<video controls>, comportement existant) — ouvrir
+    // la visionneuse plein écran par-dessus gênerait plus qu'autre chose vu qu'on peut déjà les
+    // lire directement dans le fil. Utile surtout pour les photos, dont la miniature est petite.
     if (item.mediaType === 'video') {
       return;
     }
@@ -113,36 +101,6 @@ export class AlbumDetailComponent implements OnInit {
     if (idx >= 0) {
       this.viewerIndex.set(idx);
     }
-  }
-
-  // Depuis la vue de base : bascule en mode Edit avec ce média présélectionné, pour enchaîner
-  // directement sur une sélection multiple (puis un drag groupé) sans passer par "Edit" + un
-  // premier tap séparé.
-  onLongPress(item: AlbumItem): void {
-    if (!this.editMode()) {
-      this.editMode.set(true);
-    }
-    this.toggleSelect(item.id);
-  }
-
-  isSelected(item: AlbumItem): boolean {
-    return this.selectedIds().has(item.id);
-  }
-
-  private toggleSelect(itemId: string): void {
-    this.selectedIds.update((current) => {
-      const next = new Set(current);
-      if (next.has(itemId)) {
-        next.delete(itemId);
-      } else {
-        next.add(itemId);
-      }
-      return next;
-    });
-  }
-
-  clearSelection(): void {
-    this.selectedIds.set(new Set());
   }
 
   // --- Insertion de texte en ligne (§11.5) ---
@@ -215,83 +173,43 @@ export class AlbumDetailComponent implements OnInit {
   // --- Reorder (§11.6) ---
 
   removeItem(itemId: string): void {
-    this.albumService.removeItem(this.albumId, itemId).subscribe((album) => {
-      this.album.set(album);
-      if (this.selectedIds().has(itemId)) {
-        this.selectedIds.update((s) => {
-          const next = new Set(s);
-          next.delete(itemId);
-          return next;
-        });
-      }
-    });
+    this.albumService.removeItem(this.albumId, itemId).subscribe((album) => this.album.set(album));
   }
 
-  moveUp(index: number): void {
-    const items = this.album()?.items ?? [];
-    if (index <= 0) {
+  // Unité de réorganisation = la RANGÉE (une ligne de texte, ou un groupe d'1 à 3 photos),
+  // pas l'item individuel — un seul bouton/poignée par rangée, un groupe s'y déplace comme un
+  // bloc atomique sans logique de repositionnement dédiée (voir retour utilisateur : la
+  // sélection multiple par item s'est avérée trop complexe pour peu de bénéfice une fois la
+  // rangée déjà disponible comme unité naturelle depuis l'étape 7).
+  moveRowUp(rowIndex: number): void {
+    const rows = this.rows();
+    if (rowIndex <= 0) {
       return;
     }
-    const ids = items.map((i) => i.id);
-    [ids[index - 1], ids[index]] = [ids[index], ids[index - 1]];
-    this.reorderTo(ids);
+    const reordered = [...rows];
+    [reordered[rowIndex - 1], reordered[rowIndex]] = [reordered[rowIndex], reordered[rowIndex - 1]];
+    this.reorderTo(reordered.flatMap((r) => r.items.map((i) => i.id)));
   }
 
-  moveDown(index: number): void {
-    const items = this.album()?.items ?? [];
-    if (index >= items.length - 1) {
+  moveRowDown(rowIndex: number): void {
+    const rows = this.rows();
+    if (rowIndex >= rows.length - 1) {
       return;
     }
-    const ids = items.map((i) => i.id);
-    [ids[index], ids[index + 1]] = [ids[index + 1], ids[index]];
-    this.reorderTo(ids);
+    const reordered = [...rows];
+    [reordered[rowIndex], reordered[rowIndex + 1]] = [reordered[rowIndex + 1], reordered[rowIndex]];
+    this.reorderTo(reordered.flatMap((r) => r.items.map((i) => i.id)));
   }
 
-  onCdkDrop(event: CdkDragDrop<AlbumItem[]>): void {
+  onCdkDrop(event: CdkDragDrop<AlbumRow[]>): void {
     this.stopAutoScroll();
     if (event.previousIndex === event.currentIndex) {
       return;
     }
 
-    const items = this.album()?.items ?? [];
-    const draggedItem = event.item.data as AlbumItem | undefined;
-    const selected = this.selectedIds();
-
-    // CDK ne déplace physiquement que l'item dragué (pas de multi-drag natif) — si cet item
-    // fait partie d'une sélection multiple, on réinsère TOUTE la sélection comme un bloc
-    // contigu à l'endroit où il a atterri, plutôt que de ne déplacer que lui seul.
-    if (draggedItem && selected.size > 1 && selected.has(draggedItem.id)) {
-      this.moveSelectionTo(items, event.previousIndex, event.currentIndex, selected);
-      return;
-    }
-
-    const ids = items.map((i) => i.id);
-    moveItemInArray(ids, event.previousIndex, event.currentIndex);
-    this.reorderTo(ids);
-  }
-
-  // Le point de dépôt (combien d'items NON sélectionnés le précèdent) est déduit d'une
-  // simulation du déplacement du seul item dragué — exactement ce que CDK a fait visuellement.
-  // Mais remaining/selectedBlock sont construits depuis la liste ORIGINALE (pas la simulation) :
-  // si l'item dragué franchit d'autres items sélectionnés en atterrissant après eux, les
-  // extraire de la simulation inverserait leur ordre relatif au lieu de le conserver.
-  private moveSelectionTo(items: AlbumItem[], previousIndex: number, currentIndex: number, selected: Set<string>): void {
-    const originalIds = items.map((i) => i.id);
-
-    const afterSingleMove = [...originalIds];
-    moveItemInArray(afterSingleMove, previousIndex, currentIndex);
-
-    let nonSelectedBefore = 0;
-    for (let i = 0; i < currentIndex; i++) {
-      if (!selected.has(afterSingleMove[i])) {
-        nonSelectedBefore++;
-      }
-    }
-
-    const remaining = originalIds.filter((id) => !selected.has(id));
-    const selectedBlock = originalIds.filter((id) => selected.has(id));
-    const final = [...remaining.slice(0, nonSelectedBefore), ...selectedBlock, ...remaining.slice(nonSelectedBefore)];
-    this.reorderTo(final);
+    const rows = [...this.rows()];
+    moveItemInArray(rows, event.previousIndex, event.currentIndex);
+    this.reorderTo(rows.flatMap((r) => r.items.map((i) => i.id)));
   }
 
   onDragMoved(event: CdkDragMove): void {
