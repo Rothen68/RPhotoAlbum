@@ -107,8 +107,11 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
+    // CDK gère le scroll hors zone Angular (perf) : cette émission arrive donc elle aussi hors
+    // zone — sans ngZone.run, currentRowIndex se met à jour mais la vue (poignée de la barre de
+    // date) n'est jamais re-rendue. Même cause que le correctif ResizeObserver ci-dessous.
     this.scrolledIndexSub = this.scrollStrategy?.scrolledIndexChange.subscribe((index) => {
-      this.currentRowIndex.set(index);
+      this.ngZone.run(() => this.currentRowIndex.set(index));
       const row = this.rows()[index];
       if (row) {
         this.currentTopDate = row.date;
