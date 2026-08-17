@@ -34,6 +34,22 @@ img {
   }
 }
 
+.download-btn {
+  position: absolute;
+  top: max(env(safe-area-inset-top), 12px);
+  right: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  z-index: 1;
+
+  .icon {
+    font-size: 24px;
+  }
+}
+
 .nav-btn {
   position: absolute;
   top: 50%;

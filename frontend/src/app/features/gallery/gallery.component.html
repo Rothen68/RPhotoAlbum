@@ -21,18 +21,17 @@
       />
     </div>
 
-    <div class="filter-row">
-      <select class="filter-select" (change)="setMediaTypeFilter($any($event.target).value)">
-        <option value="">Tous types</option>
-        <option value="image">Photos</option>
-        <option value="video">Vidéos</option>
-      </select>
-      <select class="filter-select" (change)="setMinSizeFilter($any($event.target).value)">
-        <option value="">Toutes tailles</option>
-        <option value="5242880">&gt; 5 Mo</option>
-        <option value="20971520">&gt; 20 Mo</option>
-        <option value="52428800">&gt; 50 Mo</option>
-      </select>
+    <div class="filter-bar-row">
+      <button
+        type="button"
+        class="filter-toggle"
+        [class.active]="filtersOpen()"
+        (click)="toggleFilters()"
+      >
+        <span class="icon material-symbols-outlined">tune</span>
+        Filtres
+        <span class="icon material-symbols-outlined chevron">{{ filtersOpen() ? 'expand_less' : 'expand_more' }}</span>
+      </button>
 
       <div class="column-control">
         @for (count of columnOptions; track count) {
@@ -49,29 +48,63 @@
       </div>
     </div>
 
-    @if (locations().countries.length > 0) {
-      <div class="filter-row">
-        <select class="filter-select" (change)="setCountryFilter($any($event.target).value)">
-          <option value="">Tous pays</option>
-          @for (country of locations().countries; track country) {
-            <option [value]="country">{{ country }}</option>
-          }
-        </select>
-        @if (locations().regions.length > 0) {
-          <select class="filter-select" (change)="setRegionFilter($any($event.target).value)">
-            <option value="">Toutes régions</option>
-            @for (region of locations().regions; track region) {
-              <option [value]="region">{{ region }}</option>
-            }
-          </select>
+    @if (!filtersOpen() && activeFilterChips().length > 0) {
+      <div class="active-filters-row">
+        @for (chip of activeFilterChips(); track chip) {
+          <span class="filter-chip">{{ chip }}</span>
         }
-        @if (locations().cities.length > 0) {
-          <select class="filter-select" (change)="setCityFilter($any($event.target).value)">
-            <option value="">Toutes villes</option>
-            @for (city of locations().cities; track city) {
-              <option [value]="city">{{ city }}</option>
+      </div>
+    }
+
+    @if (filtersOpen()) {
+      <div class="filter-panel">
+        <div class="filter-group">
+          <span class="filter-group-label">Type</span>
+          <select class="filter-select" [value]="mediaTypeFilter()" (change)="setMediaTypeFilter($any($event.target).value)">
+            <option value="">Tous types</option>
+            <option value="image">Photos</option>
+            <option value="video">Vidéos</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-group-label">Taille</span>
+          <select class="filter-select" [value]="minSizeFilter() ?? ''" (change)="setMinSizeFilter($any($event.target).value)">
+            <option value="">Toutes tailles</option>
+            @for (opt of sizeOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
             }
           </select>
+        </div>
+
+        @if (locations().countries.length > 0) {
+          <div class="filter-group">
+            <span class="filter-group-label">Localisation</span>
+            <div class="filter-group-row">
+              <select class="filter-select" [value]="countryFilter()" (change)="setCountryFilter($any($event.target).value)">
+                <option value="">Tous pays</option>
+                @for (country of locations().countries; track country) {
+                  <option [value]="country">{{ country }}</option>
+                }
+              </select>
+              @if (locations().regions.length > 0) {
+                <select class="filter-select" [value]="regionFilter()" (change)="setRegionFilter($any($event.target).value)">
+                  <option value="">Toutes régions</option>
+                  @for (region of locations().regions; track region) {
+                    <option [value]="region">{{ region }}</option>
+                  }
+                </select>
+              }
+              @if (locations().cities.length > 0) {
+                <select class="filter-select" [value]="cityFilter()" (change)="setCityFilter($any($event.target).value)">
+                  <option value="">Toutes villes</option>
+                  @for (city of locations().cities; track city) {
+                    <option [value]="city">{{ city }}</option>
+                  }
+                </select>
+              }
+            </div>
+          </div>
         }
       </div>
     }
@@ -152,6 +185,7 @@
     [posterUrl]="posterUrlFn"
     [imageUrl]="imageUrlFn"
     [streamUrl]="streamUrlFn"
+    [downloadUrl]="downloadUrlFn"
     (closed)="viewerIndex.set(null)"
   />
 }

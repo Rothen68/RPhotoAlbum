@@ -89,6 +89,40 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly mediaTypeFilter = signal<'' | 'image' | 'video'>('');
   protected readonly minSizeFilter = signal<number | undefined>(undefined);
 
+  // Issue #4 : le panneau de filtres est replié par défaut (gain de place sur mobile) — les
+  // filtres actifs restent visibles en lecture seule sous forme de puces quand il est fermé.
+  protected readonly filtersOpen = signal(false);
+  private static readonly SIZE_OPTIONS: { value: number; label: string }[] = [
+    { value: 5242880, label: '> 5 Mo' },
+    { value: 20971520, label: '> 20 Mo' },
+    { value: 52428800, label: '> 50 Mo' },
+  ];
+  protected readonly sizeOptions = GalleryComponent.SIZE_OPTIONS;
+
+  protected readonly activeFilterChips = computed(() => {
+    const chips: string[] = [];
+    if (this.mediaTypeFilter()) {
+      chips.push(`Type : ${this.mediaTypeFilter() === 'image' ? 'Photo' : 'Vidéo'}`);
+    }
+    const size = this.minSizeFilter();
+    if (size !== undefined) {
+      const match = GalleryComponent.SIZE_OPTIONS.find((o) => o.value === size);
+      if (match) {
+        chips.push(`Taille : ${match.label}`);
+      }
+    }
+    if (this.countryFilter()) {
+      chips.push(`Pays : ${this.countryFilter()}`);
+    }
+    if (this.regionFilter()) {
+      chips.push(`Région : ${this.regionFilter()}`);
+    }
+    if (this.cityFilter()) {
+      chips.push(`Ville : ${this.cityFilter()}`);
+    }
+    return chips;
+  });
+
   // Peuplées uniquement avec des valeurs déjà résolues (étape 9) — pas de texte libre, un pays
   // mal orthographié ne retournerait simplement rien.
   protected readonly locations = signal<MediaLocations>({ countries: [], regions: [], cities: [] });
@@ -230,6 +264,10 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
     this.reloadFromScratch();
   }
 
+  toggleFilters(): void {
+    this.filtersOpen.update((open) => !open);
+  }
+
   private currentFilters(): MediaFilters {
     const filters: MediaFilters = {};
     const search = this.searchText().trim();
@@ -278,6 +316,7 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
   posterUrlFn = (fileId: number): string => this.mediaService.thumbnailUrl(fileId);
   imageUrlFn = (fileId: number): string => this.mediaService.thumbnailUrl(fileId, 1600, false);
   streamUrlFn = (fileId: number): string => this.mediaService.streamUrl(fileId);
+  downloadUrlFn = (fileId: number): string => this.mediaService.downloadUrl(fileId);
 
   onLongPress(media: MediaItem): void {
     if (!this.selectionMode()) {

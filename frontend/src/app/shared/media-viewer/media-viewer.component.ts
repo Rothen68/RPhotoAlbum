@@ -25,6 +25,7 @@ export class MediaViewerComponent implements OnInit, OnDestroy {
   // un <img>, et pCloud peut renvoyer une erreur sur le lien direct pour ces fichiers.
   @Input({ required: true }) imageUrl!: (fileId: number) => string;
   @Input({ required: true }) streamUrl!: (fileId: number) => string;
+  @Input({ required: true }) downloadUrl!: (fileId: number) => string;
   @Output() closed = new EventEmitter<void>();
 
   protected readonly index = signal(0);

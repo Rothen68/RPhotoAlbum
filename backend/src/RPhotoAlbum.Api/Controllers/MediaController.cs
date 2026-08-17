@@ -210,6 +210,33 @@ public class MediaController(
         }
     }
 
+    // Téléchargement du fichier original depuis la vue plein écran (Gallery et Album) — issue
+    // #1. Contrairement à /stream (redirection), on proxifie ici le contenu : une redirection
+    // vers un lien pCloud cross-origine ignore l'attribut `download` d'un <a> et se contente
+    // d'ouvrir/afficher le fichier au lieu de le télécharger. En passant par notre propre origine
+    // avec un Content-Disposition: attachment explicite, le navigateur déclenche toujours un
+    // téléchargement, quel que soit le type de fichier.
+    [HttpGet("{fileId:long}/download")]
+    public async Task<IActionResult> Download(long fileId, CancellationToken ct)
+    {
+        try
+        {
+            // MediaIndex ne couvre que les dossiers source configurés : un média affiché depuis
+            // un album (copié dans le dossier de l'album, voir AlbumService) n'y figure pas —
+            // on retombe alors sur pCloud directement pour le nom de fichier.
+            var entry = await db.MediaIndex.AsNoTracking().FirstOrDefaultAsync(m => m.PCloudFileId == fileId, ct);
+            var name = entry?.Name ?? await client.GetFileNameAsync(fileId);
+
+            var (bytes, contentType) = await client.DownloadAsync(fileId, ct);
+            return File(bytes, contentType ?? "application/octet-stream", name);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Échec du téléchargement du fichier {FileId}.", fileId);
+            return NotFound();
+        }
+    }
+
     // Redirige vers le fichier original pour la lecture vidéo — voir ARCHITECTURE.md §5.4.
     [HttpGet("{fileId:long}/stream")]
     public async Task<IActionResult> Stream(long fileId)

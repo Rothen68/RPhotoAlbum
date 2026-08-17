@@ -8,6 +8,17 @@
     <span class="icon material-symbols-outlined">close</span>
   </button>
 
+  @if (current(); as downloadItem) {
+    <a
+      class="btn-icon download-btn"
+      [href]="downloadUrl(downloadItem.fileId)"
+      (click)="$event.stopPropagation()"
+      aria-label="Télécharger"
+    >
+      <span class="icon material-symbols-outlined">download</span>
+    </a>
+  }
+
   @if (hasPrevious()) {
     <button
       type="button"

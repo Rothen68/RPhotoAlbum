@@ -98,4 +98,8 @@ export class AlbumService {
   streamUrl(fileId: number): string {
     return `/api/media/${fileId}/stream`;
   }
+
+  downloadUrl(fileId: number): string {
+    return `/api/media/${fileId}/download`;
+  }
 }

@@ -283,6 +283,45 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
 
+    // Téléchargement complet du fichier original (issue #1 — téléchargement depuis la vue plein
+    // écran) : contrairement à DownloadPartialAsync, on bufférise ici tout le fichier avant de
+    // le renvoyer, pour pouvoir libérer la réponse pCloud immédiatement (voir MediaController.
+    // Download) plutôt que de garder un flux réseau ouvert le temps que MVC écrive la réponse
+    // — usage rare et explicite (un clic utilisateur), la mémoire tampon reste acceptable même
+    // pour une vidéo.
+    public async Task<(byte[] Bytes, string? ContentType)> DownloadAsync(long fileId, CancellationToken ct = default)
+    {
+        var url = await GetFileLinkAsync(fileId);
+        using var response = await httpClient.GetAsync(url, ct);
+        response.EnsureSuccessStatusCode();
+        var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+        return (bytes, response.Content.Headers.ContentType?.ToString());
+    }
+
+    // Nom de fichier depuis pCloud directement (pas depuis MediaIndex, qui n'indexe que les
+    // dossiers source configurés) — nécessaire pour les médias d'un album, copiés dans le
+    // dossier de l'album et donc absents de MediaIndex (voir issue #1, téléchargement depuis
+    // la vue plein écran de l'Album).
+    public async Task<string> GetFileNameAsync(long fileId)
+    {
+        var connection = await RequireConnectionAsync();
+        var url = QueryHelpers.AddQueryString($"https://{connection.Hostname}/stat", new Dictionary<string, string?>
+        {
+            ["fileid"] = fileId.ToString(),
+            ["access_token"] = connection.AccessToken,
+        });
+
+        var response = await httpClient.GetFromJsonAsync<PCloudFileOperationResponse>(url)
+            ?? throw new InvalidOperationException("Réponse pCloud invalide (stat).");
+
+        if (response.Result != 0 || response.Metadata is null)
+        {
+            throw new InvalidOperationException($"Erreur pCloud stat (result={response.Result}: {response.Error}).");
+        }
+
+        return response.Metadata.Name;
+    }
+
     private async Task<string> ResolveFileLinkAsync(long fileId)
     {
         var connection = await RequireConnectionAsync();

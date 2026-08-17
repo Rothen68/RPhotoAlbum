@@ -53,6 +53,7 @@ export class AlbumDetailComponent implements OnInit {
   posterUrlFn = (fileId: number): string => this.albumService.thumbnailUrl(fileId, 400);
   imageUrlFn = (fileId: number): string => this.albumService.thumbnailUrl(fileId, 1600, false);
   streamUrlFn = (fileId: number): string => this.albumService.streamUrl(fileId);
+  downloadUrlFn = (fileId: number): string => this.albumService.downloadUrl(fileId);
 
   private autoScrollSpeed = 0;
   private autoScrollFrame: number | null = null;

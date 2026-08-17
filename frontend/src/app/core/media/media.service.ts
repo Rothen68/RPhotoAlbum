@@ -115,6 +115,10 @@ export class MediaService {
     return `/api/media/${fileId}/stream`;
   }
 
+  downloadUrl(fileId: number): string {
+    return `/api/media/${fileId}/download`;
+  }
+
   private buildFilterParams(filters: MediaFilters): HttpParams {
     let params = new HttpParams();
     if (filters.search) {

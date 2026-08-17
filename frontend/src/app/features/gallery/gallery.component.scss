@@ -64,12 +64,85 @@
   }
 }
 
-.filter-row {
+// Issue #4 : ligne "Filtres" (repliée par défaut) + boutons de colonnes, sur une seule ligne.
+.filter-bar-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.5rem;
+}
+
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 32px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.8125rem;
+
+  .icon {
+    font-size: 18px;
+  }
+
+  .chevron {
+    font-size: 18px;
+  }
+
+  &.active {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+}
+
+// Résumé en lecture seule des filtres actifs quand le panneau est replié (ex. "Type : Photo") —
+// permet de voir d'un coup d'œil qu'un filtre s'applique sans avoir à rouvrir le panneau.
+.active-filters-row {
+  display: flex;
   flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+}
+
+.filter-chip {
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+// Filtres regroupés par catégorie, listés verticalement, quand le panneau est ouvert.
+.filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.filter-group-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.filter-group-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .filter-select {
@@ -86,6 +159,13 @@
   // comportement ; le texte affiché (valeur sélectionnée) est tronqué par le navigateur si besoin.
   min-width: 0;
   max-width: 9rem;
+}
+
+// `flex-basis` (via le raccourci `flex`) prend un sens différent selon l'axe du conteneur flex —
+// ne s'applique qu'ici, dans `.filter-group-row` (ligne horizontale de plusieurs <select>), pas
+// sur la règle de base ci-dessus qui s'applique aussi dans `.filter-group` (colonne), où un
+// flex-basis non-auto écraserait la hauteur (`height: 32px`) au lieu de la largeur.
+.filter-group-row .filter-select {
   flex: 1 1 6rem;
 }
 
