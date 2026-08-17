@@ -23,12 +23,17 @@
     font-size: 0.875rem;
   }
 
+  // Même bug que les boutons de la page Configuration (issue #5) : sans `background`/`color`
+  // explicites, ce champ prend le fond blanc par défaut du navigateur mais hérite du texte
+  // quasi blanc du thème sombre global (`input { color: inherit }`), illisible.
   input {
     min-height: 44px;
     padding: 0 0.75rem;
     font-size: 1rem;
     border: 1px solid #ccc;
     border-radius: 6px;
+    background: white;
+    color: #1a1a1a;
   }
 
   button {

@@ -69,6 +69,7 @@
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .filter-select {
@@ -79,6 +80,13 @@
   color: var(--color-text);
   font-size: 0.8125rem;
   padding: 0 0.4rem;
+  // `min-width: 0` seul ne suffit pas : un <select> conserve un plancher de largeur basé sur le
+  // texte de sa plus longue <option> (ex. un nom de ville long) même en flex-shrink — cause du
+  // débordement horizontal de l'issue #3. `max-width` est un plafond dur, non soumis à ce
+  // comportement ; le texte affiché (valeur sélectionnée) est tronqué par le navigateur si besoin.
+  min-width: 0;
+  max-width: 9rem;
+  flex: 1 1 6rem;
 }
 
 .column-control {

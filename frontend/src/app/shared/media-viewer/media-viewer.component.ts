@@ -1,4 +1,4 @@
-import { Component, EventEmitter, HostListener, Input, OnInit, Output, computed, signal } from '@angular/core';
+import { Component, EventEmitter, HostListener, Input, OnDestroy, OnInit, Output, computed, signal } from '@angular/core';
 
 export interface MediaViewerItem {
   fileId: number;
@@ -15,7 +15,7 @@ const SWIPE_THRESHOLD_PX = 50;
   templateUrl: './media-viewer.component.html',
   styleUrl: './media-viewer.component.scss',
 })
-export class MediaViewerComponent implements OnInit {
+export class MediaViewerComponent implements OnInit, OnDestroy {
   @Input({ required: true }) items!: MediaViewerItem[];
   @Input({ required: true }) startIndex!: number;
   // Miniature vidéo (poster) — petite taille, comme dans la grille.
@@ -33,9 +33,18 @@ export class MediaViewerComponent implements OnInit {
   protected readonly hasNext = computed(() => this.index() < this.items.length - 1);
 
   private touchStartX: number | null = null;
+  private previousBodyOverflow = '';
 
   ngOnInit(): void {
     this.index.set(this.startIndex);
+    // L'overlay est en `position: fixed` mais ça ne suffit pas à empêcher le scroll de la page
+    // sous-jacente (surtout sur mobile) — voir issue #2.
+    this.previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+
+  ngOnDestroy(): void {
+    document.body.style.overflow = this.previousBodyOverflow;
   }
 
   @HostListener('window:keydown', ['$event'])

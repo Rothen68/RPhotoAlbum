@@ -30,6 +30,13 @@ body {
   color: var(--color-text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
+  // Garde-fou : `.fixed-bar` ci-dessous utilise `width: 100%` (résolu contre le viewport de mise
+  // en page, pas le viewport visuel, pour un élément `position: fixed`). Si un contenu déborde
+  // horizontalement quelque part dans l'app (ex. issue #3 : des <select> de filtre trop larges
+  // sur mobile), le viewport de mise en page s'élargit pour l'accueillir, ce qui pousse TOUTE
+  // barre fixe (tab bar, barre de sélection…) visuellement hors écran. `overflow-x: hidden` ici
+  // empêche ce débordement de se propager, quelle que soit sa source.
+  overflow-x: hidden;
 }
 
 button,
