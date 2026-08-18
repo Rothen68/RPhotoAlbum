@@ -87,7 +87,20 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    scope.ServiceProvider.GetRequiredService<CacheDbContext>().Database.Migrate();
+    var cacheDb = scope.ServiceProvider.GetRequiredService<CacheDbContext>();
+    cacheDb.Database.Migrate();
+
+    // Mode WAL — réglage stocké dans le fichier lui-même (pas par connexion), donc suffit de le
+    // faire une fois au démarrage ; idempotent si déjà activé. Réduit la contention entre les
+    // jobs qui écrivent en tâche de fond (indexation, EXIF, géolocalisation) et les requêtes
+    // normales de l'app pendant qu'un job tourne — voir issue #18.
+    var connection = cacheDb.Database.GetDbConnection();
+    await connection.OpenAsync();
+    await using (var pragma = connection.CreateCommand())
+    {
+        pragma.CommandText = "PRAGMA journal_mode=WAL;";
+        await pragma.ExecuteScalarAsync();
+    }
 }
 
 if (app.Environment.IsDevelopment())

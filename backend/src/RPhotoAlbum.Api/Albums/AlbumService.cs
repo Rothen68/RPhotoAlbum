@@ -244,9 +244,33 @@ public class AlbumService(
             .Where(i => i.Type == "media" && i.Source is not null && fileIds.Contains(i.Source.FileId))
             .ToList();
 
+        if (toRemove.Count == 0)
+        {
+            return doc;
+        }
+
+        // Suppressions pCloud en concurrence bornée — même correctif que AddMediaAsync (#13),
+        // pour la même raison (une sélection nombreuse supprimée en série pouvait rendre la
+        // requête perceptiblement "gelée", sans aucun retour visible).
+        using var throttle = new SemaphoreSlim(AddMediaConcurrency, AddMediaConcurrency);
+        var deleteTasks = toRemove.Select(async item =>
+        {
+            await throttle.WaitAsync(ct);
+            try
+            {
+                using var scope = scopeFactory.CreateScope();
+                var scopedClient = scope.ServiceProvider.GetRequiredService<PCloudClient>();
+                await TryDeleteAlbumCopyAsync(item, scopedClient);
+            }
+            finally
+            {
+                throttle.Release();
+            }
+        });
+
+        await Task.WhenAll(deleteTasks);
         foreach (var item in toRemove)
         {
-            await TryDeleteAlbumCopyAsync(item);
             doc.Items.Remove(item);
         }
 
@@ -299,7 +323,7 @@ public class AlbumService(
 
         if (item.Type == "media")
         {
-            await TryDeleteAlbumCopyAsync(item);
+            await TryDeleteAlbumCopyAsync(item, client);
         }
         doc.Items.Remove(item);
 
@@ -431,7 +455,11 @@ public class AlbumService(
         }
     }
 
-    private async Task TryDeleteAlbumCopyAsync(AlbumItemDocument item)
+    // targetClient explicite (pas le `client` injecté au constructeur) : appelé aussi bien
+    // depuis un contexte simple (RemoveItemAsync, un seul item) que depuis des suppressions
+    // concurrentes (RemoveMediaAsync), où chaque tâche a besoin de son propre PCloudClient
+    // scope-isolé — voir commentaire sur AddMediaAsync.
+    private async Task TryDeleteAlbumCopyAsync(AlbumItemDocument item, PCloudClient targetClient)
     {
         if (item.AlbumCopy is null)
         {
@@ -440,7 +468,7 @@ public class AlbumService(
 
         try
         {
-            await client.DeleteFileAsync(item.AlbumCopy.FileId);
+            await targetClient.DeleteFileAsync(item.AlbumCopy.FileId);
         }
         catch (Exception ex)
         {
