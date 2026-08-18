@@ -28,7 +28,16 @@ public class MediaController(
             return Conflict(new { error = "Une indexation est déjà en cours." });
         }
 
-        return Ok(new { indexed = result.Indexed, failedFolders = result.FailedFolders });
+        // Issue #11 : même déclenchement automatique que la réindexation périodique
+        // (MediaIndexBackgroundService) — sinon une réindexation manuelle depuis Configuration
+        // se comporte différemment de la périodique, ce qui n'a pas de sens du point de vue de
+        // l'utilisateur (les deux appellent le même MediaIndexService.ReindexAsync).
+        if (result.NewlyIndexed > 0)
+        {
+            await exifService.StartAsync();
+        }
+
+        return Ok(new { indexed = result.Indexed, newlyIndexed = result.NewlyIndexed, failedFolders = result.FailedFolders });
     }
 
     // Gallery : uniquement les médias non rejetés (§6.4, §11.4).
