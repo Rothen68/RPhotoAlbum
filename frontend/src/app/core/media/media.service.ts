@@ -38,10 +38,13 @@ export interface MediaFilters {
   city?: string;
 }
 
-export interface MediaLocations {
-  countries: string[];
-  regions: string[];
-  cities: string[];
+// Une ligne par combinaison distincte pays/région/ville observée dans la bibliothèque — permet
+// au frontend de dériver des filtres dépendants (issue #10) sans aller-retour supplémentaire à
+// chaque changement de sélection.
+export interface LocationCombo {
+  country: string;
+  region: string | null;
+  city: string | null;
 }
 
 export interface ExifJobStatus {
@@ -79,8 +82,8 @@ export class MediaService {
     return this.http.post<{ rejected: number }>('/api/media/reject', { fileIds });
   }
 
-  locations(): Observable<MediaLocations> {
-    return this.http.get<MediaLocations>('/api/media/locations');
+  locations(): Observable<LocationCombo[]> {
+    return this.http.get<LocationCombo[]>('/api/media/locations');
   }
 
   startExif(): Observable<void> {

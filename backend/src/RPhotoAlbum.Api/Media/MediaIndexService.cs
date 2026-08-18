@@ -6,11 +6,14 @@ using RPhotoAlbum.Api.PCloud;
 
 namespace RPhotoAlbum.Api.Media;
 
-public record MediaIndexResult(int Indexed, IReadOnlyList<string> FailedFolders)
+// NewlyIndexed (nouveaux médias jamais vus, par opposition aux médias déjà connus et simplement
+// reconfirmés à ce passage) — sert de déclencheur à l'extraction EXIF/géo automatique après
+// indexation (issue #11) : inutile de relancer ces jobs si l'indexation n'a rien trouvé de neuf.
+public record MediaIndexResult(int Indexed, int NewlyIndexed, IReadOnlyList<string> FailedFolders)
 {
     public bool IsAlreadyRunning { get; private init; }
 
-    public static MediaIndexResult AlreadyRunning { get; } = new(0, []) { IsAlreadyRunning = true };
+    public static MediaIndexResult AlreadyRunning { get; } = new(0, 0, []) { IsAlreadyRunning = true };
 }
 
 // Scanne les dossiers source configurés et met à jour le cache local — voir ARCHITECTURE.md §9.4.
@@ -35,13 +38,13 @@ public class MediaIndexService(
             if (await tokenStore.GetAsync() is null)
             {
                 logger.LogDebug("Indexation ignorée : pCloud non connecté.");
-                return new MediaIndexResult(0, []);
+                return new MediaIndexResult(0, 0, []);
             }
 
             var sourceFolders = await db.SourceFolders.AsNoTracking().ToListAsync(ct);
             if (sourceFolders.Count == 0)
             {
-                return new MediaIndexResult(0, []);
+                return new MediaIndexResult(0, 0, []);
             }
 
             var seenFileIds = new HashSet<long>();
@@ -96,8 +99,12 @@ public class MediaIndexService(
                 db.MediaIndex.RemoveRange(stale);
             }
 
+            // Compté AVANT SaveChangesAsync : ChangeTracker distingue encore les entités "Added"
+            // (nouveau média, jamais vu) des "Modified" (média déjà connu, juste reconfirmé).
+            var newlyIndexed = db.ChangeTracker.Entries<MediaIndexEntry>().Count(e => e.State == EntityState.Added);
+
             await db.SaveChangesAsync(ct);
-            return new MediaIndexResult(seenFileIds.Count, failedFolders);
+            return new MediaIndexResult(seenFileIds.Count, newlyIndexed, failedFolders);
         }
         finally
         {

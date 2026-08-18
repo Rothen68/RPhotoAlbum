@@ -77,28 +77,28 @@
           </select>
         </div>
 
-        @if (locations().countries.length > 0) {
+        @if (availableCountries().length > 0) {
           <div class="filter-group">
             <span class="filter-group-label">Localisation</span>
             <div class="filter-group-row">
               <select class="filter-select" [value]="countryFilter()" (change)="setCountryFilter($any($event.target).value)">
                 <option value="">Tous pays</option>
-                @for (country of locations().countries; track country) {
+                @for (country of availableCountries(); track country) {
                   <option [value]="country">{{ country }}</option>
                 }
               </select>
-              @if (locations().regions.length > 0) {
+              @if (availableRegions().length > 0) {
                 <select class="filter-select" [value]="regionFilter()" (change)="setRegionFilter($any($event.target).value)">
                   <option value="">Toutes régions</option>
-                  @for (region of locations().regions; track region) {
+                  @for (region of availableRegions(); track region) {
                     <option [value]="region">{{ region }}</option>
                   }
                 </select>
               }
-              @if (locations().cities.length > 0) {
+              @if (availableCities().length > 0) {
                 <select class="filter-select" [value]="cityFilter()" (change)="setCityFilter($any($event.target).value)">
                   <option value="">Toutes villes</option>
-                  @for (city of locations().cities; track city) {
+                  @for (city of availableCities(); track city) {
                     <option [value]="city">{{ city }}</option>
                   }
                 </select>

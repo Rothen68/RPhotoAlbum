@@ -14,10 +14,16 @@
               [(ngModel)]="newAlbumName"
               placeholder="Album name"
               (keyup.enter)="confirmNewAlbum()"
+              [disabled]="creatingAlbum()"
               autofocus
             />
-            <button type="button" class="btn btn-primary" [disabled]="!newAlbumName.trim()" (click)="confirmNewAlbum()">
-              Create
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="!newAlbumName.trim() || creatingAlbum()"
+              (click)="confirmNewAlbum()"
+            >
+              {{ creatingAlbum() ? 'Création…' : 'Create' }}
             </button>
           </div>
         } @else {

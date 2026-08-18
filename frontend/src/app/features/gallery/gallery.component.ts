@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { Subscription } from 'rxjs';
-import { DateGroup, MediaFilters, MediaItem, MediaLocations, MediaService } from '../../core/media/media.service';
+import { DateGroup, LocationCombo, MediaFilters, MediaItem, MediaService } from '../../core/media/media.service';
 import { AddToAlbumSheetComponent } from '../../shared/add-to-album-sheet/add-to-album-sheet.component';
 import { LongPressDirective } from '../../shared/long-press.directive';
 import { MediaViewerComponent } from '../../shared/media-viewer/media-viewer.component';
@@ -125,10 +125,34 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // Peuplées uniquement avec des valeurs déjà résolues (étape 9) — pas de texte libre, un pays
   // mal orthographié ne retournerait simplement rien.
-  protected readonly locations = signal<MediaLocations>({ countries: [], regions: [], cities: [] });
+  protected readonly locationCombos = signal<LocationCombo[]>([]);
   protected readonly countryFilter = signal('');
   protected readonly regionFilter = signal('');
   protected readonly cityFilter = signal('');
+
+  // Issue #10 : filtres dépendants — un pays sélectionné restreint les régions/villes proposées
+  // à ce pays (sinon on pouvait combiner "Allemagne" + une ville française et n'obtenir aucun
+  // résultat). Dérivés du même jeu de combinaisons plutôt que trois listes indépendantes.
+  protected readonly availableCountries = computed(() =>
+    this.distinctSorted(this.locationCombos().map((c) => c.country)),
+  );
+  protected readonly availableRegions = computed(() => {
+    const country = this.countryFilter();
+    const combos = country ? this.locationCombos().filter((c) => c.country === country) : this.locationCombos();
+    return this.distinctSorted(combos.map((c) => c.region));
+  });
+  protected readonly availableCities = computed(() => {
+    const country = this.countryFilter();
+    const region = this.regionFilter();
+    const combos = this.locationCombos().filter(
+      (c) => (!country || c.country === country) && (!region || c.region === region),
+    );
+    return this.distinctSorted(combos.map((c) => c.city));
+  });
+
+  private distinctSorted(values: (string | null)[]): string[] {
+    return [...new Set(values.filter((v): v is string => !!v))].sort();
+  }
 
   private searchDebounceTimer?: ReturnType<typeof setTimeout>;
 
@@ -141,7 +165,7 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
       this.dateGroups.set(groups);
       this.recomputeRows();
     });
-    this.mediaService.locations().subscribe((locations) => this.locations.set(locations));
+    this.mediaService.locations().subscribe((combos) => this.locationCombos.set(combos));
   }
 
   ngAfterViewInit(): void {
@@ -251,11 +275,21 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
 
   setCountryFilter(value: string): void {
     this.countryFilter.set(value);
+    // Le pays a changé : région/ville sélectionnées peuvent ne plus lui appartenir.
+    if (this.regionFilter() && !this.availableRegions().includes(this.regionFilter())) {
+      this.regionFilter.set('');
+    }
+    if (this.cityFilter() && !this.availableCities().includes(this.cityFilter())) {
+      this.cityFilter.set('');
+    }
     this.reloadFromScratch();
   }
 
   setRegionFilter(value: string): void {
     this.regionFilter.set(value);
+    if (this.cityFilter() && !this.availableCities().includes(this.cityFilter())) {
+      this.cityFilter.set('');
+    }
     this.reloadFromScratch();
   }
 

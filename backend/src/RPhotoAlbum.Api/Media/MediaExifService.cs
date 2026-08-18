@@ -15,7 +15,7 @@ internal record ExifResult(long Id, DateTime? DateTaken, double? Latitude, doubl
 // vue réelle (EXIF DateTimeOriginal) et les coordonnées GPS des images du cache, en ne
 // téléchargeant qu'un petit en-tête de chaque fichier (voir PCloudClient.DownloadPartialAsync)
 // — voir plan V2 étape 9.
-public class MediaExifService(IServiceScopeFactory scopeFactory, ILogger<MediaExifService> logger)
+public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupService geoService, ILogger<MediaExifService> logger)
 {
     // Lus en tête de fichier : suffisant pour l'IFD EXIF/GPS de la quasi-totalité des JPEG et
     // RAW (TIFF-based, ex. CR2) — bien plus petit qu'un fichier RAW complet (dizaines de Mo).
@@ -70,19 +70,24 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, ILogger<MediaEx
     // chaque appel de statut) avance donc régulièrement au fil du job, pas seulement à la toute
     // fin.
     //
-    // db ET client sont résolus ICI, depuis un scope créé pour (et qui dure) toute la durée du
-    // job — PAS injectés dans le constructeur de MediaExifService. Cause racine du bug observé en
-    // pratique (job tournant sans erreur journalisée, mais aucune date jamais persistée) :
-    // MediaExifService est lui-même Scoped, donc un PCloudClient injecté dans son constructeur
-    // reste lié au scope de la requête HTTP /exif/start — laquelle se termine (et dispose son
-    // scope, donc le HttpClient sous-jacent) presque immédiatement après le démarrage du
-    // Task.Run en arrière-plan. Les téléchargements échouaient alors silencieusement
-    // (ObjectDisposedException avalée par le catch générique d'ExtractAsync).
+    // db est résolu ICI, depuis un scope créé pour (et qui dure) toute la durée du job — PAS
+    // injecté dans le constructeur de MediaExifService. Cause racine d'un bug observé en pratique
+    // (job tournant sans erreur journalisée, mais aucune date jamais persistée) : MediaExifService
+    // est lui-même Scoped, donc un service injecté dans son constructeur reste lié au scope de la
+    // requête HTTP /exif/start — laquelle se termine (et dispose son scope) presque immédiatement
+    // après le démarrage du Task.Run en arrière-plan. Les téléchargements échouaient alors
+    // silencieusement (ObjectDisposedException avalée par le catch générique d'ExtractAsync).
+    //
+    // PCloudClient, en revanche, N'EST PAS résolu ici mais individuellement dans chaque appel
+    // concurrent d'ExtractAsync (voir plus bas) : PCloudClient dépend de PCloudTokenStore, qui
+    // interroge CacheDbContext à chaque appel pCloud (le jeton n'est pas mis en cache). Un
+    // DbContext EF Core n'est PAS thread-safe — le partager entre les tâches concurrentes
+    // (MaxConcurrency) provoquait des erreurs aléatoires "Cannot access a disposed object:
+    // SQLitePCL.sqlite3" (issue #12), le DbContext étant heurté par plusieurs threads à la fois.
     private async Task RunAsync(CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CacheDbContext>();
-        var client = scope.ServiceProvider.GetRequiredService<PCloudClient>();
         using var throttle = new SemaphoreSlim(MaxConcurrency, MaxConcurrency);
 
         try
@@ -99,7 +104,7 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, ILogger<MediaEx
                     await throttle.WaitAsync(ct);
                     try
                     {
-                        return await ExtractAsync(client, item.Id, item.PCloudFileId, ct);
+                        return await ExtractAsync(item.Id, item.PCloudFileId, ct);
                     }
                     finally
                     {
@@ -128,6 +133,12 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, ILogger<MediaEx
                 await db.SaveChangesAsync(ct);
                 db.ChangeTracker.Clear(); // évite d'accumuler les entités des lots précédents en mémoire
             }
+
+            // Issue #11 : enchaîne automatiquement sur la géolocalisation des coordonnées GPS
+            // qui viennent d'être extraites — uniquement ici (fin normale de la boucle), pas
+            // dans le finally ci-dessous, pour ne jamais déclencher geo après un Stop() manuel
+            // ou une erreur réelle. StartAsync() est idempotent (no-op si déjà en cours).
+            await geoService.StartAsync();
         }
         catch (OperationCanceledException)
         {
@@ -147,10 +158,16 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, ILogger<MediaEx
         }
     }
 
-    private async Task<ExifResult> ExtractAsync(PCloudClient client, long id, long pCloudFileId, CancellationToken ct)
+    private async Task<ExifResult> ExtractAsync(long id, long pCloudFileId, CancellationToken ct)
     {
         try
         {
+            // Scope dédié à CET appel concurrent (voir commentaire sur RunAsync) : isole le
+            // CacheDbContext utilisé par PCloudTokenStore de celui des autres extractions en
+            // cours en parallèle.
+            using var scope = scopeFactory.CreateScope();
+            var client = scope.ServiceProvider.GetRequiredService<PCloudClient>();
+
             var bytes = await client.DownloadPartialAsync(pCloudFileId, ExifReadBytes, ct);
             using var stream = new MemoryStream(bytes);
             var directories = ImageMetadataReader.ReadMetadata(stream);

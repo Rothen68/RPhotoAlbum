@@ -23,8 +23,19 @@ public class MediaIndexBackgroundService(
                 if (!result.IsAlreadyRunning)
                 {
                     logger.LogInformation(
-                        "Indexation périodique pCloud terminée : {Count} médias ({FailedCount} dossier(s) en échec).",
-                        result.Indexed, result.FailedFolders.Count);
+                        "Indexation périodique pCloud terminée : {Count} médias ({NewCount} nouveaux, {FailedCount} dossier(s) en échec).",
+                        result.Indexed, result.NewlyIndexed, result.FailedFolders.Count);
+
+                    // Issue #11 : déclenche automatiquement l'extraction EXIF (qui enchaîne
+                    // elle-même sur la géolocalisation à sa fin, voir MediaExifService.RunAsync)
+                    // uniquement si du contenu réellement nouveau a été trouvé — inutile de
+                    // relancer ces jobs (potentiellement longs) à chaque cycle périodique si rien
+                    // n'a changé côté pCloud.
+                    if (result.NewlyIndexed > 0)
+                    {
+                        var exifService = scope.ServiceProvider.GetRequiredService<MediaExifService>();
+                        await exifService.StartAsync();
+                    }
                 }
             }
             catch (Exception ex)

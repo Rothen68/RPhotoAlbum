@@ -83,17 +83,20 @@ public class MediaController(
 
     // Valeurs distinctes de localisation déjà résolues (étape 9), pour peupler les filtres de
     // la Gallery sans texte libre — un pays/région/ville mal orthographié dans un champ libre
-    // ne retournerait simplement rien.
+    // ne retournerait simplement rien. Combinaisons distinctes (pas trois listes séparées) : le
+    // frontend a besoin de savoir quelles régions/villes appartiennent à quel pays pour proposer
+    // des filtres dépendants (sélectionner un pays restreint les régions/villes proposées à ce
+    // pays, plutôt que de permettre des combinaisons incohérentes — issue #10).
     [HttpGet("locations")]
     public async Task<IActionResult> Locations()
     {
-        var query = db.MediaIndex.AsNoTracking().Where(m => !m.IsRejected);
+        var combos = await db.MediaIndex.AsNoTracking()
+            .Where(m => !m.IsRejected && m.Country != null)
+            .Select(m => new { m.Country, m.Region, m.City })
+            .Distinct()
+            .ToListAsync();
 
-        var countries = await query.Where(m => m.Country != null).Select(m => m.Country!).Distinct().OrderBy(c => c).ToListAsync();
-        var regions = await query.Where(m => m.Region != null).Select(m => m.Region!).Distinct().OrderBy(c => c).ToListAsync();
-        var cities = await query.Where(m => m.City != null).Select(m => m.City!).Distinct().OrderBy(c => c).ToListAsync();
-
-        return Ok(new { countries, regions, cities });
+        return Ok(combos.Select(c => new { country = c.Country, region = c.Region, city = c.City }));
     }
 
     private IOrderedQueryable<MediaIndexEntry> BuildFilteredQuery(

@@ -19,6 +19,11 @@ export class AddToAlbumSheetComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly creatingNew = signal(false);
   protected readonly busyAlbumId = signal<string | null>(null);
+  // Issue #13 : la création d'un album avec beaucoup de médias sélectionnés peut prendre du
+  // temps côté serveur (copie pCloud de chaque média) — sans cet indicateur, rien ne distingue
+  // visuellement une requête en cours d'une page figée, et le bouton restait cliquable
+  // (risque de double soumission créant deux albums).
+  protected readonly creatingAlbum = signal(false);
   protected newAlbumName = '';
 
   ngOnInit(): void {
@@ -42,14 +47,19 @@ export class AddToAlbumSheetComponent implements OnInit {
 
   confirmNewAlbum(): void {
     const name = this.newAlbumName.trim();
-    if (!name) {
+    if (!name || this.creatingAlbum()) {
       return;
     }
 
-    this.albumService.create(name, this.selectedFileIds).subscribe(() => {
-      this.newAlbumName = '';
-      this.creatingNew.set(false);
-      this.refresh();
+    this.creatingAlbum.set(true);
+    this.albumService.create(name, this.selectedFileIds).subscribe({
+      next: () => {
+        this.newAlbumName = '';
+        this.creatingNew.set(false);
+        this.creatingAlbum.set(false);
+        this.refresh();
+      },
+      error: () => this.creatingAlbum.set(false),
     });
   }
 

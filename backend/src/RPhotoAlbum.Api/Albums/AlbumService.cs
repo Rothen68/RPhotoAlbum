@@ -11,9 +11,14 @@ public record AlbumMembership(string AlbumId, string Name, bool ContainsAll);
 
 // Création, lecture/écriture de album.json, ajout/retrait de médias et blocs texte,
 // réorganisation — voir ARCHITECTURE.md §9.5.
-public class AlbumService(CacheDbContext db, PCloudClient client, ILogger<AlbumService> logger)
+public class AlbumService(
+    CacheDbContext db, PCloudClient client, IServiceScopeFactory scopeFactory, ILogger<AlbumService> logger)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    // Copies pCloud en concurrence bornée (voir MediaExifService.MaxConcurrency, même logique) —
+    // issue #13 : une sélection nombreuse copiée en série (un aller-retour pCloud par fichier,
+    // sans aucun retour visible côté UI) rendait la création d'un album perceptiblement "gelée".
+    private const int AddMediaConcurrency = 4;
 
     public async Task<List<AlbumSummary>> ListAsync(CancellationToken ct = default)
         => await db.AlbumSummaries.AsNoTracking().OrderByDescending(a => a.UpdatedAt).ToListAsync(ct);
@@ -175,37 +180,58 @@ public class AlbumService(CacheDbContext db, PCloudClient client, ILogger<AlbumS
         var existing = doc.Items.Where(i => i.Type == "media" && i.Source is not null)
             .Select(i => i.Source!.FileId).ToHashSet();
 
-        foreach (var fileId in fileIds.Distinct())
+        var toAdd = fileIds.Distinct().Where(fileId => !existing.Contains(fileId)).ToList();
+        if (toAdd.Count == 0)
         {
-            if (existing.Contains(fileId))
-            {
-                continue;
-            }
+            return doc;
+        }
 
-            var media = await db.MediaIndex.AsNoTracking().FirstOrDefaultAsync(m => m.PCloudFileId == fileId, ct);
-            if (media is null)
+        var mediaByFileId = await db.MediaIndex.AsNoTracking()
+            .Where(m => toAdd.Contains(m.PCloudFileId))
+            .ToDictionaryAsync(m => m.PCloudFileId, ct);
+
+        using var throttle = new SemaphoreSlim(AddMediaConcurrency, AddMediaConcurrency);
+        var copyTasks = toAdd.Select(async fileId =>
+        {
+            if (!mediaByFileId.TryGetValue(fileId, out var media))
             {
                 logger.LogWarning("Média {FileId} introuvable dans le cache, ignoré.", fileId);
-                continue;
+                return null;
             }
 
-            var copyFileId = await client.CopyFileAsync(fileId, summary.AlbumFolderId, media.Name);
-
-            doc.Items.Add(new AlbumItemDocument
+            await throttle.WaitAsync(ct);
+            try
             {
-                Id = Guid.NewGuid().ToString("N")[..8],
-                Type = "media",
-                MediaType = media.MediaType,
-                Date = media.ModifiedAt ?? media.CreatedAt ?? media.IndexedAt,
-                Source = new AlbumMediaRef { FileId = media.PCloudFileId, Path = media.Path, Hash = media.Hash, Name = media.Name },
-                AlbumCopy = new AlbumMediaRef
+                // Scope dédié : PCloudClient dépend de PCloudTokenStore, qui interroge
+                // CacheDbContext à chaque appel — un DbContext EF Core n'est pas thread-safe, le
+                // partager entre ces copies concurrentes reproduirait le même bug que #12.
+                using var scope = scopeFactory.CreateScope();
+                var scopedClient = scope.ServiceProvider.GetRequiredService<PCloudClient>();
+                var copyFileId = await scopedClient.CopyFileAsync(fileId, summary.AlbumFolderId, media.Name);
+
+                return new AlbumItemDocument
                 {
-                    FileId = copyFileId,
-                    Path = $"{summary.AlbumFolderPath}/{media.Name}",
-                    Name = media.Name,
-                },
-            });
-        }
+                    Id = Guid.NewGuid().ToString("N")[..8],
+                    Type = "media",
+                    MediaType = media.MediaType,
+                    Date = media.ModifiedAt ?? media.CreatedAt ?? media.IndexedAt,
+                    Source = new AlbumMediaRef { FileId = media.PCloudFileId, Path = media.Path, Hash = media.Hash, Name = media.Name },
+                    AlbumCopy = new AlbumMediaRef
+                    {
+                        FileId = copyFileId,
+                        Path = $"{summary.AlbumFolderPath}/{media.Name}",
+                        Name = media.Name,
+                    },
+                };
+            }
+            finally
+            {
+                throttle.Release();
+            }
+        });
+
+        var results = await Task.WhenAll(copyTasks);
+        doc.Items.AddRange(results.Where(item => item is not null)!);
 
         await PersistAsync(summary, doc, ct);
         return doc;
