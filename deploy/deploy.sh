@@ -42,6 +42,11 @@ if [ -d "$DEPLOY_DIR/.git" ]; then
     exit 1
   fi
 
+  # fetch AVANT checkout : sans ça, `git checkout` ne connaît que les branches déjà vues lors
+  # du clonage initial (ex. V2) — basculer vers une branche créée depuis (ex. V3) échoue avec
+  # "pathspec did not match any file(s) known to git" tant qu'aucun fetch n'a rafraîchi les
+  # références distantes.
+  git fetch origin
   git checkout "$BRANCH"
   # --ff-only : refuse d'écraser silencieusement des commits locaux qui auraient
   # divergé de l'origine, plutôt qu'un reset --hard destructeur.
