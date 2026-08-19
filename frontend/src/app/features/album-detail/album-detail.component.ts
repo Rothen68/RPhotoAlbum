@@ -96,10 +96,7 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     // d'une mutation d'album). Le cas "le viewport vient d'être (re)créé" est couvert séparément
     // par pushRowHeights(), appelée sur l'événement (attached) de la directive — voir
     // AlbumVirtualScrollDirective pour la raison (l'ordre effect-vs-attach() n'est pas garanti).
-    effect(() => {
-      const heights = this.rowHeights();
-      this.scrollStrategy?.updateRowHeights(heights);
-    });
+    effect(() => this.pushRowHeights());
   }
 
   ngOnInit(): void {
@@ -126,8 +123,18 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     this.resizeObserver?.disconnect();
   }
 
+  // La stratégie de scroll (offsets cumulés) a besoin de l'empreinte TOTALE de chaque rangée
+  // (contenu + marge visuelle), alors que rowHeights() — utilisée pour dimensionner .row/
+  // .media-block eux-mêmes — doit rester au contenu exact, sans quoi l'image serait étirée en
+  // trop. Le marge (ROW_GAP_PX) doit correspondre exactement au margin-bottom de .row-wrapper
+  // en vue virtualisée (voir SCSS) : régression repérée par l'utilisateur (V2.24 déployée sans
+  // aucun espacement visuel entre rangées dans la vue de base — le calcul de hauteur ne prenait
+  // jusqu'ici en compte QUE le contenu, jamais d'espacement entre rangées).
+  private static readonly ROW_GAP_PX = 8;
+
   protected pushRowHeights(): void {
-    this.scrollStrategy?.updateRowHeights(this.rowHeights());
+    const heights = this.rowHeights().map((h) => h + AlbumDetailComponent.ROW_GAP_PX);
+    this.scrollStrategy?.updateRowHeights(heights);
   }
 
   private load(): void {

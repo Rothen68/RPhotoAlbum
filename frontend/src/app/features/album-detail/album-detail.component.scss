@@ -38,6 +38,17 @@
 .virtual-viewport {
   flex: 1 1 auto;
   min-height: 0;
+
+  // Espacement vertical entre rangées (régression V2.24 : la table d'offsets cumulés de CDK ne
+  // prenait en compte que la hauteur du contenu, jamais d'espacement entre rangées, contrairement
+  // au mode Edit qui en a un via `.feed { gap: 0.5rem }`). Un margin ici, PAS un padding avec
+  // box-sizing:border-box : .row/.media-block gardent leur hauteur exacte (nécessaire pour un
+  // rendu photo non déformé), c'est AlbumDetailComponent.pushRowHeights qui ajoute cette même
+  // valeur (ROW_GAP_PX) à la hauteur poussée à la stratégie de scroll, pour que l'empreinte
+  // totale de chaque rangée (contenu + cette marge) corresponde exactement à ce que CDK attend.
+  .row-wrapper {
+    margin-bottom: 8px;
+  }
 }
 
 .feed-scroll {
