@@ -425,7 +425,10 @@ public class AlbumService(
     // rangée, suppression de l'ancre ou d'un item de la rangée, reorder qui casse la
     // contiguïté) peut la rendre incohérente. Appelé à chaque écriture, quel que soit le
     // point d'entrée (AddMedia/RemoveMedia/AddText/RemoveItem/Reorder).
-    private static void NormalizeRowSpans(AlbumDocument doc)
+    // internal (pas private) + InternalsVisibleTo(RPhotoAlbum.Api.Tests) : logique pure, sans
+    // I/O, testable directement sans avoir à instancier AlbumService (donc sans mocker
+    // PCloudClient/CacheDbContext) — voir issue GitHub #17.
+    internal static void NormalizeRowSpans(AlbumDocument doc)
     {
         var items = doc.Items;
         var i = 0;
