@@ -222,6 +222,8 @@ public class AlbumService(
                         Path = $"{summary.AlbumFolderPath}/{media.Name}",
                         Name = media.Name,
                     },
+                    Width = media.Width,
+                    Height = media.Height,
                 };
             }
             finally

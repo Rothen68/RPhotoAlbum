@@ -24,6 +24,11 @@ export interface AlbumItem {
   albumCopy: AlbumMediaRef | null;
   markdown: string | null;
   rowSpan: number;
+  // Dimensions de l'image d'origine (issues de l'extraction EXIF) — absentes si le média n'a
+  // pas encore été traité, ou pour les vidéos. Utilisées pour précalculer la hauteur d'une
+  // rangée non groupée dans la virtualisation (issue #20).
+  width: number | null;
+  height: number | null;
 }
 
 export interface AlbumDetail {

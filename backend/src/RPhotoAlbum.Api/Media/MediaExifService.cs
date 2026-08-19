@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MetadataExtractor;
 using MetadataExtractor.Formats.Exif;
+using MetadataExtractor.Formats.Jpeg;
 using RPhotoAlbum.Api.Data;
 using RPhotoAlbum.Api.Models;
 using RPhotoAlbum.Api.PCloud;
@@ -9,7 +10,7 @@ namespace RPhotoAlbum.Api.Media;
 
 public record ExifJobStatus(bool Running, int Processed, int Total, DateTime? StartedAt, string? LastError);
 
-internal record ExifResult(long Id, DateTime? DateTaken, double? Latitude, double? Longitude);
+internal record ExifResult(long Id, DateTime? DateTaken, double? Latitude, double? Longitude, int? Width, int? Height);
 
 // Job manuel (pas périodique comme MediaIndexBackgroundService) : extrait la date de prise de
 // vue réelle (EXIF DateTimeOriginal) et les coordonnées GPS des images du cache, en ne
@@ -127,6 +128,8 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
                     entry.DateTaken = result.DateTaken;
                     entry.Latitude = result.Latitude;
                     entry.Longitude = result.Longitude;
+                    entry.Width = result.Width;
+                    entry.Height = result.Height;
                     entry.ExifProcessedAt = DateTime.UtcNow;
                 }
 
@@ -191,7 +194,29 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
                 longitude = location.Longitude;
             }
 
-            return new ExifResult(id, dateTaken, latitude, longitude);
+            // Dimensions de l'image — nécessaires pour précalculer la hauteur des rangées dans la
+            // virtualisation d'Album Detail (issue #20) sans avoir à mesurer chaque image après
+            // rendu. PixelXDimension/PixelYDimension (EXIF SubIFD) d'abord — c'est la dimension
+            // réelle telle qu'enregistrée par l'appareil, fiable aussi pour les RAW (TIFF-based) —
+            // avec repli sur les marqueurs JPEG SOF si l'EXIF ne les porte pas (certains éditeurs
+            // ne réécrivent pas ces tags).
+            int? width = null;
+            int? height = null;
+            if (subIfd?.TryGetInt32(ExifDirectoryBase.TagExifImageWidth, out var exifWidth) == true &&
+                subIfd.TryGetInt32(ExifDirectoryBase.TagExifImageHeight, out var exifHeight) == true)
+            {
+                width = exifWidth;
+                height = exifHeight;
+            }
+            else if (directories.OfType<JpegDirectory>().FirstOrDefault() is { } jpegDirectory &&
+                jpegDirectory.TryGetInt32(JpegDirectory.TagImageWidth, out var jpegWidth) &&
+                jpegDirectory.TryGetInt32(JpegDirectory.TagImageHeight, out var jpegHeight))
+            {
+                width = jpegWidth;
+                height = jpegHeight;
+            }
+
+            return new ExifResult(id, dateTaken, latitude, longitude, width, height);
         }
         // Ne PAS exclure OperationCanceledException ici : HttpClient lève un TaskCanceledException
         // (qui EN DÉRIVE) sur un simple timeout de requête (défaut 100s — déjà observé des liens
@@ -207,7 +232,7 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
             // timeout réseau…) — normal pour une bonne partie de la bibliothèque, pas une erreur
             // à remonter.
             logger.LogDebug(ex, "Pas d'EXIF exploitable pour le média {Id}.", id);
-            return new ExifResult(id, null, null, null);
+            return new ExifResult(id, null, null, null, null, null);
         }
     }
 }

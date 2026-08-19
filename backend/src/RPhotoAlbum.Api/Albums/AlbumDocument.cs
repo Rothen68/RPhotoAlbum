@@ -30,6 +30,13 @@ public class AlbumItemDocument
     public AlbumMediaRef? AlbumCopy { get; set; }
     public string? Markdown { get; set; }
 
+    // Dimensions de l'image d'origine (issues de l'extraction EXIF, voir MediaIndexEntry) —
+    // permet au frontend de précalculer la hauteur d'affichage sans mesurer après rendu
+    // (virtualisation d'Album Detail, issue #20). Absentes (null) si le média n'a pas encore
+    // été traité par le job EXIF, ou pour les vidéos.
+    public int? Width { get; set; }
+    public int? Height { get; set; }
+
     // Nombre d'items média consécutifs (1 à 3) formant une même rangée dans la grille de
     // l'album, porté UNIQUEMENT par le premier item de la rangée (les suivants ont une
     // valeur non significative, remise à 1 par AlbumService.NormalizeRowSpans). Modèle

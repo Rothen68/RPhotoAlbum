@@ -1,11 +1,25 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { CdkDragDrop, CdkDragMove, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
+import { ScrollingModule } from '@angular/cdk/scrolling';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlbumDetail, AlbumItem, AlbumService } from '../../core/albums/album.service';
 import { MarkdownEditorComponent } from '../../shared/markdown-editor/markdown-editor.component';
 import { MarkdownPipe } from '../../shared/markdown.pipe';
 import { MediaViewerComponent } from '../../shared/media-viewer/media-viewer.component';
 import { AlbumRow, groupIntoRows } from './album-layout';
+import { AlbumVirtualScrollDirective, computeRowHeight } from './album-virtual';
 
 // CDK n'auto-scrolle de façon fiable que les conteneurs explicitement scrollables
 // (overflow: auto/scroll) — pas le scroll naturel de la page/fenêtre utilisé ici,
@@ -17,15 +31,33 @@ const AUTO_SCROLL_MAX_SPEED = 18;
 @Component({
   selector: 'app-album-detail',
   standalone: true,
-  imports: [DragDropModule, MarkdownEditorComponent, MarkdownPipe, MediaViewerComponent],
+  imports: [DragDropModule, MarkdownEditorComponent, MarkdownPipe, MediaViewerComponent, ScrollingModule, AlbumVirtualScrollDirective],
   templateUrl: './album-detail.component.html',
   styleUrl: './album-detail.component.scss',
   host: { class: 'page' },
 })
-export class AlbumDetailComponent implements OnInit {
+export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly albumService = inject(AlbumService);
+  private readonly hostEl = inject(ElementRef<HTMLElement>);
+  private readonly ngZone = inject(NgZone);
+
+  // Vue de base virtualisée (issue #20) : hauteurs de rangée précalculées à partir de la seule
+  // largeur du conteneur (voir album-virtual.ts). Le mode Edit, lui, reste en rendu complet non
+  // virtualisé — combiner virtual-scroll et drag-and-drop par rangée (recyclage DOM pendant un
+  // défilement auto-scroll déclenché par le drag) est une des combinaisons CDK les plus fragiles
+  // en pratique, et un mode Edit reste une session d'action délibérée et bornée (contrairement
+  // au simple défilement de consultation, bien plus fréquent) — un compromis délibéré, pas un
+  // repli après échec comme la barre de date de Gallery.
+  @ViewChild(AlbumVirtualScrollDirective) private scrollStrategy?: AlbumVirtualScrollDirective;
+  // Conteneur scrollable du mode Edit (rendu complet, pas de viewport CDK) — l'auto-scroll
+  // pendant un glisser doit défiler CE conteneur plutôt que window/document maintenant que les
+  // deux modes partagent le même agencement flex borné en hauteur (voir SCSS).
+  @ViewChild('editScroll') private editScrollEl?: ElementRef<HTMLElement>;
+  protected readonly containerWidth = signal(0);
+  protected readonly rowHeights = computed(() => this.rows().map((row) => computeRowHeight(row, this.containerWidth())));
+  private resizeObserver?: ResizeObserver;
 
   private albumId!: string;
 
@@ -42,6 +74,7 @@ export class AlbumDetailComponent implements OnInit {
   protected draftText = '';
 
   protected readonly rows = computed(() => groupIntoRows(this.album()?.items ?? []));
+  protected trackRow = (_index: number, row: AlbumRow): string => row.items[0].id;
 
   protected readonly viewerIndex = signal<number | null>(null);
 
@@ -58,9 +91,43 @@ export class AlbumDetailComponent implements OnInit {
   private autoScrollSpeed = 0;
   private autoScrollFrame: number | null = null;
 
+  constructor() {
+    // Couvre le cas "les hauteurs changent pendant que le viewport est déjà attaché" (résultat
+    // d'une mutation d'album). Le cas "le viewport vient d'être (re)créé" est couvert séparément
+    // par pushRowHeights(), appelée sur l'événement (attached) de la directive — voir
+    // AlbumVirtualScrollDirective pour la raison (l'ordre effect-vs-attach() n'est pas garanti).
+    effect(() => {
+      const heights = this.rowHeights();
+      this.scrollStrategy?.updateRowHeights(heights);
+    });
+  }
+
   ngOnInit(): void {
     this.albumId = this.route.snapshot.paramMap.get('id')!;
     this.load();
+  }
+
+  ngAfterViewInit(): void {
+    const initialWidth = this.hostEl.nativeElement.getBoundingClientRect().width;
+    if (initialWidth > 0) {
+      this.containerWidth.set(initialWidth);
+    }
+
+    this.resizeObserver = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      if (width > 0 && width !== this.containerWidth()) {
+        this.ngZone.run(() => this.containerWidth.set(width));
+      }
+    });
+    this.resizeObserver.observe(this.hostEl.nativeElement);
+  }
+
+  ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
+  }
+
+  protected pushRowHeights(): void {
+    this.scrollStrategy?.updateRowHeights(this.rowHeights());
   }
 
   private load(): void {
@@ -245,7 +312,7 @@ export class AlbumDetailComponent implements OnInit {
         this.autoScrollFrame = null;
         return;
       }
-      window.scrollBy(0, this.autoScrollSpeed);
+      this.editScrollEl?.nativeElement.scrollBy(0, this.autoScrollSpeed);
       this.autoScrollFrame = requestAnimationFrame(step);
     };
     this.autoScrollFrame = requestAnimationFrame(step);

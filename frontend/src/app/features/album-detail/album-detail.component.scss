@@ -1,26 +1,30 @@
+// Conteneur borné en hauteur (comme Gallery) plutôt que scroll de page naturel — nécessaire
+// pour héberger le <cdk-virtual-scroll-viewport> de la vue de base (issue #20), qui gère son
+// propre défilement interne. Le mode Edit (non virtualisé) partage le même agencement, avec son
+// propre conteneur défilant (.feed-scroll) plutôt que window — voir AlbumDetailComponent
+// (runAutoScroll cible désormais ce conteneur).
 :host {
-  display: block;
-  padding-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 56px);
 }
 
 .page-header {
-  position: sticky;
-  top: 0;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   background: var(--color-bg);
-  z-index: 10;
+}
 
-  .album-name {
-    flex: 1;
-    font-weight: 600;
-    font-size: 1.0625rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+.page-header .album-name {
+  flex: 1;
+  font-weight: 600;
+  font-size: 1.0625rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .empty-state {
@@ -29,11 +33,24 @@
   padding: 0 1rem;
 }
 
+// cdk-virtual-scroll-viewport gère lui-même son overflow interne — ne pas le fixer ici, juste
+// lui laisser l'espace disponible via flex.
+.virtual-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.feed-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .feed {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 0 0.75rem;
+  padding: 0 0.75rem 1rem;
 }
 
 // Une rangée = sa propre mini-grille à N colonnes (N = nombre de médias groupés) : un
@@ -142,11 +159,38 @@
   }
 }
 
+// Vue virtualisée (issue #20) : la hauteur est fixée en JS directement sur .media-block (voir
+// computeRowHeight / [style.height.px] dans le template) — PAS via un height: 100% en cascade
+// depuis .row, qui ne se propage pas de façon fiable à travers .block/.block-content (des
+// conteneurs sans hauteur explicite propre, y compris dans une grille CSS) : constaté en
+// pratique, l'image gardait sa taille naturelle carrée et chevauchait la rangée suivante.
+// object-fit: cover fait correspondre exactement le rendu à cette hauteur, sans recadrage
+// perceptible quand les dimensions réelles de l'image sont connues (extraction EXIF). Seul un
+// média pas encore traité (estimation par défaut, voir FALLBACK_ASPECT_RATIO) peut montrer un
+// léger recadrage temporaire, qui se corrige de lui-même une fois l'EXIF disponible.
+.media-block.virtualized {
+  img,
+  video {
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
 .text-block {
   padding: 0.75rem;
 
   &.editable {
     cursor: text;
+  }
+
+  // Hauteur réservée FIXE (pas max-height) en vue virtualisée, pour correspondre exactement à
+  // TEXT_BLOCK_HEIGHT_PX quel que soit le contenu réel — un contenu plus court laisserait sinon
+  // un vide (le bloc rétrécirait à son contenu, la rangée suivante étant elle positionnée à un
+  // offset cumulé fixe qui suppose 160px) ; un contenu plus long défile en interne plutôt que de
+  // déborder sur cette même rangée suivante.
+  &.virtualized {
+    height: 160px;
+    overflow-y: auto;
   }
 }
 
