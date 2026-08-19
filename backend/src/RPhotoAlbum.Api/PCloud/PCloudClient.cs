@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 namespace RPhotoAlbum.Api.PCloud;
 
 // Encapsule les appels API pCloud — voir ARCHITECTURE.md §9.3.
-public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options, PCloudTokenStore tokenStore, IMemoryCache cache)
+public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options, PCloudTokenStore tokenStore, IMemoryCache cache) : IPCloudClient
 {
     // Durée de mise en cache des liens résolus (miniature/fichier), volontairement bien plus
     // courte que la durée de validité réelle des liens pCloud (non documentée précisément,

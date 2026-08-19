@@ -16,7 +16,7 @@ public class MediaController(
     MediaExifService exifService,
     GeoLookupService geoService,
     CacheDbContext db,
-    PCloudClient client,
+    IPCloudClient client,
     ILogger<MediaController> logger) : ControllerBase
 {
     [HttpPost("reindex")]

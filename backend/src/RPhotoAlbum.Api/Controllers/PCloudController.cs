@@ -8,7 +8,7 @@ namespace RPhotoAlbum.Api.Controllers;
 
 [ApiController]
 public class PCloudController(
-    PCloudClient client,
+    IPCloudClient client,
     PCloudTokenStore tokenStore,
     IOptions<PCloudOptions> options,
     ILogger<PCloudController> logger) : ControllerBase

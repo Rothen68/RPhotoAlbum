@@ -19,7 +19,7 @@ public record MediaIndexResult(int Indexed, int NewlyIndexed, IReadOnlyList<stri
 // Scanne les dossiers source configurés et met à jour le cache local — voir ARCHITECTURE.md §9.4.
 public class MediaIndexService(
     CacheDbContext db,
-    PCloudClient client,
+    IPCloudClient client,
     PCloudTokenStore tokenStore,
     ILogger<MediaIndexService> logger)
 {

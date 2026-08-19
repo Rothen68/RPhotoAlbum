@@ -12,7 +12,7 @@ public record AlbumMembership(string AlbumId, string Name, bool ContainsAll);
 // Création, lecture/écriture de album.json, ajout/retrait de médias et blocs texte,
 // réorganisation — voir ARCHITECTURE.md §9.5.
 public class AlbumService(
-    CacheDbContext db, PCloudClient client, IServiceScopeFactory scopeFactory, ILogger<AlbumService> logger)
+    CacheDbContext db, IPCloudClient client, IServiceScopeFactory scopeFactory, ILogger<AlbumService> logger)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     // Copies pCloud en concurrence bornée (voir MediaExifService.MaxConcurrency, même logique) —
@@ -206,7 +206,7 @@ public class AlbumService(
                 // CacheDbContext à chaque appel — un DbContext EF Core n'est pas thread-safe, le
                 // partager entre ces copies concurrentes reproduirait le même bug que #12.
                 using var scope = scopeFactory.CreateScope();
-                var scopedClient = scope.ServiceProvider.GetRequiredService<PCloudClient>();
+                var scopedClient = scope.ServiceProvider.GetRequiredService<IPCloudClient>();
                 var copyFileId = await scopedClient.CopyFileAsync(fileId, summary.AlbumFolderId, media.Name);
 
                 return new AlbumItemDocument
@@ -261,7 +261,7 @@ public class AlbumService(
             try
             {
                 using var scope = scopeFactory.CreateScope();
-                var scopedClient = scope.ServiceProvider.GetRequiredService<PCloudClient>();
+                var scopedClient = scope.ServiceProvider.GetRequiredService<IPCloudClient>();
                 await TryDeleteAlbumCopyAsync(item, scopedClient);
             }
             finally
@@ -464,7 +464,7 @@ public class AlbumService(
     // depuis un contexte simple (RemoveItemAsync, un seul item) que depuis des suppressions
     // concurrentes (RemoveMediaAsync), où chaque tâche a besoin de son propre PCloudClient
     // scope-isolé — voir commentaire sur AddMediaAsync.
-    private async Task TryDeleteAlbumCopyAsync(AlbumItemDocument item, PCloudClient targetClient)
+    private async Task TryDeleteAlbumCopyAsync(AlbumItemDocument item, IPCloudClient targetClient)
     {
         if (item.AlbumCopy is null)
         {

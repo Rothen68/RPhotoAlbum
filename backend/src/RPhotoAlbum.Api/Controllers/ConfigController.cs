@@ -13,7 +13,7 @@ public record AppConfigurationDto(AlbumFolderDto? AlbumParentFolder, List<Source
 // Enregistrement des dossiers source et du dossier parent des albums — voir ARCHITECTURE.md §9.2, §11.1.
 [ApiController]
 [Route("api/config")]
-public class ConfigController(CacheDbContext db, PCloudClient client, ILogger<ConfigController> logger) : ControllerBase
+public class ConfigController(CacheDbContext db, IPCloudClient client, ILogger<ConfigController> logger) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<AppConfigurationDto>> Get() => Ok(await LoadAsync());

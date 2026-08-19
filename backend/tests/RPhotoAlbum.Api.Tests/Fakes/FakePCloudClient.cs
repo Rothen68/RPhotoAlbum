@@ -1,0 +1,67 @@
+using RPhotoAlbum.Api.PCloud;
+
+namespace RPhotoAlbum.Api.Tests.Fakes;
+
+// Faux fait main (pas de librairie de mock) — voir issue GitHub #17. Ne couvre que
+// ListFolderAsync, seule méthode utilisée par MediaIndexService.ReindexAsync ; les autres
+// membres de IPCloudClient lèvent NotSupportedException si jamais appelés par erreur.
+public class FakePCloudClient : IPCloudClient
+{
+    private readonly Dictionary<long, PCloudFolderListing> _listings = new();
+    private readonly Dictionary<long, Exception> _failures = new();
+
+    // Bloque l'appel tant que la tâche n'est pas complétée — permet de tester la section
+    // critique de MediaIndexService.ReindexAsync (verrou statique) de façon déterministe,
+    // sans dépendre d'un Task.Delay arbitraire et donc potentiellement instable en CI.
+    public TaskCompletionSource<bool>? Gate { get; set; }
+
+    public void SetFolderListing(long folderId, PCloudFolderListing listing) => _listings[folderId] = listing;
+
+    public void SetFolderFailure(long folderId, Exception exception) => _failures[folderId] = exception;
+
+    public async Task<PCloudFolderListing> ListFolderAsync(long folderId, bool recursive = false, bool nofiles = false)
+    {
+        if (Gate is { } gate)
+        {
+            await gate.Task;
+        }
+
+        if (_failures.TryGetValue(folderId, out var ex))
+        {
+            throw ex;
+        }
+
+        if (_listings.TryGetValue(folderId, out var listing))
+        {
+            return listing;
+        }
+
+        throw new InvalidOperationException($"Aucun contenu simulé pour le dossier pCloud {folderId}.");
+    }
+
+    public string BuildAuthorizeUrl(string state) => throw new NotSupportedException();
+
+    public Task<PCloudTokenResponse> ExchangeCodeAsync(string code, string hostname) => throw new NotSupportedException();
+
+    public Task<string> GetThumbLinkAsync(long fileId, int width, int height, bool crop = false) => throw new NotSupportedException();
+
+    public Task<(long FolderId, string Path)> CreateFolderAsync(long parentFolderId, string name) => throw new NotSupportedException();
+
+    public Task DeleteFolderRecursiveAsync(long folderId) => throw new NotSupportedException();
+
+    public Task<long> CopyFileAsync(long fileId, long toFolderId, string toName) => throw new NotSupportedException();
+
+    public Task DeleteFileAsync(long fileId) => throw new NotSupportedException();
+
+    public Task<long> UploadTextFileAsync(long folderId, string filename, string content) => throw new NotSupportedException();
+
+    public Task<string> GetFileLinkAsync(long fileId) => throw new NotSupportedException();
+
+    public Task<string> DownloadTextFileAsync(long fileId) => throw new NotSupportedException();
+
+    public Task<byte[]> DownloadPartialAsync(long fileId, int maxBytes, CancellationToken ct = default) => throw new NotSupportedException();
+
+    public Task<(byte[] Bytes, string? ContentType)> DownloadAsync(long fileId, CancellationToken ct = default) => throw new NotSupportedException();
+
+    public Task<string> GetFileNameAsync(long fileId) => throw new NotSupportedException();
+}

@@ -169,7 +169,7 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
             // CacheDbContext utilisé par PCloudTokenStore de celui des autres extractions en
             // cours en parallèle.
             using var scope = scopeFactory.CreateScope();
-            var client = scope.ServiceProvider.GetRequiredService<PCloudClient>();
+            var client = scope.ServiceProvider.GetRequiredService<IPCloudClient>();
 
             var bytes = await client.DownloadPartialAsync(pCloudFileId, ExifReadBytes, ct);
             using var stream = new MemoryStream(bytes);

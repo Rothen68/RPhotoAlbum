@@ -33,7 +33,9 @@ builder.Services.Configure<AppAuthOptions>(builder.Configuration.GetSection("App
 builder.Services.Configure<PCloudOptions>(builder.Configuration.GetSection("PCloud"));
 builder.Services.AddScoped<PCloudTokenStore>();
 builder.Services.AddMemoryCache();
-builder.Services.AddHttpClient<PCloudClient>();
+// IPCloudClient (pas juste PCloudClient) : permet un faux fait main dans les tests
+// (RPhotoAlbum.Api.Tests) sans dépendre du vrai réseau pCloud — voir issue GitHub #17.
+builder.Services.AddHttpClient<IPCloudClient, PCloudClient>();
 
 builder.Services.Configure<IndexingOptions>(builder.Configuration.GetSection("Indexing"));
 builder.Services.AddScoped<MediaIndexService>();
