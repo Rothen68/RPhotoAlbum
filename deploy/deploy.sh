@@ -2,7 +2,7 @@
 # Déploiement de RPhotoAlbum sur un serveur Docker (TrueNAS SCALE, etc.).
 #
 # Premier déploiement (le dépôt n'existe pas encore sur le serveur) :
-#   curl -fsSL https://raw.githubusercontent.com/Rothen68/RPhotoAlbum/V2/deploy/deploy.sh -o deploy.sh
+#   curl -fsSL https://raw.githubusercontent.com/Rothen68/RPhotoAlbum/V3/deploy/deploy.sh -o deploy.sh
 #   chmod +x deploy.sh
 #   DEPLOY_DIR=/mnt/<pool>/apps/rphotoalbum ./deploy.sh
 #
@@ -12,13 +12,13 @@
 #
 # Variables d'environnement optionnelles :
 #   REPO_URL   (def: https://github.com/Rothen68/RPhotoAlbum.git)
-#   BRANCH     (def: V2)
+#   BRANCH     (def: V3)
 #   DEPLOY_DIR (def: $HOME/apps/rphotoalbum)
 
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/Rothen68/RPhotoAlbum.git}"
-BRANCH="${BRANCH:-V2}"
+BRANCH="${BRANCH:-V3}"
 DEPLOY_DIR="${DEPLOY_DIR:-$HOME/apps/rphotoalbum}"
 
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1"; }
