@@ -35,7 +35,19 @@ builder.Services.AddScoped<PCloudTokenStore>();
 builder.Services.AddMemoryCache();
 // IPCloudClient (pas juste PCloudClient) : permet un faux fait main dans les tests
 // (RPhotoAlbum.Api.Tests) sans dépendre du vrai réseau pCloud — voir issue GitHub #17.
-builder.Services.AddHttpClient<IPCloudClient, PCloudClient>();
+// Timeout explicite (défaut HttpClient sinon : 100s, jamais configuré jusqu'ici) — plafonnait
+// silencieusement TOUTE requête pCloud à 100s quel que soit le CancellationToken passé en appel,
+// masqué tant que le proxy_read_timeout de nginx (60s par défaut) était de toute façon plus court
+// et coupait la connexion en premier — révélé seulement une fois ce dernier corrigé (issue #26).
+// Réglé au-dessus du délai applicatif du cache miniatures
+// (MediaThumbnailCacheService.ThumbnailFetchTimeout, 150s) et en dessous du proxy_read_timeout
+// nginx (180s, voir reverse-proxy/nginx.conf) pour garder l'ordre voulu : c'est toujours le délai
+// applicatif qui tranche en premier (échec propre, 404), HttpClient et nginx ne servant que de
+// filets de sécurité.
+builder.Services.AddHttpClient<IPCloudClient, PCloudClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(170);
+});
 
 builder.Services.Configure<IndexingOptions>(builder.Configuration.GetSection("Indexing"));
 builder.Services.AddScoped<MediaIndexService>();
