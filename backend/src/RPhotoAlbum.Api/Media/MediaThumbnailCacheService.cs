@@ -15,11 +15,13 @@ public class MediaThumbnailCacheService(
     // miniature, voir MediaExifService) peut désormais monopoliser un de ces créneaux et ralentir
     // toute la page. Un délai borné laisse échouer proprement (404, icône cassée) plutôt que de
     // bloquer indéfiniment — la relecture ultérieure profite du cache disque de toute façon.
-    // 20s s'est avéré trop court en conditions réelles (déploiement serveur, issue #26) — des
-    // miniatures qui finissaient par charger avec le comportement précédent (délai par défaut de
-    // HttpClient, 100s) échouaient systématiquement. 90s reste sous ce défaut (garde le contrôle
-    // du mode d'échec) sans réduire la tolérance par rapport à l'ancien comportement.
-    private static readonly TimeSpan ThumbnailFetchTimeout = TimeSpan.FromSeconds(90);
+    // 20s puis 90s se sont avérés trop courts en conditions réelles (déploiement serveur, issue
+    // #26) : le vrai plafond était en fait celui de nginx devant nous (proxy_read_timeout, 60s
+    // par défaut — voir reverse-proxy/nginx.conf), qui coupait la connexion bien avant que ce
+    // délai applicatif n'ait sa chance de s'appliquer. nginx est maintenant réglé à 180s ; 150s
+    // ici reste sous ce plafond pour que ce soit toujours CE délai qui tranche en premier (échec
+    // propre, 404) plutôt qu'nginx qui coupe brutalement.
+    private static readonly TimeSpan ThumbnailFetchTimeout = TimeSpan.FromSeconds(150);
 
     public async Task<(byte[] Bytes, string ContentType)> GetAsync(
         long fileId, int width, int height, bool crop, CancellationToken ct)
