@@ -18,6 +18,7 @@ import { AlbumDetail, AlbumItem, AlbumService } from '../../core/albums/album.se
 import { MarkdownEditorComponent } from '../../shared/markdown-editor/markdown-editor.component';
 import { MarkdownPipe } from '../../shared/markdown.pipe';
 import { MediaViewerComponent } from '../../shared/media-viewer/media-viewer.component';
+import { isRawFileName } from '../../shared/raw-format';
 import { AlbumRow, groupIntoRows } from './album-layout';
 import { AlbumVirtualScrollDirective, computeRowHeight } from './album-virtual';
 
@@ -80,8 +81,20 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
 
   protected readonly mediaItems = computed(() => (this.album()?.items ?? []).filter((i) => i.type === 'media'));
   protected readonly viewerItems = computed(() =>
-    this.mediaItems().map((i) => ({ fileId: i.albumCopy!.fileId, mediaType: i.mediaType as 'image' | 'video' })),
+    this.mediaItems().map((i) => ({
+      fileId: i.albumCopy!.fileId,
+      mediaType: i.mediaType as 'image' | 'video',
+      name: i.albumCopy!.name,
+      dateTaken: i.dateTaken,
+      country: i.country,
+      region: i.region,
+      city: i.city,
+    })),
   );
+
+  protected isRaw(item: AlbumItem): boolean {
+    return isRawFileName(item.albumCopy?.name ?? item.source?.name);
+  }
 
   posterUrlFn = (fileId: number): string => this.albumService.thumbnailUrl(fileId, 400);
   imageUrlFn = (fileId: number): string => this.albumService.thumbnailUrl(fileId, 1600, false);

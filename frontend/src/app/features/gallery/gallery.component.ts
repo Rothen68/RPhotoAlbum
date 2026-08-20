@@ -16,6 +16,7 @@ import { DateGroup, LocationCombo, MediaFilters, MediaItem, MediaService } from 
 import { AddToAlbumSheetComponent } from '../../shared/add-to-album-sheet/add-to-album-sheet.component';
 import { LongPressDirective } from '../../shared/long-press.directive';
 import { MediaViewerComponent } from '../../shared/media-viewer/media-viewer.component';
+import { isRawFileName } from '../../shared/raw-format';
 import { GalleryDataSource, GalleryVirtualScrollDirective, VirtualRow, buildRows, formatDateLabel } from './gallery-virtual';
 
 const PAGE_SIZE = 60;
@@ -74,7 +75,15 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
     [...this.loadedItems().entries()].sort((a, b) => a[0] - b[0]),
   );
   protected readonly viewerItems = computed(() =>
-    this.sortedLoadedEntries().map(([, item]) => ({ fileId: item.pCloudFileId, mediaType: item.mediaType })),
+    this.sortedLoadedEntries().map(([, item]) => ({
+      fileId: item.pCloudFileId,
+      mediaType: item.mediaType,
+      name: item.name,
+      dateTaken: item.dateTaken,
+      country: item.country,
+      region: item.region,
+      city: item.city,
+    })),
   );
   protected readonly viewerIndex = signal<number | null>(null);
 
@@ -255,6 +264,10 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
 
   thumbnailUrl(fileId: number): string {
     return this.mediaService.thumbnailUrl(fileId);
+  }
+
+  protected isRaw(name: string): boolean {
+    return isRawFileName(name);
   }
 
   onSearchInput(value: string): void {

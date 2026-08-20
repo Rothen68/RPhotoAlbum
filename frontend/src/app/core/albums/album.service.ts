@@ -29,6 +29,13 @@ export interface AlbumItem {
   // rangée non groupée dans la virtualisation (issue #20).
   width: number | null;
   height: number | null;
+  // Date de prise de vue et localisation (issues des jobs EXIF/géo) — figées au moment où le
+  // média a été ajouté à l'album, pas mises à jour rétroactivement si le média source est
+  // traité plus tard (même limitation que width/height ci-dessus). Voir issue #22.
+  dateTaken: string | null;
+  country: string | null;
+  region: string | null;
+  city: string | null;
 }
 
 export interface AlbumDetail {

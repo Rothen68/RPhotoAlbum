@@ -42,6 +42,24 @@
     } @else {
       <img [src]="imageUrl(item.fileId)" (click)="$event.stopPropagation()" alt="" />
     }
+
+    @if (isRaw()) {
+      <span class="raw-badge">RAW</span>
+    }
+
+    @if (item.name || item.dateTaken || locationLabel()) {
+      <div class="info-zone" (click)="$event.stopPropagation()">
+        @if (item.name) {
+          <span class="info-name">{{ item.name }}</span>
+        }
+        @if (item.dateTaken) {
+          <span class="info-detail">{{ item.dateTaken | date: 'd MMM y' }}</span>
+        }
+        @if (locationLabel(); as location) {
+          <span class="info-detail">{{ location }}</span>
+        }
+      </div>
+    }
   }
 
   @if (hasNext()) {

@@ -142,6 +142,10 @@
                 <span class="icon material-symbols-outlined video-glyph">play_circle</span>
               }
 
+              @if (isRaw(media.name)) {
+                <span class="raw-glyph">RAW</span>
+              }
+
               @if (selectionMode()) {
                 <span class="check-dot" [class.checked]="isSelected(media)">
                   @if (isSelected(media)) {

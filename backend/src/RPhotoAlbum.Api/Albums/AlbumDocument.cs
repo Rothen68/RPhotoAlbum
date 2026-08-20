@@ -37,6 +37,16 @@ public class AlbumItemDocument
     public int? Width { get; set; }
     public int? Height { get; set; }
 
+    // Date de prise de vue et localisation (issues des jobs EXIF/géo, voir MediaIndexEntry) —
+    // pour l'affichage dans la visionneuse plein écran (issue #22). Copiées depuis
+    // MediaIndexEntry au moment de AddMediaAsync, comme Width/Height ci-dessus : figées à cet
+    // instant, pas mises à jour rétroactivement si le média source est traité plus tard par les
+    // jobs EXIF/géo (même limitation acceptée que pour #20).
+    public DateTime? DateTaken { get; set; }
+    public string? Country { get; set; }
+    public string? Region { get; set; }
+    public string? City { get; set; }
+
     // Nombre d'items média consécutifs (1 à 3) formant une même rangée dans la grille de
     // l'album, porté UNIQUEMENT par le premier item de la rangée (les suivants ont une
     // valeur non significative, remise à 1 par AlbumService.NormalizeRowSpans). Modèle

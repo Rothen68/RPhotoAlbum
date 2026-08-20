@@ -14,6 +14,13 @@ export interface MediaItem {
   size: number;
   createdAt: string | null;
   modifiedAt: string | null;
+  // Déjà renvoyés par GET /api/media/source (l'entité MediaIndexEntry complète), simplement pas
+  // déclarés ici jusqu'ici — voir issue #22. Absents tant que les jobs EXIF/géo n'ont pas encore
+  // traité le média.
+  dateTaken: string | null;
+  country: string | null;
+  region: string | null;
+  city: string | null;
 }
 
 export interface MediaSourcePage {

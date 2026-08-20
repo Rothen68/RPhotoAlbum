@@ -1,8 +1,18 @@
+import { DatePipe } from '@angular/common';
 import { Component, EventEmitter, HostListener, Input, OnDestroy, OnInit, Output, computed, signal } from '@angular/core';
+import { isRawFileName } from '../raw-format';
 
 export interface MediaViewerItem {
   fileId: number;
   mediaType: 'image' | 'video';
+  // Facultatifs : n'affiche que ce qui est réellement disponible (voir issue #22) — un média pas
+  // encore traité par les jobs EXIF/géo n'a ni dateTaken ni localisation, un média sans nom connu
+  // (cas hypothétique) n'affiche pas non plus le badge RAW.
+  name?: string | null;
+  dateTaken?: string | null;
+  country?: string | null;
+  region?: string | null;
+  city?: string | null;
 }
 
 const SWIPE_THRESHOLD_PX = 50;
@@ -12,6 +22,7 @@ const SWIPE_THRESHOLD_PX = 50;
 @Component({
   selector: 'app-media-viewer',
   standalone: true,
+  imports: [DatePipe],
   templateUrl: './media-viewer.component.html',
   styleUrl: './media-viewer.component.scss',
 })
@@ -32,6 +43,13 @@ export class MediaViewerComponent implements OnInit, OnDestroy {
   protected readonly current = computed(() => this.items[this.index()]);
   protected readonly hasPrevious = computed(() => this.index() > 0);
   protected readonly hasNext = computed(() => this.index() < this.items.length - 1);
+  protected readonly isRaw = computed(() => isRawFileName(this.current()?.name));
+  // Chaîne "ville, région, pays" ne gardant que les segments réellement connus — voir issue #22.
+  protected readonly locationLabel = computed(() => {
+    const item = this.current();
+    const parts = [item?.city, item?.region, item?.country].filter((p): p is string => !!p);
+    return parts.length > 0 ? parts.join(', ') : null;
+  });
 
   private touchStartX: number | null = null;
   private previousBodyOverflow = '';

@@ -17,7 +17,8 @@ public record AlbumListDto(List<AlbumSectionDto> Sections, List<AlbumSummaryDto>
 public record AlbumMediaRefDto(long FileId, string Name);
 public record AlbumItemDto(
     string Id, string Type, string? MediaType, DateTime? Date, AlbumMediaRefDto? Source, AlbumMediaRefDto? AlbumCopy,
-    string? Markdown, int RowSpan, int? Width, int? Height);
+    string? Markdown, int RowSpan, int? Width, int? Height,
+    DateTime? DateTaken, string? Country, string? Region, string? City);
 public record AlbumDetailDto(string Id, string Name, DateTime UpdatedAt, List<AlbumItemDto> Items);
 public record AlbumMembershipDto(string AlbumId, string Name, bool ContainsAll);
 
@@ -229,5 +230,9 @@ public class AlbumsController(AlbumService albums) : ControllerBase
             item.Markdown,
             item.RowSpan,
             item.Width,
-            item.Height);
+            item.Height,
+            item.DateTaken,
+            item.Country,
+            item.Region,
+            item.City);
 }

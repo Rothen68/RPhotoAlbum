@@ -354,6 +354,10 @@ public class AlbumService(
                     },
                     Width = media.Width,
                     Height = media.Height,
+                    DateTaken = media.DateTaken,
+                    Country = media.Country,
+                    Region = media.Region,
+                    City = media.City,
                 };
             }
             finally

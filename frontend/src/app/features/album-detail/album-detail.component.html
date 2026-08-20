@@ -27,6 +27,9 @@
                     } @else {
                       <img [src]="thumbnailUrl(item.albumCopy!.fileId)" [alt]="item.albumCopy?.name" />
                     }
+                    @if (isRaw(item)) {
+                      <span class="raw-glyph">RAW</span>
+                    }
                   </div>
                 } @else {
                   <div class="text-block virtualized card markdown-body" [innerHTML]="item.markdown | markdown"></div>
@@ -93,6 +96,9 @@
                           <video [src]="streamUrl(item.albumCopy!.fileId)" [poster]="thumbnailUrl(item.albumCopy!.fileId)" controls></video>
                         } @else {
                           <img [src]="thumbnailUrl(item.albumCopy!.fileId)" [alt]="item.albumCopy?.name" />
+                        }
+                        @if (isRaw(item)) {
+                          <span class="raw-glyph">RAW</span>
                         }
                       </div>
                     } @else {
