@@ -72,6 +72,15 @@ compose build
 log "Démarrage des conteneurs."
 compose up -d
 
+# reverse-proxy utilise une image nginx stock (jamais reconstruite) avec nginx.conf monté en
+# volume — `compose up -d` ne recrée un service que si son IMAGE ou sa déclaration dans
+# docker-compose.yml change, jamais si seul le CONTENU d'un fichier monté a changé. Sans ce
+# redémarrage explicite, une modification de nginx.conf reste silencieusement sans effet après
+# déploiement (constaté en conditions réelles : proxy_read_timeout mis à jour dans le dépôt mais
+# toujours pas appliqué après plusieurs déploiements successifs).
+log "Redémarrage du reverse-proxy pour prendre en compte un éventuel changement de nginx.conf."
+compose restart reverse-proxy
+
 log "État des conteneurs :"
 compose ps
 
