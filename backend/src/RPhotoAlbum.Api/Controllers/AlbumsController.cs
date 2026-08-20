@@ -8,8 +8,12 @@ public record MediaFileIdsRequest(List<long> FileIds);
 public record AddTextRequest(string? AfterItemId, string Markdown);
 public record UpdateTextRequest(string Markdown);
 public record ReorderRequest(List<string> ItemIds, Dictionary<string, int>? RowSpans);
+public record AlbumStructureSectionRequest(string? Id, string Name, List<string> AlbumIds);
+public record SaveAlbumStructureRequest(List<AlbumStructureSectionRequest> Sections, List<string> UnsectionedAlbumIds);
 
 public record AlbumSummaryDto(string Id, string Name, int ItemCount, long? CoverFileId, DateTime UpdatedAt);
+public record AlbumSectionDto(string Id, string Name, List<AlbumSummaryDto> Albums);
+public record AlbumListDto(List<AlbumSectionDto> Sections, List<AlbumSummaryDto> Unsectioned);
 public record AlbumMediaRefDto(long FileId, string Name);
 public record AlbumItemDto(
     string Id, string Type, string? MediaType, DateTime? Date, AlbumMediaRefDto? Source, AlbumMediaRefDto? AlbumCopy,
@@ -24,8 +28,30 @@ public class AlbumsController(AlbumService albums) : ControllerBase
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct)
     {
-        var summaries = await albums.ListAsync(ct);
-        return Ok(summaries.Select(ToDto));
+        var result = await albums.ListGroupedAsync(ct);
+        return Ok(ToDto(result));
+    }
+
+    // Remplace l'intégralité du regroupement/ordre des albums — voir AlbumService.SaveStructureAsync.
+    [HttpPut("structure")]
+    public async Task<IActionResult> SaveStructure(SaveAlbumStructureRequest request, CancellationToken ct)
+    {
+        if (request.Sections.Any(s => string.IsNullOrWhiteSpace(s.Name)))
+        {
+            return BadRequest(new { error = "Le nom de la section est requis." });
+        }
+
+        try
+        {
+            var result = await albums.SaveStructureAsync(
+                request.Sections.Select(s => new AlbumSectionInput(s.Id, s.Name, s.AlbumIds)).ToList(),
+                request.UnsectionedAlbumIds, ct);
+            return Ok(ToDto(result));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     // Redécouvre les albums déjà présents sur pCloud — voir AlbumService.ReindexAsync.
@@ -183,6 +209,11 @@ public class AlbumsController(AlbumService albums) : ControllerBase
 
     private static AlbumSummaryDto ToDto(Models.AlbumSummary summary)
         => new(summary.Id, summary.Name, summary.ItemCount, summary.CoverFileId, summary.UpdatedAt);
+
+    private static AlbumListDto ToDto(AlbumListResult result)
+        => new(
+            result.Sections.Select(s => new AlbumSectionDto(s.Id, s.Name, s.Albums.Select(ToDto).ToList())).ToList(),
+            result.Unsectioned.Select(ToDto).ToList());
 
     private static AlbumDetailDto ToDto(AlbumDocument doc)
         => new(doc.Id, doc.Name, doc.UpdatedAt, doc.Items.Select(ToDto).ToList());

@@ -1,6 +1,7 @@
 <header class="page-header">
   <h1>Albums</h1>
   <div class="header-actions">
+    <button type="button" class="btn-link" (click)="toggleOrganizeMode()">{{ organizeMode() ? 'Terminé' : 'Organiser' }}</button>
     <a routerLink="/config" class="btn-icon" aria-label="Configuration">
       <span class="icon material-symbols-outlined">settings</span>
     </a>
@@ -11,33 +12,161 @@
 </header>
 
 @if (loading()) {
-  <p class="muted">Loading…</p>
-} @else if (albums().length === 0) {
-  <p class="muted empty-state">No albums yet.</p>
+  <p class="muted">Chargement…</p>
+} @else if (unsectioned().length === 0 && sections().length === 0) {
+  <p class="muted empty-state">Aucun album pour l'instant.</p>
 } @else {
-  <ul class="album-list">
-    @for (album of albums(); track album.id) {
-      <li>
-        <a class="card elev-sm album-card" [routerLink]="['/albums', album.id]">
-          <div class="cover">
-            @if (album.coverFileId) {
-              <img [src]="thumbnailUrl(album.coverFileId)" [alt]="album.name" />
-            } @else {
-              <span class="muted">empty album</span>
+  @if (unsectioned().length > 0) {
+    <ul
+      class="album-list"
+      cdkDropList
+      [id]="'unsectioned'"
+      [cdkDropListData]="unsectioned()"
+      [cdkDropListDisabled]="!organizeMode()"
+      [cdkDropListConnectedTo]="allListIds()"
+      (cdkDropListDropped)="onAlbumDropped($event)"
+    >
+      @for (album of unsectioned(); track album.id; let i = $index) {
+        <li cdkDrag [cdkDragDisabled]="!organizeMode()" [cdkDragData]="album">
+          <ng-container *ngTemplateOutlet="albumCard; context: { album: album, containerId: 'unsectioned', index: i }" />
+        </li>
+      }
+    </ul>
+  }
+
+  @if (organizeMode() || sections().length > 0) {
+    <div
+      class="sections"
+      cdkDropList
+      [cdkDropListData]="sections()"
+      [cdkDropListDisabled]="!organizeMode()"
+      (cdkDropListDropped)="onSectionsDropped($event)"
+    >
+      @for (section of sections(); track section.id) {
+        <section class="album-section" cdkDrag [cdkDragDisabled]="!organizeMode()" [cdkDragData]="section">
+          <header class="section-header" (click)="toggleSection(section.id)">
+            @if (organizeMode()) {
+              <span class="icon material-symbols-outlined drag-handle" cdkDragHandle (click)="$event.stopPropagation()">drag_indicator</span>
             }
-            <button type="button" class="btn-icon delete-btn" aria-label="Delete album" (click)="confirmDelete(album, $event)">
-              <span class="icon material-symbols-outlined">delete</span>
-            </button>
-          </div>
-          <div class="info">
-            <span class="name">{{ album.name }}</span>
-            <span class="muted count">{{ album.itemCount }} item{{ album.itemCount === 1 ? '' : 's' }}</span>
-          </div>
-        </a>
-      </li>
-    }
-  </ul>
+            <span class="icon material-symbols-outlined chevron" [class.collapsed]="isCollapsed(section.id)">expand_more</span>
+
+            @if (editingSectionId() === section.id) {
+              <input
+                class="input section-name-input"
+                [ngModel]="editingSectionName()"
+                (ngModelChange)="editingSectionName.set($event)"
+                name="sectionName"
+                (click)="$event.stopPropagation()"
+                (blur)="commitRenameSection(section)"
+                (keydown.enter)="commitRenameSection(section)"
+                autofocus
+              />
+            } @else {
+              <span class="section-name">{{ section.name }}</span>
+            }
+
+            <span class="muted count">{{ section.albums.length }}</span>
+
+            @if (organizeMode()) {
+              <span class="section-actions">
+                <button type="button" class="btn-icon" aria-label="Rename section" (click)="startRenameSection(section, $event)">
+                  <span class="icon material-symbols-outlined">edit</span>
+                </button>
+                <button type="button" class="btn-icon" aria-label="Delete section" (click)="confirmDeleteSection(section, $event)">
+                  <span class="icon material-symbols-outlined">delete</span>
+                </button>
+              </span>
+            }
+          </header>
+
+          @if (!isCollapsed(section.id)) {
+            <ul
+              class="album-list"
+              cdkDropList
+              [id]="section.id"
+              [cdkDropListData]="section.albums"
+              [cdkDropListDisabled]="!organizeMode()"
+              [cdkDropListConnectedTo]="allListIds()"
+              (cdkDropListDropped)="onAlbumDropped($event)"
+            >
+              @if (section.albums.length === 0) {
+                <li class="empty-section muted">Glissez un album ici.</li>
+              } @else {
+                @for (album of section.albums; track album.id; let i = $index) {
+                  <li cdkDrag [cdkDragDisabled]="!organizeMode()" [cdkDragData]="album">
+                    <ng-container *ngTemplateOutlet="albumCard; context: { album: album, containerId: section.id, index: i }" />
+                  </li>
+                }
+              }
+            </ul>
+          }
+        </section>
+      }
+    </div>
+  }
+
+  @if (organizeMode()) {
+    <button type="button" class="btn new-section-btn" (click)="openNewSectionDialog()">
+      <span class="icon material-symbols-outlined">create_new_folder</span>
+      Nouvelle section
+    </button>
+  }
 }
+
+<ng-template #albumCard let-album="album" let-containerId="containerId" let-index="index">
+  <a class="card elev-sm album-card" [routerLink]="['/albums', album.id]">
+    <div class="cover">
+      @if (album.coverFileId) {
+        <img [src]="thumbnailUrl(album.coverFileId)" [alt]="album.name" />
+      } @else {
+        <span class="muted">empty album</span>
+      }
+      @if (!organizeMode()) {
+        <button type="button" class="btn-icon delete-btn" aria-label="Delete album" (click)="confirmDelete(album, $event)">
+          <span class="icon material-symbols-outlined">delete</span>
+        </button>
+      }
+    </div>
+    <div class="info">
+      <span class="name">{{ album.name }}</span>
+      <span class="muted count">{{ album.itemCount }} item{{ album.itemCount === 1 ? '' : 's' }}</span>
+    </div>
+
+    @if (organizeMode()) {
+      <div class="organize-controls" (click)="$event.stopPropagation(); $event.preventDefault()">
+        <span class="icon material-symbols-outlined drag-handle" cdkDragHandle>drag_indicator</span>
+        <div class="stack-buttons">
+          <button type="button" class="btn-icon" [disabled]="index === 0" (click)="moveAlbumUp(containerId, index)" aria-label="Move up">
+            <span class="icon material-symbols-outlined">keyboard_arrow_up</span>
+          </button>
+          <button
+            type="button"
+            class="btn-icon"
+            [disabled]="index === albumsOf(containerId).length - 1"
+            (click)="moveAlbumDown(containerId, index)"
+            aria-label="Move down"
+          >
+            <span class="icon material-symbols-outlined">keyboard_arrow_down</span>
+          </button>
+        </div>
+        <div class="move-menu-wrapper">
+          <button type="button" class="btn-icon" aria-label="Move to…" (click)="toggleMoveMenu(album.id)">
+            <span class="icon material-symbols-outlined">drive_file_move</span>
+          </button>
+          @if (moveMenuForAlbumId() === album.id) {
+            <div class="move-menu">
+              @for (target of moveTargetsFor(containerId); track target.id) {
+                <button type="button" (click)="moveAlbumTo(album.id, containerId, target.id)">
+                  {{ target.label }}
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </a>
+</ng-template>
 
 @if (showNewAlbumDialog()) {
   <div class="dialog-backdrop" (click)="closeNewAlbumDialog()">
@@ -69,6 +198,41 @@
       <div class="dialog-actions">
         <button type="button" class="btn" (click)="cancelDelete()">Cancel</button>
         <button type="button" class="btn btn-danger" [disabled]="deleting()" (click)="deleteAlbum()">Delete</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (showNewSectionDialog()) {
+  <div class="dialog-backdrop" (click)="closeNewSectionDialog()">
+    <form class="dialog" (click)="$event.stopPropagation()" (ngSubmit)="createSection()">
+      <h2>New section</h2>
+      <input
+        class="input"
+        [ngModel]="newSectionName()"
+        (ngModelChange)="newSectionName.set($event)"
+        name="sectionName"
+        placeholder="Section name"
+        autofocus
+      />
+      <div class="dialog-actions">
+        <button type="button" class="btn" (click)="closeNewSectionDialog()">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="!newSectionName().trim()">Create</button>
+      </div>
+    </form>
+  </div>
+}
+
+@if (sectionPendingDelete(); as section) {
+  <div class="dialog-backdrop" (click)="cancelDeleteSection()">
+    <div class="dialog" (click)="$event.stopPropagation()">
+      <h2>Delete section "{{ section.name }}"?</h2>
+      <p class="muted">
+        Its {{ section.albums.length }} album{{ section.albums.length === 1 ? '' : 's' }} will move back to "Unsectioned" — nothing is deleted.
+      </p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" (click)="cancelDeleteSection()">Cancel</button>
+        <button type="button" class="btn btn-danger" (click)="deleteSection()">Delete</button>
       </div>
     </div>
   </div>

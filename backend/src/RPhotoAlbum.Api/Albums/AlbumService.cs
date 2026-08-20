@@ -9,6 +9,12 @@ namespace RPhotoAlbum.Api.Albums;
 
 public record AlbumMembership(string AlbumId, string Name, bool ContainsAll);
 
+// Regroupement/ordre des albums (issue #6) — Sections préserve l'ordre des sections telles que
+// persistées, Unsectioned regroupe les albums pas encore rangés (nouveaux albums compris).
+public record AlbumSection(string Id, string Name, List<AlbumSummary> Albums);
+public record AlbumListResult(List<AlbumSection> Sections, List<AlbumSummary> Unsectioned);
+public record AlbumSectionInput(string? Id, string Name, List<string> AlbumIds);
+
 // Création, lecture/écriture de album.json, ajout/retrait de médias et blocs texte,
 // réorganisation — voir ARCHITECTURE.md §9.5.
 public class AlbumService(
@@ -19,9 +25,133 @@ public class AlbumService(
     // issue #13 : une sélection nombreuse copiée en série (un aller-retour pCloud par fichier,
     // sans aucun retour visible côté UI) rendait la création d'un album perceptiblement "gelée".
     private const int AddMediaConcurrency = 4;
+    // Écrit à la racine du dossier parent des albums (pas dans un sous-dossier d'album comme
+    // album.json) — voir AlbumStructureDocument.
+    private const string StructureFileName = "album-structure.json";
 
     public async Task<List<AlbumSummary>> ListAsync(CancellationToken ct = default)
         => await db.AlbumSummaries.AsNoTracking().OrderByDescending(a => a.UpdatedAt).ToListAsync(ct);
+
+    // Liste groupée par sections (issue #6) — combine les AlbumSummary (cache SQLite, comme
+    // ListAsync) avec le manifeste album-structure.json (racine du dossier parent des albums).
+    // Un album jamais placé dans le manifeste (nouveau, ou jamais organisé) apparaît
+    // automatiquement dans Unsectioned, sans qu'aucune écriture pCloud ne soit nécessaire.
+    public async Task<AlbumListResult> ListGroupedAsync(CancellationToken ct = default)
+    {
+        var summaries = await ListAsync(ct);
+        var structure = await LoadStructureAsync(ct);
+        return Project(summaries, structure);
+    }
+
+    // Remplace l'intégralité du manifeste (même philosophie que ReorderAsync, qui remplace la
+    // liste complète des items d'un album) — élimine les ids d'album inconnus/supprimés et les
+    // doublons, réinjecte en Unsectioned tout album connu mais absent du payload plutôt que de
+    // le perdre silencieusement de la liste (même défense que NormalizeRowSpans).
+    public async Task<AlbumListResult> SaveStructureAsync(
+        List<AlbumSectionInput> sections, List<string> unsectionedAlbumIds, CancellationToken ct = default)
+    {
+        var config = await db.AppConfigurations.FirstOrDefaultAsync(c => c.Id == 1, ct);
+        if (config?.AlbumParentFolderId is not { } parentFolderId)
+        {
+            throw new InvalidOperationException("Dossier des albums non configuré (voir la page Configuration).");
+        }
+
+        var summaries = await ListAsync(ct);
+        var knownIds = summaries.Select(a => a.Id).ToHashSet();
+        var seen = new HashSet<string>();
+        var doc = new AlbumStructureDocument();
+
+        foreach (var section in sections)
+        {
+            var albumIds = new List<string>();
+            foreach (var albumId in section.AlbumIds)
+            {
+                if (knownIds.Contains(albumId) && seen.Add(albumId))
+                {
+                    albumIds.Add(albumId);
+                }
+            }
+
+            var sectionId = string.IsNullOrWhiteSpace(section.Id) ? $"sec_{Guid.NewGuid().ToString("N")[..8]}" : section.Id;
+            doc.Sections.Add(new AlbumSectionDocument { Id = sectionId, Name = section.Name.Trim(), AlbumIds = albumIds });
+        }
+
+        foreach (var albumId in unsectionedAlbumIds)
+        {
+            if (knownIds.Contains(albumId) && seen.Add(albumId))
+            {
+                doc.UnsectionedAlbumIds.Add(albumId);
+            }
+        }
+
+        foreach (var albumId in knownIds)
+        {
+            if (seen.Add(albumId))
+            {
+                doc.UnsectionedAlbumIds.Add(albumId);
+            }
+        }
+
+        var fileId = await client.UploadTextFileAsync(parentFolderId, StructureFileName, JsonSerializer.Serialize(doc, JsonOptions));
+        config.AlbumStructureFileId = fileId;
+        await db.SaveChangesAsync(ct);
+
+        return Project(summaries, doc);
+    }
+
+    private async Task<AlbumStructureDocument> LoadStructureAsync(CancellationToken ct)
+    {
+        var config = await db.AppConfigurations.AsNoTracking().FirstOrDefaultAsync(c => c.Id == 1, ct);
+        if (config?.AlbumStructureFileId is not { } fileId)
+        {
+            return new AlbumStructureDocument();
+        }
+
+        var json = await client.DownloadTextFileAsync(fileId);
+        return JsonSerializer.Deserialize<AlbumStructureDocument>(json, JsonOptions) ?? new AlbumStructureDocument();
+    }
+
+    private static AlbumListResult Project(List<AlbumSummary> summaries, AlbumStructureDocument structure)
+    {
+        var byId = summaries.ToDictionary(a => a.Id);
+        var placed = new HashSet<string>();
+        var sections = new List<AlbumSection>();
+
+        foreach (var sectionDoc in structure.Sections)
+        {
+            var albums = new List<AlbumSummary>();
+            foreach (var albumId in sectionDoc.AlbumIds)
+            {
+                if (byId.TryGetValue(albumId, out var summary) && placed.Add(albumId))
+                {
+                    albums.Add(summary);
+                }
+            }
+
+            sections.Add(new AlbumSection(sectionDoc.Id, sectionDoc.Name, albums));
+        }
+
+        var unsectioned = new List<AlbumSummary>();
+        foreach (var albumId in structure.UnsectionedAlbumIds)
+        {
+            if (byId.TryGetValue(albumId, out var summary) && placed.Add(albumId))
+            {
+                unsectioned.Add(summary);
+            }
+        }
+
+        // Albums jamais placés nulle part dans le manifeste (nouveaux, ou jamais organisés) —
+        // ajoutés en fin de la liste "non rangés" (ordre habituel, plus récent d'abord).
+        foreach (var summary in summaries)
+        {
+            if (placed.Add(summary.Id))
+            {
+                unsectioned.Add(summary);
+            }
+        }
+
+        return new AlbumListResult(sections, unsectioned);
+    }
 
     // Redécouvre les albums déjà présents sur pCloud (album.json dans chaque sous-dossier du
     // dossier parent) et reconstruit AlbumSummaries en conséquence — nécessaire quand le cache

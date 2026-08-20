@@ -44,12 +44,35 @@ export interface AlbumMembership {
   containsAll: boolean;
 }
 
+// Regroupement/ordre des albums (issue #6) — Sections préserve l'ordre persisté, Unsectioned
+// regroupe les albums pas encore rangés (nouveaux albums compris, sans action requise).
+export interface AlbumSection {
+  id: string;
+  name: string;
+  albums: AlbumSummary[];
+}
+
+export interface AlbumListResult {
+  sections: AlbumSection[];
+  unsectioned: AlbumSummary[];
+}
+
+export interface AlbumStructureSectionInput {
+  id: string | null;
+  name: string;
+  albumIds: string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class AlbumService {
   private readonly http = inject(HttpClient);
 
-  list(): Observable<AlbumSummary[]> {
-    return this.http.get<AlbumSummary[]>('/api/albums');
+  list(): Observable<AlbumListResult> {
+    return this.http.get<AlbumListResult>('/api/albums');
+  }
+
+  saveStructure(sections: AlbumStructureSectionInput[], unsectionedAlbumIds: string[]): Observable<AlbumListResult> {
+    return this.http.put<AlbumListResult>('/api/albums/structure', { sections, unsectionedAlbumIds });
   }
 
   reindex(): Observable<{ found: number }> {

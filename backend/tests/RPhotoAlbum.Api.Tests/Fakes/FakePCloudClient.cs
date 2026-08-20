@@ -2,13 +2,16 @@ using RPhotoAlbum.Api.PCloud;
 
 namespace RPhotoAlbum.Api.Tests.Fakes;
 
-// Faux fait main (pas de librairie de mock) — voir issue GitHub #17. Ne couvre que
-// ListFolderAsync, seule méthode utilisée par MediaIndexService.ReindexAsync ; les autres
-// membres de IPCloudClient lèvent NotSupportedException si jamais appelés par erreur.
+// Faux fait main (pas de librairie de mock) — voir issue GitHub #17. Couvre ListFolderAsync
+// (MediaIndexService) et Upload/DownloadTextFileAsync (AlbumService : album.json et, depuis
+// l'issue #6, album-structure.json) ; les autres membres de IPCloudClient lèvent
+// NotSupportedException si jamais appelés par erreur.
 public class FakePCloudClient : IPCloudClient
 {
     private readonly Dictionary<long, PCloudFolderListing> _listings = new();
     private readonly Dictionary<long, Exception> _failures = new();
+    private readonly Dictionary<long, string> _textFiles = new();
+    private long _nextFileId = 1;
 
     // Bloque l'appel tant que la tâche n'est pas complétée — permet de tester la section
     // critique de MediaIndexService.ReindexAsync (verrou statique) de façon déterministe,
@@ -53,11 +56,22 @@ public class FakePCloudClient : IPCloudClient
 
     public Task DeleteFileAsync(long fileId) => throw new NotSupportedException();
 
-    public Task<long> UploadTextFileAsync(long folderId, string filename, string content) => throw new NotSupportedException();
+    // Chaque appel produit un nouveau fileId (comme le pCloud réel avec renameifexists=0
+    // écrasant en place, mais rien dans AlbumService ne suppose un fileId stable entre deux
+    // écritures — PersistAsync/SaveStructureAsync réassignent toujours celui retourné).
+    public Task<long> UploadTextFileAsync(long folderId, string filename, string content)
+    {
+        var fileId = _nextFileId++;
+        _textFiles[fileId] = content;
+        return Task.FromResult(fileId);
+    }
 
     public Task<string> GetFileLinkAsync(long fileId) => throw new NotSupportedException();
 
-    public Task<string> DownloadTextFileAsync(long fileId) => throw new NotSupportedException();
+    public Task<string> DownloadTextFileAsync(long fileId) =>
+        _textFiles.TryGetValue(fileId, out var content)
+            ? Task.FromResult(content)
+            : throw new InvalidOperationException($"Fichier texte {fileId} introuvable dans le faux client.");
 
     public Task<byte[]> DownloadPartialAsync(long fileId, int maxBytes, CancellationToken ct = default) => throw new NotSupportedException();
 
