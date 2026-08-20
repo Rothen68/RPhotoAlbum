@@ -8,6 +8,15 @@ namespace RPhotoAlbum.Api.Media;
 public class MediaThumbnailCacheService(
     MediaCacheDirectory cacheDir, IPCloudClient client, ILogger<MediaThumbnailCacheService> logger)
 {
+    // Toutes les miniatures passent maintenant par une seule origine (notre backend, proxifié)
+    // au lieu de se répartir sur plusieurs hôtes CDN pCloud comme avec l'ancienne redirection —
+    // le navigateur limite le nombre de connexions concurrentes par origine (~6), donc un seul
+    // fichier "à froid" (pCloud peut mettre plusieurs dizaines de secondes à générer sa
+    // miniature, voir MediaExifService) peut désormais monopoliser un de ces créneaux et ralentir
+    // toute la page. Un délai borné laisse échouer proprement (404, icône cassée) plutôt que de
+    // bloquer indéfiniment — la relecture ultérieure profite du cache disque de toute façon.
+    private static readonly TimeSpan ThumbnailFetchTimeout = TimeSpan.FromSeconds(20);
+
     public async Task<(byte[] Bytes, string ContentType)> GetAsync(
         long fileId, int width, int height, bool crop, CancellationToken ct)
     {
@@ -31,9 +40,12 @@ public class MediaThumbnailCacheService(
             }
         }
 
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(ThumbnailFetchTimeout);
+
         // pCloud génère toujours ses miniatures en JPEG, quel que soit le format source (y
         // compris RAW/HEIC) — content-type codé en dur plutôt qu'un fichier compagnon par entrée.
-        var (bytes, _) = await client.GetThumbnailAsync(fileId, width, height, crop, ct);
+        var (bytes, _) = await client.GetThumbnailAsync(fileId, width, height, crop, timeoutCts.Token);
 
         try
         {

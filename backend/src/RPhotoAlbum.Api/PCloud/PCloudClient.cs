@@ -89,6 +89,13 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
             return cached!;
         }
 
+        var resolved = await ResolveThumbLinkAsync(fileId, width, height, crop);
+        cache.Set(cacheKey, resolved, LinkCacheDuration);
+        return resolved;
+    }
+
+    private async Task<string> ResolveThumbLinkAsync(long fileId, int width, int height, bool crop)
+    {
         var connection = await RequireConnectionAsync();
         var query = new Dictionary<string, string?>
         {
@@ -108,9 +115,7 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
             throw new InvalidOperationException($"Erreur pCloud getthumblink (result={thumb.Result}: {thumb.Error}).");
         }
 
-        var resolved = $"https://{thumb.Hosts[0]}{thumb.Path}";
-        cache.Set(cacheKey, resolved, LinkCacheDuration);
-        return resolved;
+        return $"https://{thumb.Hosts[0]}{thumb.Path}";
     }
 
     public async Task<(long FolderId, string Path)> CreateFolderAsync(long parentFolderId, string name)
@@ -298,13 +303,19 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
         return (bytes, response.Content.Headers.ContentType?.ToString());
     }
 
-    // Même schéma que DownloadAsync ci-dessus, pointé sur GetThumbLinkAsync (déjà mis en cache
-    // mémoire 20 min pour le LIEN) au lieu de GetFileLinkAsync — voir issue #26, cache disque des
-    // miniatures dans MediaThumbnailCacheService.
+    // Résout un lien FRAIS (pas GetThumbLinkAsync/son cache mémoire 20 min) avant de le
+    // consommer immédiatement — bug constaté en pratique lors du développement de l'issue #26 :
+    // un lien pCloud renvoyé par getthumblink semble à usage unique. Le réutiliser depuis le
+    // cache mémoire (conçu à l'origine pour l'ancien flux de redirection, où le navigateur ne
+    // consommait le lien qu'une fois) provoquait un "410 Gone" dès qu'un deuxième téléchargement
+    // d'octets réel retombait sur le même lien en cache (relance de page, écriture disque ratée
+    // suivie d'une nouvelle tentative, etc.) — silencieusement avalé par le catch du contrôleur,
+    // ce qui se manifestait comme des miniatures qui ne chargent jamais plutôt qu'une erreur
+    // visible. Un lien résolu à chaque appel n'est jamais partagé entre deux consommations.
     public async Task<(byte[] Bytes, string? ContentType)> GetThumbnailAsync(
         long fileId, int width, int height, bool crop = false, CancellationToken ct = default)
     {
-        var url = await GetThumbLinkAsync(fileId, width, height, crop);
+        var url = await ResolveThumbLinkAsync(fileId, width, height, crop);
         using var response = await httpClient.GetAsync(url, ct);
         response.EnsureSuccessStatusCode();
         var bytes = await response.Content.ReadAsByteArrayAsync(ct);
