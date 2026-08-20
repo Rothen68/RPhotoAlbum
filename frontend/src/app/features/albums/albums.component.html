@@ -121,11 +121,6 @@
       } @else {
         <span class="muted">empty album</span>
       }
-      @if (!organizeMode()) {
-        <button type="button" class="btn-icon delete-btn" aria-label="Delete album" (click)="confirmDelete(album, $event)">
-          <span class="icon material-symbols-outlined">delete</span>
-        </button>
-      }
     </div>
     <div class="info">
       <span class="name">{{ album.name }}</span>
@@ -163,6 +158,9 @@
             </div>
           }
         </div>
+        <button type="button" class="btn-icon" aria-label="Delete album" (click)="confirmDelete(album, $event)">
+          <span class="icon material-symbols-outlined">delete</span>
+        </button>
       </div>
     }
   </a>
