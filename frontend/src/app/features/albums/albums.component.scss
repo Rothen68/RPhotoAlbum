@@ -182,34 +182,36 @@
 
 // --- Poignées/boutons de secours par album, visibles en mode Organiser ---
 
+// Cibles tactiles agrandies (retour utilisateur : trop petites sur téléphone réel) — boutons à
+// 40px (proche du minimum recommandé ~44px pour le tactile) plutôt que les 26px initiaux.
 .organize-controls {
   position: absolute;
   top: 4px;
   right: 4px;
   display: flex;
   align-items: center;
-  gap: 2px;
-  background: rgba(0, 0, 0, 0.45);
-  border-radius: 6px;
-  padding: 2px;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 10px;
+  padding: 4px;
 
   .drag-handle {
     cursor: grab;
     color: white;
-    font-size: 18px;
+    font-size: 26px;
     touch-action: none;
-    padding: 0 2px;
+    padding: 0 4px;
   }
 
   button {
-    width: 26px;
-    height: 26px;
-    min-width: 26px;
-    min-height: 26px;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
     color: white;
 
     .icon {
-      font-size: 16px;
+      font-size: 24px;
     }
 
     &:disabled {
@@ -220,6 +222,7 @@
   .stack-buttons {
     display: flex;
     flex-direction: column;
+    gap: 2px;
   }
 }
 

@@ -42,5 +42,20 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
+  # Client sqlite3 pour inspecter directement backend-data/cache.db pendant le débogage — sous
+  # un profil dédié ("debug") pour ne JAMAIS démarrer avec un simple `docker compose up -d`
+  # (donc pas plus de conteneur en prod via deploy.sh, qui n'active aucun profil). Sans danger
+  # pour la base en tant que lecteur concurrent : le mode WAL (voir issue #18) autorise
+  # explicitement des lectures pendant qu'un writer (le backend) est actif.
+  # Usage : docker compose --profile debug up -d sqlite-cli
+  #         docker exec -it rphotoalbum-sqlite-cli-1 sqlite3 /data/cache.db
+  sqlite-cli:
+    image: alpine:3.20
+    profiles: ["debug"]
+    command: sh -c "apk add --no-cache sqlite && tail -f /dev/null"
+    volumes:
+      - backend-data:/data
+    restart: unless-stopped
+
 volumes:
   backend-data:
