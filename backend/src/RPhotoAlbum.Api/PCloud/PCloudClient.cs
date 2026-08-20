@@ -298,6 +298,19 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
         return (bytes, response.Content.Headers.ContentType?.ToString());
     }
 
+    // Même schéma que DownloadAsync ci-dessus, pointé sur GetThumbLinkAsync (déjà mis en cache
+    // mémoire 20 min pour le LIEN) au lieu de GetFileLinkAsync — voir issue #26, cache disque des
+    // miniatures dans MediaThumbnailCacheService.
+    public async Task<(byte[] Bytes, string? ContentType)> GetThumbnailAsync(
+        long fileId, int width, int height, bool crop = false, CancellationToken ct = default)
+    {
+        var url = await GetThumbLinkAsync(fileId, width, height, crop);
+        using var response = await httpClient.GetAsync(url, ct);
+        response.EnsureSuccessStatusCode();
+        var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+        return (bytes, response.Content.Headers.ContentType?.ToString());
+    }
+
     // Nom de fichier depuis pCloud directement (pas depuis MediaIndex, qui n'indexe que les
     // dossiers source configurés) — nécessaire pour les médias d'un album, copiés dans le
     // dossier de l'album et donc absents de MediaIndex (voir issue #1, téléchargement depuis

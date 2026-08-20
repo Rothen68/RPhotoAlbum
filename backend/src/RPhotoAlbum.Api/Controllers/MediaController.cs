@@ -17,6 +17,7 @@ public class MediaController(
     GeoLookupService geoService,
     CacheDbContext db,
     IPCloudClient client,
+    MediaThumbnailCacheService thumbnailCache,
     ILogger<MediaController> logger) : ControllerBase
 {
     [HttpPost("reindex")]
@@ -203,17 +204,19 @@ public class MediaController(
         return Ok(new { rejected });
     }
 
-    // Redirige vers la miniature pCloud sans exposer le jeton d'accès au frontend — voir ARCHITECTURE.md §5.4.
-    // Cache-Control sur la redirection elle-même (en plus du cache mémoire côté PCloudClient) :
-    // évite de repasser par le backend pour un média déjà vu dans la session (scroll aller-retour).
+    // Proxifie les octets de la miniature à travers notre propre origine, avec mise en cache
+    // disque (MediaThumbnailCacheService) — plus une simple redirection vers pCloud à chaque
+    // requête, voir issue #26. Cache-Control en plus du cache disque : évite même de repasser
+    // par le backend pour un média déjà vu dans la session (scroll aller-retour).
     [HttpGet("{fileId:long}/thumbnail")]
-    public async Task<IActionResult> Thumbnail(long fileId, [FromQuery] int width = 300, [FromQuery] int height = 300, [FromQuery] bool crop = true)
+    public async Task<IActionResult> Thumbnail(
+        long fileId, [FromQuery] int width = 300, [FromQuery] int height = 300, [FromQuery] bool crop = true, CancellationToken ct = default)
     {
         try
         {
-            var url = await client.GetThumbLinkAsync(fileId, width, height, crop);
+            var (bytes, contentType) = await thumbnailCache.GetAsync(fileId, width, height, crop, ct);
             Response.Headers.CacheControl = "private, max-age=1200";
-            return Redirect(url);
+            return File(bytes, contentType);
         }
         catch (Exception ex)
         {

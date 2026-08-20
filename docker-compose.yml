@@ -11,6 +11,7 @@ services:
       App__AdminUsername: ${APP_ADMIN_USERNAME}
       App__AdminPasswordHash: ${APP_ADMIN_PASSWORD_HASH}
       Indexing__IntervalMinutes: ${INDEXING_INTERVAL_MINUTES:-15}
+      MediaCache__MaxSizeMb: ${MEDIA_CACHE_MAX_SIZE_MB:-1024}
       Logging__LogLevel__Default: ${LOG_LEVEL:-Information}
     volumes:
       - backend-data:/data

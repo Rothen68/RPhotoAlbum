@@ -52,9 +52,22 @@ builder.Services.AddHttpClient<GeoLookupService>(client =>
 
 builder.Services.AddScoped<AlbumService>();
 
+// Cache disque des miniatures (issue #26) — évite de repasser par pCloud (getthumblink + CDN) à
+// chaque affichage. Scoped (pas singleton) : IPCloudClient dépend de PCloudTokenStore, lui-même
+// scoped — même piège de dépendance captive que #12, évité en ne remontant jamais ce service
+// au-delà de la portée requête.
+builder.Services.Configure<MediaCacheOptions>(builder.Configuration.GetSection("MediaCache"));
+builder.Services.AddScoped<MediaThumbnailCacheService>();
+builder.Services.AddHostedService<MediaCacheEvictionBackgroundService>();
+
 var keysPath = builder.Environment.IsDevelopment()
     ? Path.Combine(builder.Environment.ContentRootPath, ".keys")
     : "/data/keys";
+
+var thumbnailCacheDir = builder.Environment.IsDevelopment()
+    ? Path.Combine(builder.Environment.ContentRootPath, ".thumbnail-cache")
+    : "/data/thumbnails";
+builder.Services.AddSingleton(new MediaCacheDirectory(thumbnailCacheDir));
 
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(keysPath))

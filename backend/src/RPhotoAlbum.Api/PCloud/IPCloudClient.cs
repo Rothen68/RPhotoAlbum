@@ -19,4 +19,8 @@ public interface IPCloudClient
     Task<byte[]> DownloadPartialAsync(long fileId, int maxBytes, CancellationToken ct = default);
     Task<(byte[] Bytes, string? ContentType)> DownloadAsync(long fileId, CancellationToken ct = default);
     Task<string> GetFileNameAsync(long fileId);
+    // Octets de la miniature (pas juste le lien, contrairement à GetThumbLinkAsync) — voir issue
+    // #26 (cache disque des miniatures).
+    Task<(byte[] Bytes, string? ContentType)> GetThumbnailAsync(
+        long fileId, int width, int height, bool crop = false, CancellationToken ct = default);
 }

@@ -11,7 +11,13 @@ public class FakePCloudClient : IPCloudClient
     private readonly Dictionary<long, PCloudFolderListing> _listings = new();
     private readonly Dictionary<long, Exception> _failures = new();
     private readonly Dictionary<long, string> _textFiles = new();
+    private readonly Dictionary<string, byte[]> _thumbnails = new();
     private long _nextFileId = 1;
+
+    // Compte les appels réels vers le faux pCloud par clé de miniature — permet aux tests de
+    // MediaThumbnailCacheService de vérifier qu'un hit de cache disque n'appelle PAS pCloud une
+    // deuxième fois (voir issue #26).
+    public Dictionary<string, int> ThumbnailCallCounts { get; } = new();
 
     // Bloque l'appel tant que la tâche n'est pas complétée — permet de tester la section
     // critique de MediaIndexService.ReindexAsync (verrou statique) de façon déterministe,
@@ -78,4 +84,21 @@ public class FakePCloudClient : IPCloudClient
     public Task<(byte[] Bytes, string? ContentType)> DownloadAsync(long fileId, CancellationToken ct = default) => throw new NotSupportedException();
 
     public Task<string> GetFileNameAsync(long fileId) => throw new NotSupportedException();
+
+    public void SetThumbnail(long fileId, int width, int height, bool crop, byte[] bytes) =>
+        _thumbnails[ThumbnailKey(fileId, width, height, crop)] = bytes;
+
+    public Task<(byte[] Bytes, string? ContentType)> GetThumbnailAsync(
+        long fileId, int width, int height, bool crop = false, CancellationToken ct = default)
+    {
+        var key = ThumbnailKey(fileId, width, height, crop);
+        ThumbnailCallCounts[key] = ThumbnailCallCounts.GetValueOrDefault(key) + 1;
+
+        return _thumbnails.TryGetValue(key, out var bytes)
+            ? Task.FromResult<(byte[], string?)>((bytes, "image/jpeg"))
+            : throw new InvalidOperationException($"Aucune miniature simulée pour {key}.");
+    }
+
+    private static string ThumbnailKey(long fileId, int width, int height, bool crop) =>
+        $"{fileId}_{width}x{height}_{(crop ? "c" : "n")}";
 }
