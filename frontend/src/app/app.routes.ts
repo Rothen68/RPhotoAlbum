@@ -1,23 +1,36 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
-import { AlbumDetailComponent } from './features/album-detail/album-detail.component';
-import { AlbumsComponent } from './features/albums/albums.component';
-import { ConfigComponent } from './features/config/config.component';
 import { GalleryComponent } from './features/gallery/gallery.component';
-import { LoginComponent } from './features/login/login.component';
 import { ShellComponent } from './shell/shell.component';
 
+// Chargement paresseux par route (issue #19) — seuls Gallery (premier écran) et Shell (wrapper
+// léger, tab bar) restent chargés d'emblée. Le reste (Login, Config, Album Detail, Albums) n'a
+// pas besoin d'être présent au premier affichage.
 export const routes: Routes = [
-  { path: 'login', component: LoginComponent },
-  { path: 'config', component: ConfigComponent, canActivate: [authGuard] },
-  { path: 'albums/:id', component: AlbumDetailComponent, canActivate: [authGuard] },
+  {
+    path: 'login',
+    loadComponent: () => import('./features/login/login.component').then((m) => m.LoginComponent),
+  },
+  {
+    path: 'config',
+    loadComponent: () => import('./features/config/config.component').then((m) => m.ConfigComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'albums/:id',
+    loadComponent: () => import('./features/album-detail/album-detail.component').then((m) => m.AlbumDetailComponent),
+    canActivate: [authGuard],
+  },
   {
     path: '',
     component: ShellComponent,
     canActivate: [authGuard],
     children: [
       { path: '', component: GalleryComponent },
-      { path: 'albums', component: AlbumsComponent },
+      {
+        path: 'albums',
+        loadComponent: () => import('./features/albums/albums.component').then((m) => m.AlbumsComponent),
+      },
     ],
   },
 ];
