@@ -13,6 +13,13 @@
   --radius: 8px;
   --elev-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --app-max-width: 480px;
+
+  // Écran large (PC) : colonne centrée élargie plutôt qu'un vrai layout desktop multi-colonnes
+  // (voir ARCHITECTURE.md §19 / commentaire sur .page) — l'app reste une seule colonne partout,
+  // juste plus large, pour mieux exploiter l'espace en consultation/édition d'album (issue #23).
+  @media (min-width: 900px) {
+    --app-max-width: 720px;
+  }
 }
 
 * {
