@@ -15,7 +15,11 @@ public class MediaThumbnailCacheService(
     // miniature, voir MediaExifService) peut désormais monopoliser un de ces créneaux et ralentir
     // toute la page. Un délai borné laisse échouer proprement (404, icône cassée) plutôt que de
     // bloquer indéfiniment — la relecture ultérieure profite du cache disque de toute façon.
-    private static readonly TimeSpan ThumbnailFetchTimeout = TimeSpan.FromSeconds(20);
+    // 20s s'est avéré trop court en conditions réelles (déploiement serveur, issue #26) — des
+    // miniatures qui finissaient par charger avec le comportement précédent (délai par défaut de
+    // HttpClient, 100s) échouaient systématiquement. 90s reste sous ce défaut (garde le contrôle
+    // du mode d'échec) sans réduire la tolérance par rapport à l'ancien comportement.
+    private static readonly TimeSpan ThumbnailFetchTimeout = TimeSpan.FromSeconds(90);
 
     public async Task<(byte[] Bytes, string ContentType)> GetAsync(
         long fileId, int width, int height, bool crop, CancellationToken ct)
