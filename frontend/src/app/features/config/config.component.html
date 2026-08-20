@@ -69,6 +69,15 @@
   <button type="button" (click)="reindex()" [disabled]="reindexing()">
     {{ reindexing() ? 'Indexation…' : 'Réindexer maintenant' }}
   </button>
+
+  @if (cacheStatus(); as cache) {
+    <p class="muted cache-status-label">
+      Cache miniatures : {{ formatMb(cache.usedBytes) }} / {{ formatMb(cache.maxBytes) }} Mo utilisés.
+    </p>
+    <div class="progress-bar">
+      <div class="progress-bar-fill" [style.width.%]="cache.maxBytes > 0 ? (cache.usedBytes / cache.maxBytes) * 100 : 0"></div>
+    </div>
+  }
 </section>
 
 <section>

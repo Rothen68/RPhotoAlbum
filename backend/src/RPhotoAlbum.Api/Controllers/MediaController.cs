@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using RPhotoAlbum.Api.Data;
 using RPhotoAlbum.Api.Media;
 using RPhotoAlbum.Api.Models;
@@ -8,6 +9,7 @@ using RPhotoAlbum.Api.PCloud;
 namespace RPhotoAlbum.Api.Controllers;
 
 public record RejectMediaRequest(List<long> FileIds);
+public record MediaCacheStatusDto(long UsedBytes, long MaxBytes);
 
 [ApiController]
 [Route("api/media")]
@@ -18,6 +20,8 @@ public class MediaController(
     CacheDbContext db,
     IPCloudClient client,
     MediaThumbnailCacheService thumbnailCache,
+    MediaCacheDirectory cacheDir,
+    IOptions<MediaCacheOptions> cacheOptions,
     ILogger<MediaController> logger) : ControllerBase
 {
     [HttpPost("reindex")]
@@ -39,6 +43,16 @@ public class MediaController(
         }
 
         return Ok(new { indexed = result.Indexed, newlyIndexed = result.NewlyIndexed, failedFolders = result.FailedFolders });
+    }
+
+    // Occupation du cache disque des miniatures (issue #27) — affiché sous la section
+    // Indexation de la page Configuration, à côté du bouton de réindexation manuelle.
+    [HttpGet("cache-status")]
+    public IActionResult CacheStatus()
+    {
+        var usedBytes = MediaCacheEvictionBackgroundService.ComputeUsedBytes(cacheDir.Path);
+        var maxBytes = (long)Math.Max(1, cacheOptions.Value.MaxSizeMb) * 1024 * 1024;
+        return Ok(new MediaCacheStatusDto(usedBytes, maxBytes));
     }
 
     // Gallery : uniquement les médias non rejetés (§6.4, §11.4).

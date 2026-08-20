@@ -3,7 +3,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AlbumService } from '../../core/albums/album.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { AppConfiguration, ConfigService, SourceFolder } from '../../core/config/config.service';
-import { ExifJobStatus, GeoJobStatus, MediaService } from '../../core/media/media.service';
+import { ExifJobStatus, GeoJobStatus, MediaCacheStatus, MediaService } from '../../core/media/media.service';
 import { PCloudService, PCloudStatus } from '../../core/pcloud/pcloud.service';
 import { PCloudFolderPickerComponent, PCloudFolderRef } from '../../shared/pcloud-folder-picker/pcloud-folder-picker.component';
 import { APP_VERSION } from '../../core/version';
@@ -36,6 +36,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
   protected readonly reindexing = signal(false);
   protected readonly reindexingAlbums = signal(false);
   protected readonly indexedCount = signal<number | null>(null);
+  protected readonly cacheStatus = signal<MediaCacheStatus | null>(null);
   protected readonly message = signal<string | null>(null);
   protected readonly appVersion = APP_VERSION;
   protected readonly connectUrl = this.pcloud.connectUrl;
@@ -59,6 +60,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
     this.refreshPCloudStatus();
     this.loadConfig();
     this.refreshIndexedCount();
+    this.refreshCacheStatus();
     this.refreshExifStatus();
     this.refreshGeoStatus();
   }
@@ -78,6 +80,14 @@ export class ConfigComponent implements OnInit, OnDestroy {
 
   private refreshIndexedCount(): void {
     this.mediaService.sourceCount().subscribe((page) => this.indexedCount.set(page.total));
+  }
+
+  private refreshCacheStatus(): void {
+    this.mediaService.cacheStatus().subscribe((status) => this.cacheStatus.set(status));
+  }
+
+  protected formatMb(bytes: number): number {
+    return Math.round(bytes / (1024 * 1024));
   }
 
   disconnectPCloud(): void {

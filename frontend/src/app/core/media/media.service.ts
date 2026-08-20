@@ -64,12 +64,23 @@ export interface ExifJobStatus {
 
 export type GeoJobStatus = ExifJobStatus;
 
+// Occupation du cache disque des miniatures (issue #27) — en octets, converti en Mo côté
+// composant pour l'affichage.
+export interface MediaCacheStatus {
+  usedBytes: number;
+  maxBytes: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class MediaService {
   private readonly http = inject(HttpClient);
 
   reindex(): Observable<ReindexResult> {
     return this.http.post<ReindexResult>('/api/media/reindex', {});
+  }
+
+  cacheStatus(): Observable<MediaCacheStatus> {
+    return this.http.get<MediaCacheStatus>('/api/media/cache-status');
   }
 
   source(page: number, pageSize: number, filters: MediaFilters = {}): Observable<MediaSourcePage> {

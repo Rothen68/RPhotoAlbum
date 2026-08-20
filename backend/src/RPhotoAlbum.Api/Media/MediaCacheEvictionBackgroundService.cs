@@ -65,4 +65,9 @@ public class MediaCacheEvictionBackgroundService(
             }
         }
     }
+
+    // Taille actuelle du cache — réutilisée par MediaController pour l'affichage d'occupation
+    // (issue #27), même logique de comptage qu'Evict ci-dessus pour rester toujours cohérentes.
+    internal static long ComputeUsedBytes(string dir) =>
+        Directory.Exists(dir) ? new DirectoryInfo(dir).GetFiles("*.bin").Sum(f => f.Length) : 0;
 }
