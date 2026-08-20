@@ -70,12 +70,22 @@ section {
 
   li {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
     padding: 0.5rem 0;
     border-bottom: 1px solid var(--color-border);
   }
+}
+
+.auto-index-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 // Couleurs codées en dur (héritées d'une première version en thème clair) au lieu des variables

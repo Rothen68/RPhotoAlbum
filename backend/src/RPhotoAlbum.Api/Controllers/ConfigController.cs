@@ -7,7 +7,7 @@ using RPhotoAlbum.Api.PCloud;
 namespace RPhotoAlbum.Api.Controllers;
 
 public record AlbumFolderDto(long FolderId, string Path);
-public record SourceFolderDto(long FolderId, string Label, string Path);
+public record SourceFolderDto(long FolderId, string Label, string Path, bool AutoIndex);
 public record AppConfigurationDto(AlbumFolderDto? AlbumParentFolder, List<SourceFolderDto> SourceFolders);
 
 // Enregistrement des dossiers source et du dossier parent des albums — voir ARCHITECTURE.md §9.2, §11.1.
@@ -53,6 +53,7 @@ public class ConfigController(CacheDbContext db, IPCloudClient client, ILogger<C
                 PCloudFolderId = folder.FolderId,
                 Label = folder.Label,
                 Path = folder.Path,
+                AutoIndex = folder.AutoIndex,
             });
         }
 
@@ -72,7 +73,7 @@ public class ConfigController(CacheDbContext db, IPCloudClient client, ILogger<C
 
         return new AppConfigurationDto(
             albumFolder,
-            sourceFolders.Select(f => new SourceFolderDto(f.PCloudFolderId, f.Label, f.Path)).ToList());
+            sourceFolders.Select(f => new SourceFolderDto(f.PCloudFolderId, f.Label, f.Path, f.AutoIndex)).ToList());
     }
 
     private async Task<bool> FolderIsAccessibleAsync(long folderId)

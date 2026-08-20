@@ -11,6 +11,9 @@ export interface SourceFolder {
   folderId: number;
   label: string;
   path: string;
+  // Inclus dans la réindexation périodique automatique ou seulement lors d'un "Réindexer
+  // maintenant" manuel — utile pour un dossier d'archive figé (issue #28).
+  autoIndex: boolean;
 }
 
 export interface AppConfiguration {

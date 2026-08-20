@@ -26,7 +26,12 @@ public class MediaIndexService(
     // Statique : une seule indexation à la fois, tous appelants confondus (job périodique + déclenchement manuel).
     private static readonly SemaphoreSlim Lock = new(1, 1);
 
-    public async Task<MediaIndexResult> ReindexAsync(CancellationToken ct = default)
+    // autoOnly : réservé au passage périodique automatique (MediaIndexBackgroundService) — ne
+    // parcourt que les dossiers marqués SourceFolder.AutoIndex (issue #28), pour épargner pCloud
+    // et le serveur sur les gros dossiers d'archive qui ne changent plus. "Réindexer maintenant"
+    // (déclenchement manuel, autoOnly=false par défaut) continue de tout vérifier, y compris les
+    // dossiers non auto-indexés — c'est un geste explicite de l'utilisateur, pas un coût récurrent.
+    public async Task<MediaIndexResult> ReindexAsync(CancellationToken ct = default, bool autoOnly = false)
     {
         if (!await Lock.WaitAsync(0, ct))
         {
@@ -41,7 +46,8 @@ public class MediaIndexService(
                 return new MediaIndexResult(0, 0, []);
             }
 
-            var sourceFolders = await db.SourceFolders.AsNoTracking().ToListAsync(ct);
+            var allSourceFolders = await db.SourceFolders.AsNoTracking().ToListAsync(ct);
+            var sourceFolders = autoOnly ? allSourceFolders.Where(f => f.AutoIndex).ToList() : allSourceFolders;
             if (sourceFolders.Count == 0)
             {
                 return new MediaIndexResult(0, 0, []);
@@ -93,9 +99,20 @@ public class MediaIndexService(
             // Filtrage en mémoire sur existingByFileId (déjà chargé intégralement) plutôt qu'une
             // clause SQL "NOT IN" sur seenFileIds : avec un grand dossier source, cette liste peut
             // dépasser la limite de paramètres de SQLite ("too many SQL variables").
+            //
+            // IMPORTANT (issue #28) : ne considère "disparue" qu'une entrée dont le chemin
+            // appartient à un dossier EFFECTIVEMENT revu lors de CE passage (sourceFolders, pas
+            // allSourceFolders). Sans ce filtrage, un passage automatique limité aux dossiers
+            // actifs (autoOnly=true) purgerait à tort tout le contenu des dossiers d'archive
+            // ignorés ce cycle-là, puisqu'ils n'apparaîtraient jamais dans seenFileIds. Un
+            // "Réindexer maintenant" complet (autoOnly=false) revoit tous les dossiers, donc ce
+            // filtrage ne change rien à son comportement actuel.
             if (failedFolders.Count == 0)
             {
-                var stale = existingByFileId.Values.Where(e => !seenFileIds.Contains(e.PCloudFileId));
+                var processedPathPrefixes = sourceFolders.Select(f => f.Path.TrimEnd('/') + "/").ToList();
+                var stale = existingByFileId.Values.Where(e =>
+                    !seenFileIds.Contains(e.PCloudFileId) &&
+                    processedPathPrefixes.Any(prefix => e.Path.StartsWith(prefix, StringComparison.Ordinal)));
                 db.MediaIndex.RemoveRange(stale);
             }
 

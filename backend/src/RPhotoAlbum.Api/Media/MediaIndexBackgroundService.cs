@@ -19,7 +19,10 @@ public class MediaIndexBackgroundService(
             {
                 using var scope = scopeFactory.CreateScope();
                 var indexService = scope.ServiceProvider.GetRequiredService<MediaIndexService>();
-                var result = await indexService.ReindexAsync(stoppingToken);
+                // autoOnly : ignore les dossiers sources marqués "non auto-indexé" (issue #28) —
+                // ce passage périodique doit rester léger, contrairement à "Réindexer maintenant"
+                // (déclenchement manuel explicite, qui vérifie tout).
+                var result = await indexService.ReindexAsync(stoppingToken, autoOnly: true);
                 if (!result.IsAlreadyRunning)
                 {
                     logger.LogInformation(

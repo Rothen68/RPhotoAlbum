@@ -43,6 +43,10 @@
         @for (folder of cfg.sourceFolders; track folder.folderId; let i = $index) {
           <li>
             <span>{{ folder.label }} — {{ folder.path }}</span>
+            <label class="auto-index-toggle">
+              <input type="checkbox" [checked]="folder.autoIndex" (change)="toggleSourceFolderAutoIndex(i)" />
+              Indexation automatique
+            </label>
             <button type="button" (click)="removeSourceFolder(i)">Retirer</button>
           </li>
         }

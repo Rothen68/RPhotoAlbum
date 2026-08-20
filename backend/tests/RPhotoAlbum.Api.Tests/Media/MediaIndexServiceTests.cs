@@ -53,11 +53,21 @@ public sealed class MediaIndexServiceTests : IDisposable
         return folder;
     }
 
+    // Chemin imbriqué sous /Photos (le label par défaut d'AddSourceFolderAsync) — nécessaire
+    // depuis l'issue #28 : la purge ne considère "disparue" qu'une entrée dont le chemin
+    // appartient à un dossier source effectivement revu ce passage (préfixe de chemin), donc les
+    // fixtures doivent imiter un vrai chemin pCloud imbriqué sous son dossier source, pas un
+    // chemin plat sans rapport avec lui.
     private static PCloudItem Image(long fileId, string name, string? modified = "Wed, 12 Jun 2013 12:15:41 +0000") =>
-        new(name, false, fileId, null, 1024, 12345, "image/jpeg", modified, modified, false, "/" + name, null);
+        new(name, false, fileId, null, 1024, 12345, "image/jpeg", modified, modified, false, "/Photos/" + name, null);
+
+    // Comme Image ci-dessus, mais imbriqué sous un dossier source précis — nécessaire pour les
+    // tests avec plusieurs dossiers sources distincts (voir issue #28, AutoOnly_*).
+    private static PCloudItem ImageAt(long fileId, string folderLabel, string name, string? modified = "Wed, 12 Jun 2013 12:15:41 +0000") =>
+        new(name, false, fileId, null, 1024, 12345, "image/jpeg", modified, modified, false, $"/{folderLabel}/{name}", null);
 
     private static PCloudItem Folder(string name, IEnumerable<PCloudItem> contents) =>
-        new(name, true, null, 1, null, null, null, null, null, null, "/" + name, contents.ToList());
+        new(name, true, null, 1, null, null, null, null, null, null, "/Photos/" + name, contents.ToList());
 
     private static PCloudFolderListing Listing(params PCloudItem[] items) =>
         new(0, null, new PCloudFolderMetadata("root", 1, "/", items.ToList()));
@@ -130,6 +140,48 @@ public sealed class MediaIndexServiceTests : IDisposable
         Assert.Equal(0, result.NewlyIndexed);
         Assert.Equal(1, await _db.MediaIndex.CountAsync());
         Assert.Equal(1, (await _db.MediaIndex.SingleAsync()).PCloudFileId);
+    }
+
+    [Fact]
+    public async Task AutoOnly_SkipsFoldersNotMarkedAutoIndex()
+    {
+        await ConnectAsync();
+        var active = await AddSourceFolderAsync(100, "Active");
+        var archive = await AddSourceFolderAsync(200, "Archive");
+        archive.AutoIndex = false;
+        await _db.SaveChangesAsync();
+
+        _client.SetFolderListing(100, Listing(ImageAt(1, "Active", "new.jpg")));
+        _client.SetFolderListing(200, Listing(ImageAt(2, "Archive", "old.jpg")));
+
+        var result = await CreateService().ReindexAsync(autoOnly: true);
+
+        Assert.Equal(1, result.Indexed);
+        Assert.Equal(1, result.NewlyIndexed);
+        Assert.Equal(1, await _db.MediaIndex.CountAsync());
+        Assert.Equal(1, (await _db.MediaIndex.SingleAsync()).PCloudFileId);
+    }
+
+    [Fact]
+    public async Task AutoOnly_DoesNotPurgeMediaFromSkippedFolders()
+    {
+        await ConnectAsync();
+        var active = await AddSourceFolderAsync(100, "Active");
+        var archive = await AddSourceFolderAsync(200, "Archive");
+
+        _client.SetFolderListing(100, Listing(ImageAt(1, "Active", "new.jpg")));
+        _client.SetFolderListing(200, Listing(ImageAt(2, "Archive", "old.jpg")));
+        await CreateService().ReindexAsync(); // seed complet des deux dossiers (manuel)
+
+        archive.AutoIndex = false;
+        await _db.SaveChangesAsync();
+
+        // Passage automatique : le dossier Archive n'est plus jamais listé, donc son média
+        // n'apparaît jamais dans seenFileIds cette fois — ne doit PAS être purgé pour autant.
+        var result = await CreateService().ReindexAsync(autoOnly: true);
+
+        Assert.Equal(1, result.Indexed);
+        Assert.Equal(2, await _db.MediaIndex.CountAsync());
     }
 
     [Fact]

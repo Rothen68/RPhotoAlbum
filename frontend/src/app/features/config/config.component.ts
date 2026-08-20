@@ -114,12 +114,21 @@ export class ConfigComponent implements OnInit, OnDestroy {
     } else if (this.pickerMode() === 'source') {
       const alreadyPresent = current.sourceFolders.some((f) => f.folderId === folder.id);
       if (!alreadyPresent) {
-        const newFolder: SourceFolder = { folderId: folder.id, label: folder.name, path: folder.path };
+        const newFolder: SourceFolder = { folderId: folder.id, label: folder.name, path: folder.path, autoIndex: true };
         this.config.set({ ...current, sourceFolders: [...current.sourceFolders, newFolder] });
       }
     }
 
     this.pickerMode.set(null);
+  }
+
+  toggleSourceFolderAutoIndex(index: number): void {
+    const current = this.config();
+    if (!current) {
+      return;
+    }
+    const sourceFolders = current.sourceFolders.map((f, i) => (i === index ? { ...f, autoIndex: !f.autoIndex } : f));
+    this.config.set({ ...current, sourceFolders });
   }
 
   removeSourceFolder(index: number): void {
