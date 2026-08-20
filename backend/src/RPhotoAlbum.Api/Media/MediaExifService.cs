@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MetadataExtractor;
 using MetadataExtractor.Formats.Exif;
 using MetadataExtractor.Formats.Jpeg;
+using MetadataExtractor.Formats.QuickTime;
 using RPhotoAlbum.Api.Data;
 using RPhotoAlbum.Api.Models;
 using RPhotoAlbum.Api.PCloud;
@@ -13,14 +14,22 @@ public record ExifJobStatus(bool Running, int Processed, int Total, DateTime? St
 internal record ExifResult(long Id, DateTime? DateTaken, double? Latitude, double? Longitude, int? Width, int? Height);
 
 // Job manuel (pas périodique comme MediaIndexBackgroundService) : extrait la date de prise de
-// vue réelle (EXIF DateTimeOriginal) et les coordonnées GPS des images du cache, en ne
-// téléchargeant qu'un petit en-tête de chaque fichier (voir PCloudClient.DownloadPartialAsync)
-// — voir plan V2 étape 9.
+// vue réelle (EXIF DateTimeOriginal pour les images, atome QuickTime/MP4 mvhd.creation_time pour
+// les vidéos — voir issue #21) et les coordonnées GPS des images du cache, en ne téléchargeant
+// qu'un petit en-tête de chaque fichier (voir PCloudClient.DownloadPartialAsync) — voir plan V2
+// étape 9. Pas de GPS pour les vidéos : rare dans les métadonnées vidéo grand public.
 public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupService geoService, ILogger<MediaExifService> logger)
 {
     // Lus en tête de fichier : suffisant pour l'IFD EXIF/GPS de la quasi-totalité des JPEG et
     // RAW (TIFF-based, ex. CR2) — bien plus petit qu'un fichier RAW complet (dizaines de Mo).
     private const int ExifReadBytes = 512 * 1024;
+    // Taille de lecture pour l'atome "moov" (QuickTime/MP4, contient mvhd.creation_time) —
+    // distincte de ExifReadBytes ci-dessus (même valeur pour l'instant, mais sémantiquement
+    // différente, réglable indépendamment si l'expérience réelle montre qu'il faut l'ajuster).
+    // Contrairement au JPEG (EXIF toujours en tête), "moov" peut être en tête OU en fin de
+    // fichier selon l'encodeur (pas de "faststart") — voir TryReadVideoCreationDateAsync
+    // ci-dessous, qui tente les deux avant d'abandonner.
+    private const int VideoReadBytes = 512 * 1024;
     // Concurrence volontairement limitée (voir V2 étape 4 : pCloud peut être lent à générer un
     // lien pour un fichier jamais consulté) — ce job ne doit pas aggraver la latence perçue
     // pendant un usage normal de l'app en parallèle.
@@ -37,8 +46,9 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CacheDbContext>();
-        var total = await db.MediaIndex.CountAsync(m => m.MediaType == "image", ct);
-        var processed = await db.MediaIndex.CountAsync(m => m.MediaType == "image" && m.ExifProcessedAt != null, ct);
+        var total = await db.MediaIndex.CountAsync(m => m.MediaType == "image" || m.MediaType == "video", ct);
+        var processed = await db.MediaIndex.CountAsync(
+            m => (m.MediaType == "image" || m.MediaType == "video") && m.ExifProcessedAt != null, ct);
         return new ExifJobStatus(_running, processed, total, _startedAt, _lastError);
     }
 
@@ -94,8 +104,8 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
         try
         {
             var pendingIds = await db.MediaIndex.AsNoTracking()
-                .Where(m => m.MediaType == "image" && m.ExifProcessedAt == null)
-                .Select(m => new { m.Id, m.PCloudFileId })
+                .Where(m => (m.MediaType == "image" || m.MediaType == "video") && m.ExifProcessedAt == null)
+                .Select(m => new { m.Id, m.PCloudFileId, m.MediaType })
                 .ToListAsync(ct);
 
             foreach (var batch in pendingIds.Chunk(SaveBatchSize))
@@ -105,7 +115,7 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
                     await throttle.WaitAsync(ct);
                     try
                     {
-                        return await ExtractAsync(item.Id, item.PCloudFileId, ct);
+                        return await ExtractAsync(item.Id, item.PCloudFileId, item.MediaType, ct);
                     }
                     finally
                     {
@@ -161,16 +171,23 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
         }
     }
 
-    private async Task<ExifResult> ExtractAsync(long id, long pCloudFileId, CancellationToken ct)
+    private async Task<ExifResult> ExtractAsync(long id, long pCloudFileId, string mediaType, CancellationToken ct)
     {
+        // Scope dédié à CET appel concurrent (voir commentaire sur RunAsync) : isole le
+        // CacheDbContext utilisé par PCloudTokenStore de celui des autres extractions en
+        // cours en parallèle.
+        using var scope = scopeFactory.CreateScope();
+        var client = scope.ServiceProvider.GetRequiredService<IPCloudClient>();
+
+        if (mediaType == "video")
+        {
+            var videoDate = await TryReadVideoCreationDateAsync(() => client.DownloadPartialAsync(pCloudFileId, VideoReadBytes, ct), ct)
+                ?? await TryReadVideoCreationDateAsync(() => client.DownloadTailAsync(pCloudFileId, VideoReadBytes, ct), ct);
+            return new ExifResult(id, videoDate, null, null, null, null);
+        }
+
         try
         {
-            // Scope dédié à CET appel concurrent (voir commentaire sur RunAsync) : isole le
-            // CacheDbContext utilisé par PCloudTokenStore de celui des autres extractions en
-            // cours en parallèle.
-            using var scope = scopeFactory.CreateScope();
-            var client = scope.ServiceProvider.GetRequiredService<IPCloudClient>();
-
             var bytes = await client.DownloadPartialAsync(pCloudFileId, ExifReadBytes, ct);
             using var stream = new MemoryStream(bytes);
             var directories = ImageMetadataReader.ReadMetadata(stream);
@@ -233,6 +250,39 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
             // à remonter.
             logger.LogDebug(ex, "Pas d'EXIF exploitable pour le média {Id}.", id);
             return new ExifResult(id, null, null, null, null, null);
+        }
+    }
+
+    // Époque QuickTime/Mac classique (secondes depuis ce point de référence) — un mvhd.creation_time
+    // à zéro (donc converti tel quel par MetadataExtractor en 1904-01-01T00:00:00) est une valeur
+    // sentinelle très répandue signifiant "jamais renseigné" (constaté en pratique sur une vidéo
+    // réencodée par un outil tiers, pas une vraie date de capture) — à distinguer d'une vraie date.
+    private static readonly DateTime QuickTimeEpoch = new(1904, 1, 1);
+
+    // Tente de lire mvhd.creation_time depuis les octets donnés (tête OU fin de fichier — voir
+    // appelant). Volontairement silencieuse (retourne null) sur tout échec : un fichier tronqué à
+    // cette taille de lecture (moov trop volumineux, ou situé ailleurs que la portion lue) est un
+    // cas normal, pas une erreur à remonter — la tentative suivante (tête puis fin) ou l'absence
+    // de date prend le relais. Ne masque PAS une annulation réelle (voir commentaire sur
+    // ExtractAsync ci-dessus, même piège).
+    private static async Task<DateTime?> TryReadVideoCreationDateAsync(Func<Task<byte[]>> downloadBytes, CancellationToken ct)
+    {
+        try
+        {
+            var bytes = await downloadBytes();
+            using var stream = new MemoryStream(bytes);
+            var directories = ImageMetadataReader.ReadMetadata(stream);
+            var movieHeader = directories.OfType<QuickTimeMovieHeaderDirectory>().FirstOrDefault();
+            if (movieHeader?.TryGetDateTime(QuickTimeMovieHeaderDirectory.TagCreated, out var dt) != true)
+            {
+                return null;
+            }
+
+            return dt <= QuickTimeEpoch ? null : dt;
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            return null;
         }
     }
 }

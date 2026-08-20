@@ -17,6 +17,9 @@ public interface IPCloudClient
     Task<string> GetFileLinkAsync(long fileId);
     Task<string> DownloadTextFileAsync(long fileId);
     Task<byte[]> DownloadPartialAsync(long fileId, int maxBytes, CancellationToken ct = default);
+    // Derniers octets du fichier (requête Range en suffixe) — voir issue #21 : l'atome "moov"
+    // d'un conteneur QuickTime/MP4 peut être en fin de fichier plutôt qu'en tête selon l'encodeur.
+    Task<byte[]> DownloadTailAsync(long fileId, int maxBytes, CancellationToken ct = default);
     Task<(byte[] Bytes, string? ContentType)> DownloadAsync(long fileId, CancellationToken ct = default);
     Task<string> GetFileNameAsync(long fileId);
     // Octets de la miniature (pas juste le lien, contrairement à GetThumbLinkAsync) — voir issue

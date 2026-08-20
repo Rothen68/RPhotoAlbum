@@ -74,11 +74,11 @@
 <section>
   <h2>Dates de prise de vue (EXIF)</h2>
   <p class="muted">
-    Lit la date réelle de prise de vue (et les coordonnées GPS si présentes) dans chaque photo,
-    pour un regroupement par date plus précis que la date d'import.
+    Lit la date réelle de prise de vue (et les coordonnées GPS si présentes pour les photos)
+    dans chaque photo ou vidéo, pour un regroupement par date plus précis que la date d'import.
   </p>
   @if (exifStatus(); as status) {
-    <p>{{ status.processed }} / {{ status.total }} photos traitées.</p>
+    <p>{{ status.processed }} / {{ status.total }} médias traités.</p>
     <div class="progress-bar">
       <div class="progress-bar-fill" [style.width.%]="status.total > 0 ? (status.processed / status.total) * 100 : 0"></div>
     </div>

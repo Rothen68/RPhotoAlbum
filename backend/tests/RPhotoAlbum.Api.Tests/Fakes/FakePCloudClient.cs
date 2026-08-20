@@ -81,6 +81,8 @@ public class FakePCloudClient : IPCloudClient
 
     public Task<byte[]> DownloadPartialAsync(long fileId, int maxBytes, CancellationToken ct = default) => throw new NotSupportedException();
 
+    public Task<byte[]> DownloadTailAsync(long fileId, int maxBytes, CancellationToken ct = default) => throw new NotSupportedException();
+
     public Task<(byte[] Bytes, string? ContentType)> DownloadAsync(long fileId, CancellationToken ct = default) => throw new NotSupportedException();
 
     public Task<string> GetFileNameAsync(long fileId) => throw new NotSupportedException();

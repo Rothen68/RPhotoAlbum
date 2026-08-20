@@ -288,6 +288,20 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
 
+    // Requête Range en suffixe (bytes=-N, les N derniers octets) — voir issue #21 : repli quand
+    // l'atome "moov" d'une vidéo QuickTime/MP4 n'est pas en tête de fichier (pas de "faststart").
+    // RangeHeaderValue(null, maxBytes) est la représentation .NET standard d'un suffix-range.
+    public async Task<byte[]> DownloadTailAsync(long fileId, int maxBytes, CancellationToken ct = default)
+    {
+        var url = await GetFileLinkAsync(fileId);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Range = new RangeHeaderValue(null, maxBytes);
+
+        using var response = await httpClient.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsByteArrayAsync(ct);
+    }
+
     // Téléchargement complet du fichier original (issue #1 — téléchargement depuis la vue plein
     // écran) : contrairement à DownloadPartialAsync, on bufférise ici tout le fichier avant de
     // le renvoyer, pour pouvoir libérer la réponse pCloud immédiatement (voir MediaController.
