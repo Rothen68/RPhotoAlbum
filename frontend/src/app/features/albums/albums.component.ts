@@ -3,9 +3,16 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { timeout } from 'rxjs';
 import { AlbumSection, AlbumService, AlbumSummary } from '../../core/albums/album.service';
 import { ConnectivityService } from '../../core/offline/connectivity.service';
 import { OfflineAlbumMeta, OfflineAlbumService } from '../../core/offline/offline-album.service';
+
+// navigator.onLine peut se tromper ou tarder à se mettre à jour (constaté en usage réel : une
+// requête restée bloquée en attente indéfiniment après le passage en mode avion plutôt que
+// d'échouer proprement) — un délai explicite garantit un repli sur les albums hors-ligne (#29)
+// même si la détection de connectivité n'aide pas.
+const REQUEST_TIMEOUT_MS = 6000;
 
 const COLLAPSED_STORAGE_KEY = 'rphotoalbum:collapsedSections';
 const UNSECTIONED_ID = 'unsectioned';
@@ -86,7 +93,7 @@ export class AlbumsComponent implements OnInit {
       return;
     }
 
-    this.albumService.list().subscribe({
+    this.albumService.list().pipe(timeout(REQUEST_TIMEOUT_MS)).subscribe({
       next: (result) => {
         this.sections.set(result.sections);
         this.unsectioned.set(result.unsectioned);

@@ -1,7 +1,13 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, catchError, of, tap } from 'rxjs';
+import { Observable, catchError, of, tap, timeout } from 'rxjs';
 import { ConnectivityService } from '../offline/connectivity.service';
+
+// navigator.onLine peut se tromper ou tarder à se mettre à jour (constaté en usage réel :
+// un appareil resté "en ligne" un instant après le passage en mode avion, laissant la requête
+// /api/auth/me bloquée en attente indéfiniment plutôt que d'échouer proprement) — un délai
+// explicite garantit qu'on ne reste jamais bloqué, quelle que soit la cause du blocage réseau.
+const REQUEST_TIMEOUT_MS = 6000;
 
 export interface Session {
   username: string;
@@ -77,16 +83,19 @@ export class AuthService {
     }
 
     return this.http.get<Session>('/api/auth/me').pipe(
+      timeout(REQUEST_TIMEOUT_MS),
       tap((session) => {
         this.session.set(session);
         saveLastKnownSession(session);
       }),
-      catchError((err: HttpErrorResponse) => {
-        // status 0 = la requête n'a jamais atteint le serveur (hors-ligne), à distinguer d'un
-        // vrai 401 (serveur joint, cookie explicitement rejeté) — seul le premier cas justifie
-        // de faire confiance au dernier /api/auth/me confirmé plutôt que d'exiger une
-        // reconnexion impossible sans réseau. Un vrai 401 continue de déconnecter normalement.
-        const lastKnown = err.status === 0 ? loadLastKnownSession() : null;
+      catchError((err: unknown) => {
+        // Un vrai 401 (serveur joint, cookie explicitement rejeté) doit déconnecter normalement.
+        // Tout le reste — status 0 (jamais atteint le serveur), timeout (bloqué indéfiniment,
+        // navigator.onLine pas fiable à 100%) — n'est PAS une confirmation que la session est
+        // invalide : on fait confiance au dernier /api/auth/me réellement confirmé plutôt que
+        // d'exiger une reconnexion peut-être impossible sans réseau.
+        const isRealRejection = err instanceof HttpErrorResponse && err.status !== 0;
+        const lastKnown = isRealRejection ? null : loadLastKnownSession();
         this.session.set(lastKnown);
         if (!lastKnown) {
           saveLastKnownSession(null);

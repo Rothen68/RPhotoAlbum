@@ -14,6 +14,7 @@ import {
 import { CdkDragDrop, CdkDragMove, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { ActivatedRoute, Router } from '@angular/router';
+import { timeout } from 'rxjs';
 import { AlbumDetail, AlbumItem, AlbumService } from '../../core/albums/album.service';
 import { ConnectivityService } from '../../core/offline/connectivity.service';
 import { OfflineAlbumService } from '../../core/offline/offline-album.service';
@@ -30,6 +31,12 @@ import { AlbumVirtualScrollDirective, computeRowHeight } from './album-virtual';
 // visible pendant un glisser. Implémentation manuelle du scroll auto près des bords.
 const AUTO_SCROLL_EDGE_PX = 80;
 const AUTO_SCROLL_MAX_SPEED = 18;
+
+// navigator.onLine peut se tromper ou tarder à se mettre à jour (constaté en usage réel : une
+// requête restée bloquée en attente indéfiniment après le passage en mode avion plutôt que
+// d'échouer proprement) — un délai explicite garantit un repli sur le cache hors-ligne (#29)
+// même si la détection de connectivité n'aide pas.
+const REQUEST_TIMEOUT_MS = 6000;
 
 @Component({
   selector: 'app-album-detail',
@@ -190,7 +197,7 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    this.albumService.get(this.albumId).subscribe({
+    this.albumService.get(this.albumId).pipe(timeout(REQUEST_TIMEOUT_MS)).subscribe({
       next: (album) => {
         this.album.set(album);
         this.loading.set(false);
