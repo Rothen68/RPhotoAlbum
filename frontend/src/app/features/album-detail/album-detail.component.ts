@@ -240,11 +240,21 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     this.offlineAlbumService.makeAvailable(album).catch((err) => this.reportOfflineError(err));
   }
 
-  // Distingue un dépassement de quota (message actionnable, avec les chiffres réels de
-  // l'appareil — issue #29, retour utilisateur : le message générique ne permettait pas de
-  // savoir si c'était vraiment un problème de stockage ou autre chose) d'un échec générique
-  // (réseau, ou aucune miniature récupérable même après nouvel essai — voir OfflineAlbumService).
+  // Distingue les causes d'échec (issue #29, retour utilisateur : le message générique ne
+  // permettait pas de savoir laquelle s'appliquait) :
+  // - contexte non sécurisé (accès en HTTP simple, pas HTTPS/localhost) — l'API Cache Storage
+  //   n'existe alors tout simplement pas, message dédié plutôt que de laisser croire à un souci
+  //   réseau ou stockage ;
+  // - dépassement de quota — chiffres réels de l'appareil via navigator.storage.estimate() ;
+  // - échec générique (réseau, ou aucune miniature récupérable même après nouvel essai).
   private async reportOfflineError(err: unknown): Promise<void> {
+    if (err instanceof DOMException && err.name === 'InsecureContextError') {
+      this.offlineError.set(
+        "La consultation hors-ligne nécessite une connexion sécurisée (HTTPS) — non disponible en accédant via une adresse HTTP simple.",
+      );
+      return;
+    }
+
     const isQuotaError = err instanceof DOMException && err.name === 'QuotaExceededError';
     if (!isQuotaError || !navigator.storage?.estimate) {
       this.offlineError.set('Échec du téléchargement hors-ligne (réseau ou espace de stockage insuffisant).');

@@ -92,6 +92,18 @@ export class OfflineAlbumService {
       return;
     }
 
+    // L'API Cache Storage n'existe (self.caches) que dans un contexte sécurisé (HTTPS, ou
+    // http://localhost) — sur une adresse LAN en HTTP simple (ex. http://192.168.x.x), `caches`
+    // est tout simplement absent de `window`, et échoue instantanément sans rapport avec le
+    // réseau ou l'espace disque. Détecté explicitement ici pour un message clair plutôt qu'un
+    // TypeError générique sur `caches.delete is not a function`.
+    if (!window.isSecureContext) {
+      throw new DOMException(
+        'La consultation hors-ligne nécessite une connexion sécurisée (HTTPS).',
+        'InsecureContextError',
+      );
+    }
+
     const cacheName = cacheNameFor(albumId);
     this.setDownloading(albumId, true);
     this.setProgress(albumId, 0);
