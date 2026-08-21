@@ -15,6 +15,8 @@ import { CdkDragDrop, CdkDragMove, DragDropModule, moveItemInArray } from '@angu
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlbumDetail, AlbumItem, AlbumService } from '../../core/albums/album.service';
+import { ConnectivityService } from '../../core/offline/connectivity.service';
+import { OfflineAlbumService } from '../../core/offline/offline-album.service';
 import { MarkdownEditorComponent } from '../../shared/markdown-editor/markdown-editor.component';
 import { MarkdownPipe } from '../../shared/markdown.pipe';
 import { MediaViewerComponent } from '../../shared/media-viewer/media-viewer.component';
@@ -41,6 +43,8 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly albumService = inject(AlbumService);
+  private readonly offlineAlbumService = inject(OfflineAlbumService);
+  protected readonly connectivity = inject(ConnectivityService);
   private readonly hostEl = inject(ElementRef<HTMLElement>);
   private readonly ngZone = inject(NgZone);
 
@@ -79,6 +83,16 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
 
   protected readonly viewerIndex = signal<number | null>(null);
 
+  // --- Consultation hors-ligne (issue #29) ---
+  protected readonly offlineAvailable = computed(() => this.offlineAlbumService.isOffline(this.albumId));
+  protected readonly offlineMeta = computed(() => this.offlineAlbumService.metaFor(this.albumId));
+  protected readonly offlineDownloading = computed(() => this.offlineAlbumService.isDownloading(this.albumId));
+  protected readonly offlineProgress = computed(() => this.offlineAlbumService.progressFor(this.albumId));
+  protected readonly offlinePendingRemoval = signal(false);
+  protected readonly offlineError = signal<string | null>(null);
+  private objectUrlMap = new Map<number, string>();
+  private objectUrlGeneration = 0;
+
   protected readonly mediaItems = computed(() => (this.album()?.items ?? []).filter((i) => i.type === 'media'));
   protected readonly viewerItems = computed(() =>
     this.mediaItems().map((i) => ({
@@ -110,6 +124,19 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     // par pushRowHeights(), appelée sur l'événement (attached) de la directive — voir
     // AlbumVirtualScrollDirective pour la raison (l'ordre effect-vs-attach() n'est pas garanti).
     effect(() => this.pushRowHeights());
+
+    // Bascule les miniatures affichées vers le cache hors-ligne (Object URL) dès que la
+    // connectivité tombe, pour un album rendu disponible hors-ligne — voir OfflineAlbumService
+    // (issue #29). Le chemin en ligne (thumbnailUrl() retombant sur l'URL réseau) est inchangé.
+    effect(() => {
+      const online = this.connectivity.online();
+      const album = this.album();
+      if (!online && album && this.offlineAlbumService.isOffline(this.albumId)) {
+        this.rebuildObjectUrlMap(album);
+      } else {
+        this.revokeObjectUrls();
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -134,6 +161,7 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.revokeObjectUrls();
   }
 
   // La stratégie de scroll (offsets cumulés) a besoin de l'empreinte TOTALE de chaque rangée
@@ -157,12 +185,78 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
         this.album.set(album);
         this.loading.set(false);
       },
-      error: () => this.loading.set(false),
+      // Pas de réseau (ou serveur injoignable) : si cet album a été rendu disponible hors-ligne,
+      // on le recharge depuis le cache local plutôt que de simplement abandonner (issue #29).
+      error: () => {
+        if (!this.offlineAlbumService.isOffline(this.albumId)) {
+          this.loading.set(false);
+          return;
+        }
+        this.offlineAlbumService.getCachedAlbum(this.albumId).then((cached) => {
+          if (cached) {
+            this.album.set(cached);
+          }
+          this.loading.set(false);
+        });
+      },
     });
   }
 
   thumbnailUrl(fileId: number): string {
-    return this.albumService.thumbnailUrl(fileId, 800);
+    return this.objectUrlMap.get(fileId) ?? this.albumService.thumbnailUrl(fileId, 800);
+  }
+
+  private async rebuildObjectUrlMap(album: AlbumDetail): Promise<void> {
+    const generation = ++this.objectUrlGeneration;
+    const mediaItems = album.items.filter((i) => i.type === 'media');
+    const next = await this.offlineAlbumService.buildObjectUrlMap(this.albumId, mediaItems);
+    if (generation !== this.objectUrlGeneration) {
+      // Un rebuild plus récent a déjà démarré (ou la connectivité est repassée en ligne) — on
+      // jette ce résultat obsolète plutôt que d'écraser une map plus à jour.
+      for (const url of next.values()) {
+        URL.revokeObjectURL(url);
+      }
+      return;
+    }
+    this.revokeObjectUrls();
+    this.objectUrlMap = next;
+  }
+
+  private revokeObjectUrls(): void {
+    for (const url of this.objectUrlMap.values()) {
+      URL.revokeObjectURL(url);
+    }
+    this.objectUrlMap.clear();
+  }
+
+  // --- Consultation hors-ligne : actions (issue #29) ---
+
+  makeOfflineAvailable(): void {
+    const album = this.album();
+    if (!album) {
+      return;
+    }
+    this.offlineError.set(null);
+    this.offlineAlbumService
+      .makeAvailable(album)
+      .catch(() => this.offlineError.set('Échec du téléchargement hors-ligne (réseau ou espace de stockage insuffisant).'));
+  }
+
+  confirmRemoveOffline(): void {
+    this.offlinePendingRemoval.set(true);
+  }
+
+  cancelRemoveOffline(): void {
+    this.offlinePendingRemoval.set(false);
+  }
+
+  removeOfflineAvailable(): void {
+    this.offlinePendingRemoval.set(false);
+    this.offlineAlbumService.remove(this.albumId);
+  }
+
+  protected formatMb(bytes: number): number {
+    return Math.round(bytes / (1024 * 1024));
   }
 
   streamUrl(fileId: number): string {

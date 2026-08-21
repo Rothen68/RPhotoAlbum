@@ -3,8 +3,32 @@
     <span class="icon material-symbols-outlined">arrow_back</span>
   </button>
   <span class="album-name">{{ album()?.name }}</span>
+  <button
+    type="button"
+    class="btn-icon"
+    [disabled]="offlineDownloading()"
+    (click)="offlineAvailable() ? confirmRemoveOffline() : makeOfflineAvailable()"
+    [attr.aria-label]="offlineAvailable() ? 'Disponible hors-ligne' : 'Rendre disponible hors-ligne'"
+    [title]="offlineAvailable() ? 'Disponible hors-ligne' : 'Rendre disponible hors-ligne'"
+  >
+    <span class="icon material-symbols-outlined">{{ offlineAvailable() ? 'offline_pin' : 'download_for_offline' }}</span>
+  </button>
   <button type="button" class="btn-link" (click)="toggleEdit()">{{ editMode() ? 'Done' : 'Edit' }}</button>
 </header>
+
+@if (offlineDownloading()) {
+  <div class="offline-status">
+    <div class="progress-bar"><div class="progress-bar-fill" [style.width.%]="offlineProgress() * 100"></div></div>
+    <p class="muted">Téléchargement des miniatures pour la consultation hors-ligne…</p>
+  </div>
+} @else if (offlineAvailable() && offlineMeta(); as meta) {
+  <p class="muted offline-status">
+    Disponible hors-ligne ({{ formatMb(meta.sizeBytes) }} Mo) — Safari iOS peut supprimer ce cache si l'app reste inutilisée un moment.
+  </p>
+}
+@if (offlineError(); as err) {
+  <p class="error offline-status">{{ err }}</p>
+}
 
 @if (loading()) {
   <p class="muted">Loading…</p>
@@ -171,4 +195,17 @@
     [downloadUrl]="downloadUrlFn"
     (closed)="viewerIndex.set(null)"
   />
+}
+
+@if (offlinePendingRemoval()) {
+  <div class="dialog-backdrop" (click)="cancelRemoveOffline()">
+    <div class="dialog" (click)="$event.stopPropagation()">
+      <h2>Retirer la disponibilité hors-ligne ?</h2>
+      <p class="muted">Les miniatures mises en cache pour "{{ album()?.name }}" seront supprimées de cet appareil.</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" (click)="cancelRemoveOffline()">Annuler</button>
+        <button type="button" class="btn btn-danger" (click)="removeOfflineAvailable()">Retirer</button>
+      </div>
+    </div>
+  </div>
 }

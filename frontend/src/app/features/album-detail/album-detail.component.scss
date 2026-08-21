@@ -27,6 +27,31 @@
   white-space: nowrap;
 }
 
+// Consultation hors-ligne (issue #29) — barre de progression et légendes sous le header.
+.offline-status {
+  flex: 0 0 auto;
+  padding: 0 0.75rem 0.5rem;
+}
+
+.progress-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 300ms ease;
+}
+
+.error {
+  color: var(--color-danger);
+  font-size: 0.875rem;
+}
+
 .empty-state {
   text-align: center;
   margin-top: 2rem;

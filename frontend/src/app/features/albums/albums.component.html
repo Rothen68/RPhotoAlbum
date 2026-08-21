@@ -121,6 +121,11 @@
       } @else {
         <span class="muted">empty album</span>
       }
+      @if (isOfflineAvailable(album.id)) {
+        <span class="offline-glyph" title="Disponible hors-ligne">
+          <span class="icon material-symbols-outlined">offline_pin</span>
+        </span>
+      }
     </div>
     <div class="info">
       <span class="name">{{ album.name }}</span>

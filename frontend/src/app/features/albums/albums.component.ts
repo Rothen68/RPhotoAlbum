@@ -4,6 +4,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AlbumSection, AlbumService, AlbumSummary } from '../../core/albums/album.service';
+import { OfflineAlbumService } from '../../core/offline/offline-album.service';
 
 const COLLAPSED_STORAGE_KEY = 'rphotoalbum:collapsedSections';
 const UNSECTIONED_ID = 'unsectioned';
@@ -32,6 +33,7 @@ function saveCollapsedSectionIds(ids: Set<string>): void {
 })
 export class AlbumsComponent implements OnInit {
   private readonly albumService = inject(AlbumService);
+  private readonly offlineAlbumService = inject(OfflineAlbumService);
 
   protected readonly sections = signal<AlbumSection[]>([]);
   protected readonly unsectioned = signal<AlbumSummary[]>([]);
@@ -76,6 +78,10 @@ export class AlbumsComponent implements OnInit {
 
   thumbnailUrl(fileId: number): string {
     return this.albumService.thumbnailUrl(fileId);
+  }
+
+  isOfflineAvailable(albumId: string): boolean {
+    return this.offlineAlbumService.isOffline(albumId);
   }
 
   toggleOrganizeMode(): void {
