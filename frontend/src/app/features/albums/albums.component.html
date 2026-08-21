@@ -13,6 +13,24 @@
 
 @if (loading()) {
   <p class="muted">Chargement…</p>
+} @else if (loadFailed()) {
+  @if (offlineFallbackAlbums().length > 0) {
+    <p class="muted">Hors-ligne — albums disponibles :</p>
+    <ul class="album-list">
+      @for (entry of offlineFallbackAlbums(); track entry.id) {
+        <li>
+          <a class="card elev-sm album-card" [routerLink]="['/albums', entry.id]">
+            <div class="info">
+              <span class="name">{{ entry.meta.name }}</span>
+              <span class="muted count">{{ entry.meta.itemCount }} miniature{{ entry.meta.itemCount === 1 ? '' : 's' }}</span>
+            </div>
+          </a>
+        </li>
+      }
+    </ul>
+  } @else {
+    <p class="muted empty-state">Impossible de charger les albums (hors-ligne, et aucun album disponible hors-ligne).</p>
+  }
 } @else if (unsectioned().length === 0 && sections().length === 0) {
   <p class="muted empty-state">Aucun album pour l'instant.</p>
 } @else {

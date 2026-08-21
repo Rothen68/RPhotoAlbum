@@ -4,7 +4,8 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AlbumSection, AlbumService, AlbumSummary } from '../../core/albums/album.service';
-import { OfflineAlbumService } from '../../core/offline/offline-album.service';
+import { ConnectivityService } from '../../core/offline/connectivity.service';
+import { OfflineAlbumMeta, OfflineAlbumService } from '../../core/offline/offline-album.service';
 
 const COLLAPSED_STORAGE_KEY = 'rphotoalbum:collapsedSections';
 const UNSECTIONED_ID = 'unsectioned';
@@ -34,10 +35,17 @@ function saveCollapsedSectionIds(ids: Set<string>): void {
 export class AlbumsComponent implements OnInit {
   private readonly albumService = inject(AlbumService);
   private readonly offlineAlbumService = inject(OfflineAlbumService);
+  private readonly connectivity = inject(ConnectivityService);
 
   protected readonly sections = signal<AlbumSection[]>([]);
   protected readonly unsectioned = signal<AlbumSummary[]>([]);
   protected readonly loading = signal(true);
+  // Repli hors-ligne (issue #29) : /api/albums renvoie sections/ordre, jamais mis en cache
+  // (propre à la structure serveur) — sur échec réseau, on retombe sur la simple liste des
+  // albums rendus disponibles hors-ligne (voir OfflineAlbumService.listOffline), pour qu'un
+  // album déjà téléchargé reste au moins atteignable et cliquable.
+  protected readonly offlineFallbackAlbums = signal<{ id: string; meta: OfflineAlbumMeta }[]>([]);
+  protected readonly loadFailed = signal(false);
 
   protected readonly organizeMode = signal(false);
   protected readonly collapsedSectionIds = signal<Set<string>>(loadCollapsedSectionIds());
@@ -66,13 +74,29 @@ export class AlbumsComponent implements OnInit {
 
   private load(): void {
     this.loading.set(true);
+    this.loadFailed.set(false);
+
+    // Déjà su hors-ligne : inutile d'attendre l'échec (parfois lent) d'une requête réseau vouée
+    // à échouer — repli direct sur les albums disponibles hors-ligne (issue #29, même raison
+    // que AlbumDetailComponent.load()).
+    if (!this.connectivity.online()) {
+      this.loadFailed.set(true);
+      this.offlineFallbackAlbums.set(this.offlineAlbumService.listOffline());
+      this.loading.set(false);
+      return;
+    }
+
     this.albumService.list().subscribe({
       next: (result) => {
         this.sections.set(result.sections);
         this.unsectioned.set(result.unsectioned);
         this.loading.set(false);
       },
-      error: () => this.loading.set(false),
+      error: () => {
+        this.loadFailed.set(true);
+        this.offlineFallbackAlbums.set(this.offlineAlbumService.listOffline());
+        this.loading.set(false);
+      },
     });
   }
 

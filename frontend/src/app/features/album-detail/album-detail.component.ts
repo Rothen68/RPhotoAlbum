@@ -180,25 +180,40 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private load(): void {
     this.loading.set(true);
+
+    // Déjà su hors-ligne : inutile d'attendre l'échec (parfois lent, plusieurs secondes selon
+    // l'appareil/réseau) d'une requête réseau vouée à échouer — on retombe directement sur le
+    // cache si disponible (issue #29, retour utilisateur : la page restait visiblement bloquée
+    // sur "Loading…" plus longtemps que nécessaire).
+    if (!this.connectivity.online() && this.offlineAlbumService.isOffline(this.albumId)) {
+      this.loadFromCache();
+      return;
+    }
+
     this.albumService.get(this.albumId).subscribe({
       next: (album) => {
         this.album.set(album);
         this.loading.set(false);
       },
-      // Pas de réseau (ou serveur injoignable) : si cet album a été rendu disponible hors-ligne,
-      // on le recharge depuis le cache local plutôt que de simplement abandonner (issue #29).
+      // Serveur injoignable malgré navigator.onLine (faux positif fréquent : Wi-Fi connecté
+      // sans accès réel à Internet/au serveur) : même repli si cet album est disponible
+      // hors-ligne, plutôt que de simplement abandonner (issue #29).
       error: () => {
         if (!this.offlineAlbumService.isOffline(this.albumId)) {
           this.loading.set(false);
           return;
         }
-        this.offlineAlbumService.getCachedAlbum(this.albumId).then((cached) => {
-          if (cached) {
-            this.album.set(cached);
-          }
-          this.loading.set(false);
-        });
+        this.loadFromCache();
       },
+    });
+  }
+
+  private loadFromCache(): void {
+    this.offlineAlbumService.getCachedAlbum(this.albumId).then((cached) => {
+      if (cached) {
+        this.album.set(cached);
+      }
+      this.loading.set(false);
     });
   }
 

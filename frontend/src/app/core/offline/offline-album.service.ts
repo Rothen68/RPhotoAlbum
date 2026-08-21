@@ -4,6 +4,11 @@ import { AlbumDetail, AlbumItem, AlbumService } from '../albums/album.service';
 const MANIFEST_KEY = 'rphotoalbum:offlineAlbums';
 
 export interface OfflineAlbumMeta {
+  // Nom de l'album au moment du téléchargement — utilisé pour afficher la liste des albums
+  // disponibles hors-ligne quand /api/albums lui-même est injoignable (issue #29 : sans ce
+  // repli, un album rendu disponible hors-ligne resterait inatteignable depuis la liste des
+  // albums une fois hors-ligne, faute de pouvoir même l'y retrouver pour cliquer dessus).
+  name: string;
   itemCount: number;
   // Nombre total de médias de l'album au moment du téléchargement — peut différer de itemCount
   // si certaines miniatures ont échoué même après nouvel essai (voir makeAvailable ci-dessous) :
@@ -60,6 +65,13 @@ export class OfflineAlbumService {
 
   metaFor(albumId: string): OfflineAlbumMeta | null {
     return this.manifest()[albumId] ?? null;
+  }
+
+  // Repli pour la liste des albums quand /api/albums est injoignable (issue #29) — pas de
+  // sections/ordre (jamais mis en cache, propre à la structure serveur), juste de quoi retrouver
+  // et ouvrir un album déjà disponible hors-ligne.
+  listOffline(): { id: string; meta: OfflineAlbumMeta }[] {
+    return Object.entries(this.manifest()).map(([id, meta]) => ({ id, meta }));
   }
 
   isDownloading(albumId: string): boolean {
@@ -139,6 +151,7 @@ export class OfflineAlbumService {
       const next = {
         ...this.manifest(),
         [albumId]: {
+          name: album.name,
           itemCount: cachedCount,
           totalCount: mediaItems.length,
           sizeBytes,
