@@ -4,14 +4,14 @@ import { AlbumItem } from '../../core/albums/album.service';
 import { PrecomputedVirtualScrollStrategy } from '../../shared/virtual-scroll/precomputed-virtual-scroll-strategy';
 import { AlbumRow } from './album-layout';
 
-// Hauteur réservée à un bloc texte en vue virtualisée (lecture seule) — fixe plutôt que mesurée,
-// pour rester dans le même schéma "hauteurs connues à l'avance" que le reste de la stratégie
-// (voir PrecomputedVirtualScrollStrategy) : un contenu Markdown a une hauteur de rendu
-// arbitraire, impossible à connaître sans le rendre d'abord. Le bloc lui-même est contraint en
-// CSS à cette même hauteur avec un défilement interne (.text-block.virtualized) si le contenu la
-// dépasse — un dépassement non contraint chevaucherait la rangée suivante, positionnée à
-// l'offset cumulé fixe suivant.
-export const TEXT_BLOCK_HEIGHT_PX = 160;
+// Estimation utilisée pour un bloc texte tant que sa hauteur réelle n'a pas encore été mesurée
+// (issue #30) — un contenu Markdown n'a pas de hauteur connaissable à l'avance, contrairement à
+// une image (ratio EXIF). AlbumDetailComponent mesure la hauteur réelle une fois chaque bloc
+// rendu (MeasureHeightDirective, ResizeObserver) et corrige l'entrée correspondante — cette
+// estimation ne sert donc que pour le tout premier rendu d'une rangée texte donnée, avant
+// correction (léger réajustement visuel possible à ce moment-là, imperceptible en défilement
+// normal grâce à la zone tampon de la virtualisation qui rend les rangées en avance).
+export const TEXT_BLOCK_HEIGHT_ESTIMATE_PX = 160;
 
 // Ratio largeur/hauteur utilisé tant que les dimensions réelles de l'image ne sont pas encore
 // connues (média pas encore traité par le job EXIF, voir issue #20/MediaExifService) — purement
@@ -22,16 +22,17 @@ const FALLBACK_ASPECT_RATIO = 4 / 3;
 const ROW_GAP_PX = 8; // .row { gap: 0.5rem }
 
 // Hauteur d'une rangée en vue virtualisée (lecture seule, pas de contrôles d'édition en
-// superposition) — connue à l'avance à partir de la seule largeur du conteneur :
-// - Bloc texte : hauteur fixe (voir TEXT_BLOCK_HEIGHT_PX).
+// superposition) :
+// - Bloc texte : hauteur réelle si déjà mesurée (issue #30, voir measuredTextHeight), sinon
+//   TEXT_BLOCK_HEIGHT_ESTIMATE_PX en attendant le premier rendu.
 // - Rangée groupée (2-3 médias) : aspect-ratio 1:1 forcé (voir .block.grouped .media-block en
 //   CSS) — la hauteur ne dépend donc que de la largeur de colonne, jamais du contenu.
 // - Média seul (RowSpan=1) : garde son ratio naturel (comportement existant) — utilise les
 //   dimensions réelles (Width/Height) si connues, sinon l'estimation FALLBACK_ASPECT_RATIO.
-export function computeRowHeight(row: AlbumRow, containerWidth: number): number {
+export function computeRowHeight(row: AlbumRow, containerWidth: number, measuredTextHeight?: number): number {
   const first = row.items[0];
   if (first.type === 'text') {
-    return TEXT_BLOCK_HEIGHT_PX;
+    return measuredTextHeight ?? TEXT_BLOCK_HEIGHT_ESTIMATE_PX;
   }
 
   const cols = row.items.length;

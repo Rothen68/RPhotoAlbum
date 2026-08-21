@@ -61,7 +61,12 @@
                     }
                   </div>
                 } @else {
-                  <div class="text-block virtualized card markdown-body" [innerHTML]="item.markdown | markdown"></div>
+                  <div
+                    class="text-block virtualized card markdown-body"
+                    [innerHTML]="item.markdown | markdown"
+                    appMeasureHeight
+                    (heightChange)="onTextHeightMeasured(item.id, $event)"
+                  ></div>
                 }
               </div>
             </div>

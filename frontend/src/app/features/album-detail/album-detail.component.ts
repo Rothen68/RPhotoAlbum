@@ -20,6 +20,7 @@ import { OfflineAlbumService } from '../../core/offline/offline-album.service';
 import { OfflineModeService } from '../../core/offline/offline-mode.service';
 import { MarkdownEditorComponent } from '../../shared/markdown-editor/markdown-editor.component';
 import { MarkdownPipe } from '../../shared/markdown.pipe';
+import { MeasureHeightDirective } from '../../shared/measure-height/measure-height.directive';
 import { MediaViewerComponent } from '../../shared/media-viewer/media-viewer.component';
 import { isRawFileName } from '../../shared/raw-format';
 import { AlbumRow, groupIntoRows } from './album-layout';
@@ -41,7 +42,7 @@ const REQUEST_TIMEOUT_MS = 6000;
 @Component({
   selector: 'app-album-detail',
   standalone: true,
-  imports: [DragDropModule, MarkdownEditorComponent, MarkdownPipe, MediaViewerComponent, ScrollingModule, AlbumVirtualScrollDirective],
+  imports: [DragDropModule, MarkdownEditorComponent, MarkdownPipe, MeasureHeightDirective, MediaViewerComponent, ScrollingModule, AlbumVirtualScrollDirective],
   templateUrl: './album-detail.component.html',
   styleUrl: './album-detail.component.scss',
   host: { class: 'page' },
@@ -69,7 +70,15 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   // deux modes partagent le même agencement flex borné en hauteur (voir SCSS).
   @ViewChild('editScroll') private editScrollEl?: ElementRef<HTMLElement>;
   protected readonly containerWidth = signal(0);
-  protected readonly rowHeights = computed(() => this.rows().map((row) => computeRowHeight(row, this.containerWidth())));
+  // Hauteurs réelles des blocs texte, mesurées après rendu (issue #30) — clé = id du premier
+  // (unique) item de la rangée texte, même clé que trackRow. Tant qu'une rangée texte n'a pas
+  // encore été mesurée, computeRowHeight retombe sur TEXT_BLOCK_HEIGHT_ESTIMATE_PX.
+  protected readonly measuredTextHeights = signal<Map<string, number>>(new Map());
+  protected readonly rowHeights = computed(() =>
+    this.rows().map((row) =>
+      computeRowHeight(row, this.containerWidth(), row.items[0].type === 'text' ? this.measuredTextHeights().get(row.items[0].id) : undefined),
+    ),
+  );
   private resizeObserver?: ResizeObserver;
 
   private albumId!: string;
@@ -184,6 +193,20 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   protected pushRowHeights(): void {
     const heights = this.rowHeights().map((h) => h + AlbumDetailComponent.ROW_GAP_PX);
     this.scrollStrategy?.updateRowHeights(heights);
+  }
+
+  // Corrige la hauteur d'une rangée texte une fois son contenu réellement rendu (issue #30) —
+  // met à jour measuredTextHeights, ce qui recalcule rowHeights() et repousse les nouveaux
+  // offsets à la stratégie de virtualisation via l'effect() déjà en place (constructeur). Ignore
+  // les mesures inchangées pour éviter un cycle signal → détection de changement → resize sans
+  // fin en cas de valeur identique renvoyée par ResizeObserver.
+  protected onTextHeightMeasured(itemId: string, height: number): void {
+    if (this.measuredTextHeights().get(itemId) === height) {
+      return;
+    }
+    const next = new Map(this.measuredTextHeights());
+    next.set(itemId, height);
+    this.measuredTextHeights.set(next);
   }
 
   private load(): void {

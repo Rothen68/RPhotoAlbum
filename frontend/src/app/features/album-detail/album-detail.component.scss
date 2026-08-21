@@ -219,15 +219,14 @@
     cursor: text;
   }
 
-  // Hauteur réservée FIXE (pas max-height) en vue virtualisée, pour correspondre exactement à
-  // TEXT_BLOCK_HEIGHT_PX quel que soit le contenu réel — un contenu plus court laisserait sinon
-  // un vide (le bloc rétrécirait à son contenu, la rangée suivante étant elle positionnée à un
-  // offset cumulé fixe qui suppose 160px) ; un contenu plus long défile en interne plutôt que de
-  // déborder sur cette même rangée suivante.
-  &.virtualized {
-    height: 160px;
-    overflow-y: auto;
-  }
+  // Vue virtualisée (issue #30) : aucune hauteur propre ici — comme .media-block ci-dessus,
+  // .block/.block-content ne propagent pas de height: 100% de façon fiable, donc ce bloc prend
+  // déjà naturellement la hauteur de son contenu sans réservation explicite. C'est exactement ce
+  // qu'il faut pour que MeasureHeightDirective mesure la vraie hauteur du contenu (et non plus
+  // TEXT_BLOCK_HEIGHT_ESTIMATE_PX, voir album-virtual.ts) : AlbumDetailComponent.onTextHeightMeasured
+  // corrige alors la hauteur de .row (et donc le positionnement de la virtualisation) en
+  // conséquence — léger réajustement visuel possible au tout premier rendu d'une rangée texte
+  // donnée, imperceptible en défilement normal grâce à la zone tampon de la virtualisation.
 }
 
 .reorder-controls {
