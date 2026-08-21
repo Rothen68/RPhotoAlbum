@@ -14,7 +14,6 @@ import {
 import { CdkDragDrop, CdkDragMove, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { ActivatedRoute, Router } from '@angular/router';
-import { timeout } from 'rxjs';
 import { AlbumDetail, AlbumItem, AlbumService } from '../../core/albums/album.service';
 import { ConnectivityService } from '../../core/offline/connectivity.service';
 import { OfflineAlbumService } from '../../core/offline/offline-album.service';
@@ -197,8 +196,32 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    this.albumService.get(this.albumId).pipe(timeout(REQUEST_TIMEOUT_MS)).subscribe({
+    // Minuteur JS ordinaire plutôt que l'opérateur RxJS timeout() : constaté en usage réel qu'une
+    // requête interceptée par le service worker (toute requête /api/* l'est, même sans règle de
+    // cache dédiée) peut rester bloquée bien au-delà du délai RxJS — jusqu'à l'échec naturel de
+    // la connexion TCP sous-jacente (net::ERR_CONNECTION_TIMED_OUT, observé à plusieurs MINUTES).
+    // Ce repli ne dépend d'aucun mécanisme d'annulation de la requête HTTP elle-même : passé le
+    // délai, on affiche le repli hors-ligne et on ignore simplement toute réponse tardive.
+    let settled = false;
+    const fallbackTimer = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (this.offlineAlbumService.isOffline(this.albumId)) {
+        this.loadFromCache();
+      } else {
+        this.loading.set(false);
+      }
+    }, REQUEST_TIMEOUT_MS);
+
+    this.albumService.get(this.albumId).subscribe({
       next: (album) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(fallbackTimer);
         this.album.set(album);
         this.loading.set(false);
       },
@@ -206,6 +229,11 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
       // sans accès réel à Internet/au serveur) : même repli si cet album est disponible
       // hors-ligne, plutôt que de simplement abandonner (issue #29).
       error: () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(fallbackTimer);
         if (!this.offlineAlbumService.isOffline(this.albumId)) {
           this.loading.set(false);
           return;

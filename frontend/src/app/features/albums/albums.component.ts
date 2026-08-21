@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { timeout } from 'rxjs';
 import { AlbumSection, AlbumService, AlbumSummary } from '../../core/albums/album.service';
 import { ConnectivityService } from '../../core/offline/connectivity.service';
 import { OfflineAlbumMeta, OfflineAlbumService } from '../../core/offline/offline-album.service';
@@ -87,24 +86,51 @@ export class AlbumsComponent implements OnInit {
     // à échouer — repli direct sur les albums disponibles hors-ligne (issue #29, même raison
     // que AlbumDetailComponent.load()).
     if (!this.connectivity.online()) {
-      this.loadFailed.set(true);
-      this.offlineFallbackAlbums.set(this.offlineAlbumService.listOffline());
-      this.loading.set(false);
+      this.applyOfflineFallback();
       return;
     }
 
-    this.albumService.list().pipe(timeout(REQUEST_TIMEOUT_MS)).subscribe({
+    // Minuteur JS ordinaire plutôt que l'opérateur RxJS timeout() : constaté en usage réel qu'une
+    // requête interceptée par le service worker (toute requête /api/* l'est, même sans règle de
+    // cache dédiée) peut rester bloquée bien au-delà du délai RxJS — jusqu'à l'échec naturel de
+    // la connexion TCP sous-jacente (net::ERR_CONNECTION_TIMED_OUT, observé à plusieurs MINUTES).
+    // Ce repli ne dépend d'aucun mécanisme d'annulation de la requête HTTP elle-même : passé le
+    // délai, on affiche le repli hors-ligne et on ignore simplement toute réponse tardive.
+    let settled = false;
+    const fallbackTimer = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      this.applyOfflineFallback();
+    }, REQUEST_TIMEOUT_MS);
+
+    this.albumService.list().subscribe({
       next: (result) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(fallbackTimer);
         this.sections.set(result.sections);
         this.unsectioned.set(result.unsectioned);
         this.loading.set(false);
       },
       error: () => {
-        this.loadFailed.set(true);
-        this.offlineFallbackAlbums.set(this.offlineAlbumService.listOffline());
-        this.loading.set(false);
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(fallbackTimer);
+        this.applyOfflineFallback();
       },
     });
+  }
+
+  private applyOfflineFallback(): void {
+    this.loadFailed.set(true);
+    this.offlineFallbackAlbums.set(this.offlineAlbumService.listOffline());
+    this.loading.set(false);
   }
 
   thumbnailUrl(fileId: number): string {

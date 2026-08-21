@@ -1,12 +1,18 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, catchError, of, tap, timeout } from 'rxjs';
+import { Observable, of, tap } from 'rxjs';
 import { ConnectivityService } from '../offline/connectivity.service';
 
 // navigator.onLine peut se tromper ou tarder à se mettre à jour (constaté en usage réel :
 // un appareil resté "en ligne" un instant après le passage en mode avion, laissant la requête
 // /api/auth/me bloquée en attente indéfiniment plutôt que d'échouer proprement) — un délai
 // explicite garantit qu'on ne reste jamais bloqué, quelle que soit la cause du blocage réseau.
+// Minuteur JS ordinaire plutôt que l'opérateur RxJS timeout() : constaté en usage réel qu'une
+// requête interceptée par le service worker (toute requête /api/* l'est, même sans règle de
+// cache dédiée) peut rester bloquée bien au-delà du délai RxJS — jusqu'à l'échec naturel de la
+// connexion TCP sous-jacente (net::ERR_CONNECTION_TIMED_OUT, observé à plusieurs MINUTES). Ce
+// repli ne dépend d'aucun mécanisme d'annulation de la requête HTTP elle-même : passé le délai,
+// on décide et on ignore simplement toute réponse tardive.
 const REQUEST_TIMEOUT_MS = 6000;
 
 export interface Session {
@@ -82,26 +88,57 @@ export class AuthService {
       return of(lastKnown);
     }
 
-    return this.http.get<Session>('/api/auth/me').pipe(
-      timeout(REQUEST_TIMEOUT_MS),
-      tap((session) => {
-        this.session.set(session);
-        saveLastKnownSession(session);
-      }),
-      catchError((err: unknown) => {
-        // Un vrai 401 (serveur joint, cookie explicitement rejeté) doit déconnecter normalement.
-        // Tout le reste — status 0 (jamais atteint le serveur), timeout (bloqué indéfiniment,
-        // navigator.onLine pas fiable à 100%) — n'est PAS une confirmation que la session est
-        // invalide : on fait confiance au dernier /api/auth/me réellement confirmé plutôt que
-        // d'exiger une reconnexion peut-être impossible sans réseau.
-        const isRealRejection = err instanceof HttpErrorResponse && err.status !== 0;
-        const lastKnown = isRealRejection ? null : loadLastKnownSession();
-        this.session.set(lastKnown);
-        if (!lastKnown) {
-          saveLastKnownSession(null);
+    return new Observable<Session | null>((subscriber) => {
+      let settled = false;
+      const fallbackTimer = setTimeout(() => {
+        if (settled) {
+          return;
         }
-        return of(lastKnown);
-      }),
-    );
+        settled = true;
+        const lastKnown = loadLastKnownSession();
+        this.session.set(lastKnown);
+        subscriber.next(lastKnown);
+        subscriber.complete();
+      }, REQUEST_TIMEOUT_MS);
+
+      const subscription = this.http.get<Session>('/api/auth/me').subscribe({
+        next: (session) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          clearTimeout(fallbackTimer);
+          this.session.set(session);
+          saveLastKnownSession(session);
+          subscriber.next(session);
+          subscriber.complete();
+        },
+        error: (err: HttpErrorResponse) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          clearTimeout(fallbackTimer);
+          // Un vrai 401 (serveur joint, cookie explicitement rejeté) doit déconnecter
+          // normalement. Tout le reste (status 0 : jamais atteint le serveur) n'est PAS une
+          // confirmation que la session est invalide : on fait confiance au dernier
+          // /api/auth/me réellement confirmé plutôt que d'exiger une reconnexion peut-être
+          // impossible sans réseau.
+          const isRealRejection = err.status !== 0;
+          const lastKnown = isRealRejection ? null : loadLastKnownSession();
+          this.session.set(lastKnown);
+          if (!lastKnown) {
+            saveLastKnownSession(null);
+          }
+          subscriber.next(lastKnown);
+          subscriber.complete();
+        },
+      });
+
+      return () => {
+        clearTimeout(fallbackTimer);
+        subscription.unsubscribe();
+      };
+    });
   }
 }
