@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using RPhotoAlbum.Api.Albums;
@@ -134,6 +135,21 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+// La terminaison TLS se fait entièrement côté reverse-proxy (nginx) — le backend ne reçoit
+// jamais que du HTTP simple en interne (réseau Docker), donc Request.IsHttps y serait toujours
+// false sans ce middleware, même quand le client est en HTTPS (issue #29 : cookie de session et
+// cookie OAuth pCloud, voir PCloudController.cs, ne seraient alors jamais marqués Secure).
+// KnownNetworks/KnownProxies vidés : le service backend n'a aucun port publié dans
+// docker-compose.yml, le reverse-proxy est donc le seul appelant possible — faire confiance à
+// n'importe quelle IP source interne est sûr ici, pas d'exposition directe possible.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+};
+forwardedHeadersOptions.KnownIPNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 app.UseHttpsRedirection();
 

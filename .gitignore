@@ -33,3 +33,6 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+
+# Certificat TLS auto-signé (généré par reverse-proxy/generate-cert.sh, clé privée incluse)
+reverse-proxy/certs/

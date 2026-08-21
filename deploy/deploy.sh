@@ -62,8 +62,13 @@ if [ ! -f "$DEPLOY_DIR/.env" ]; then
   cp "$DEPLOY_DIR/.env.example" "$DEPLOY_DIR/.env"
   echo
   echo "===> Édite $DEPLOY_DIR/.env avec les vraies valeurs (identifiants pCloud,"
-  echo "===> admin applicatif, APP_BASE_URL...) puis relance ce script."
+  echo "===> admin applicatif, APP_BASE_URL, TLS_SAN_IP...) puis relance ce script."
   exit 1
+fi
+
+if [ ! -f "$DEPLOY_DIR/reverse-proxy/certs/server.crt" ]; then
+  log "Génération du certificat TLS auto-signé (HTTPS requis par la consultation hors-ligne, #29)."
+  bash "$DEPLOY_DIR/reverse-proxy/generate-cert.sh"
 fi
 
 log "Construction des images Docker (backend, frontend)."

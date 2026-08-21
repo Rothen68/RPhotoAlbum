@@ -25,8 +25,13 @@ services:
     image: nginx:1.27-alpine
     ports:
       - "3140:80"
+      # HTTPS auto-signé (issue #29) : l'API Cache Storage, requise pour la consultation
+      # hors-ligne, n'existe que dans un contexte sécurisé — voir reverse-proxy/generate-cert.sh.
+      - "${HTTPS_PORT:-3143}:443"
     volumes:
       - ./reverse-proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./reverse-proxy/locations.conf:/etc/nginx/locations.conf:ro
+      - ./reverse-proxy/certs:/etc/nginx/certs:ro
     depends_on:
       - backend
       - frontend
