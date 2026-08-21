@@ -237,9 +237,28 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     this.offlineError.set(null);
-    this.offlineAlbumService
-      .makeAvailable(album)
-      .catch(() => this.offlineError.set('Échec du téléchargement hors-ligne (réseau ou espace de stockage insuffisant).'));
+    this.offlineAlbumService.makeAvailable(album).catch((err) => this.reportOfflineError(err));
+  }
+
+  // Distingue un dépassement de quota (message actionnable, avec les chiffres réels de
+  // l'appareil — issue #29, retour utilisateur : le message générique ne permettait pas de
+  // savoir si c'était vraiment un problème de stockage ou autre chose) d'un échec générique
+  // (réseau, ou aucune miniature récupérable même après nouvel essai — voir OfflineAlbumService).
+  private async reportOfflineError(err: unknown): Promise<void> {
+    const isQuotaError = err instanceof DOMException && err.name === 'QuotaExceededError';
+    if (!isQuotaError || !navigator.storage?.estimate) {
+      this.offlineError.set('Échec du téléchargement hors-ligne (réseau ou espace de stockage insuffisant).');
+      return;
+    }
+
+    try {
+      const { usage, quota } = await navigator.storage.estimate();
+      const usedMb = Math.round((usage ?? 0) / (1024 * 1024));
+      const quotaMb = Math.round((quota ?? 0) / (1024 * 1024));
+      this.offlineError.set(`Espace de stockage insuffisant sur cet appareil (${usedMb} Mo utilisés sur ${quotaMb} Mo disponibles pour ce site).`);
+    } catch {
+      this.offlineError.set('Espace de stockage insuffisant sur cet appareil.');
+    }
   }
 
   confirmRemoveOffline(): void {
