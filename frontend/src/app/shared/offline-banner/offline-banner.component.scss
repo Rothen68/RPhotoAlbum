@@ -1,0 +1,58 @@
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  max-width: var(--app-max-width);
+  margin: 0 auto;
+
+  .icon {
+    font-size: 18px;
+    flex: 0 0 auto;
+  }
+
+  .text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .btn-link {
+    min-height: auto;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+  }
+
+  .dismiss {
+    min-width: 32px;
+    min-height: 32px;
+
+    .icon {
+      font-size: 16px;
+    }
+  }
+}
+
+.offline-banner.active {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+
+  .btn-link {
+    color: var(--color-accent);
+  }
+}
+
+.offline-banner.suggest {
+  background: var(--color-danger);
+  color: white;
+
+  .btn-link {
+    color: white;
+    text-decoration: underline;
+  }
+
+  .dismiss {
+    color: white;
+  }
+}

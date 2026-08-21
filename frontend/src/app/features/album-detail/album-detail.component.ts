@@ -17,6 +17,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AlbumDetail, AlbumItem, AlbumService } from '../../core/albums/album.service';
 import { ConnectivityService } from '../../core/offline/connectivity.service';
 import { OfflineAlbumService } from '../../core/offline/offline-album.service';
+import { OfflineModeService } from '../../core/offline/offline-mode.service';
 import { MarkdownEditorComponent } from '../../shared/markdown-editor/markdown-editor.component';
 import { MarkdownPipe } from '../../shared/markdown.pipe';
 import { MediaViewerComponent } from '../../shared/media-viewer/media-viewer.component';
@@ -51,6 +52,7 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly albumService = inject(AlbumService);
   private readonly offlineAlbumService = inject(OfflineAlbumService);
   protected readonly connectivity = inject(ConnectivityService);
+  private readonly offlineMode = inject(OfflineModeService);
   private readonly hostEl = inject(ElementRef<HTMLElement>);
   private readonly ngZone = inject(NgZone);
 
@@ -135,9 +137,9 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     // connectivité tombe, pour un album rendu disponible hors-ligne — voir OfflineAlbumService
     // (issue #29). Le chemin en ligne (thumbnailUrl() retombant sur l'URL réseau) est inchangé.
     effect(() => {
-      const online = this.connectivity.online();
+      const offline = this.offlineMode.manualOfflineMode() || !this.connectivity.online();
       const album = this.album();
-      if (!online && album && this.offlineAlbumService.isOffline(this.albumId)) {
+      if (offline && album && this.offlineAlbumService.isOffline(this.albumId)) {
         this.rebuildObjectUrlMap(album);
       } else {
         this.revokeObjectUrls();
@@ -187,11 +189,12 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   private load(): void {
     this.loading.set(true);
 
-    // Déjà su hors-ligne : inutile d'attendre l'échec (parfois lent, plusieurs secondes selon
-    // l'appareil/réseau) d'une requête réseau vouée à échouer — on retombe directement sur le
-    // cache si disponible (issue #29, retour utilisateur : la page restait visiblement bloquée
-    // sur "Loading…" plus longtemps que nécessaire).
-    if (!this.connectivity.online() && this.offlineAlbumService.isOffline(this.albumId)) {
+    // Mode hors-ligne forcé par l'utilisateur, ou déjà su hors-ligne : inutile d'attendre
+    // l'échec (parfois lent, plusieurs secondes selon l'appareil/réseau) d'une requête réseau
+    // vouée à échouer — on retombe directement sur le cache si disponible (issue #29, retour
+    // utilisateur : la page restait visiblement bloquée sur "Loading…" plus longtemps que
+    // nécessaire).
+    if ((this.offlineMode.manualOfflineMode() || !this.connectivity.online()) && this.offlineAlbumService.isOffline(this.albumId)) {
       this.loadFromCache();
       return;
     }
@@ -208,6 +211,7 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
         return;
       }
       settled = true;
+      this.offlineMode.markUnreachable();
       if (this.offlineAlbumService.isOffline(this.albumId)) {
         this.loadFromCache();
       } else {
@@ -234,6 +238,7 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
         }
         settled = true;
         clearTimeout(fallbackTimer);
+        this.offlineMode.markUnreachable();
         if (!this.offlineAlbumService.isOffline(this.albumId)) {
           this.loading.set(false);
           return;

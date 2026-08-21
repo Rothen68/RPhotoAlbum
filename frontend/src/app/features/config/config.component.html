@@ -9,6 +9,19 @@
 }
 
 <section>
+  <h2>Mode hors-ligne</h2>
+  <p class="muted">
+    À activer avant de perdre l'accès réseau (vol, zone blanche…) : l'app va alors directement
+    consulter le cache local (albums rendus disponibles hors-ligne) sans tenter d'appel réseau ni
+    attendre de délai — plus fiable que la détection automatique seule.
+  </p>
+  <label class="auto-index-toggle">
+    <input type="checkbox" [checked]="offlineMode.manualOfflineMode()" (change)="offlineMode.toggle()" />
+    Forcer le mode hors-ligne
+  </label>
+</section>
+
+<section>
   <h2>Compte pCloud</h2>
   @if (pcloudStatus(); as status) {
     @if (status.connected) {

@@ -6,6 +6,7 @@ import { RouterLink } from '@angular/router';
 import { AlbumSection, AlbumService, AlbumSummary } from '../../core/albums/album.service';
 import { ConnectivityService } from '../../core/offline/connectivity.service';
 import { OfflineAlbumMeta, OfflineAlbumService } from '../../core/offline/offline-album.service';
+import { OfflineModeService } from '../../core/offline/offline-mode.service';
 
 // navigator.onLine peut se tromper ou tarder à se mettre à jour (constaté en usage réel : une
 // requête restée bloquée en attente indéfiniment après le passage en mode avion plutôt que
@@ -42,6 +43,7 @@ export class AlbumsComponent implements OnInit {
   private readonly albumService = inject(AlbumService);
   private readonly offlineAlbumService = inject(OfflineAlbumService);
   private readonly connectivity = inject(ConnectivityService);
+  private readonly offlineMode = inject(OfflineModeService);
 
   protected readonly sections = signal<AlbumSection[]>([]);
   protected readonly unsectioned = signal<AlbumSummary[]>([]);
@@ -82,10 +84,10 @@ export class AlbumsComponent implements OnInit {
     this.loading.set(true);
     this.loadFailed.set(false);
 
-    // Déjà su hors-ligne : inutile d'attendre l'échec (parfois lent) d'une requête réseau vouée
-    // à échouer — repli direct sur les albums disponibles hors-ligne (issue #29, même raison
-    // que AlbumDetailComponent.load()).
-    if (!this.connectivity.online()) {
+    // Mode hors-ligne forcé par l'utilisateur, ou déjà su hors-ligne : inutile d'attendre
+    // l'échec (parfois lent) d'une requête réseau vouée à échouer — repli direct sur les albums
+    // disponibles hors-ligne (issue #29, même raison que AlbumDetailComponent.load()).
+    if (this.offlineMode.manualOfflineMode() || !this.connectivity.online()) {
       this.applyOfflineFallback();
       return;
     }
@@ -102,6 +104,7 @@ export class AlbumsComponent implements OnInit {
         return;
       }
       settled = true;
+      this.offlineMode.markUnreachable();
       this.applyOfflineFallback();
     }, REQUEST_TIMEOUT_MS);
 
@@ -122,6 +125,7 @@ export class AlbumsComponent implements OnInit {
         }
         settled = true;
         clearTimeout(fallbackTimer);
+        this.offlineMode.markUnreachable();
         this.applyOfflineFallback();
       },
     });

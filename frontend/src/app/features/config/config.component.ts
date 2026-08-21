@@ -4,6 +4,7 @@ import { AlbumService } from '../../core/albums/album.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { AppConfiguration, ConfigService, SourceFolder } from '../../core/config/config.service';
 import { ExifJobStatus, GeoJobStatus, MediaCacheStatus, MediaService } from '../../core/media/media.service';
+import { OfflineModeService } from '../../core/offline/offline-mode.service';
 import { PCloudService, PCloudStatus } from '../../core/pcloud/pcloud.service';
 import { PCloudFolderPickerComponent, PCloudFolderRef } from '../../shared/pcloud-folder-picker/pcloud-folder-picker.component';
 import { APP_VERSION } from '../../core/version';
@@ -28,6 +29,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
   private readonly albumsService = inject(AlbumService);
   private readonly pcloud = inject(PCloudService);
   private readonly auth = inject(AuthService);
+  protected readonly offlineMode = inject(OfflineModeService);
 
   protected readonly pcloudStatus = signal<PCloudStatus | null>(null);
   protected readonly config = signal<AppConfiguration | null>(null);

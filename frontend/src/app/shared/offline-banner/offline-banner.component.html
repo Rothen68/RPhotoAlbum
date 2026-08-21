@@ -1,0 +1,16 @@
+@if (offlineMode.manualOfflineMode()) {
+  <div class="offline-banner active">
+    <span class="icon material-symbols-outlined">wifi_off</span>
+    <span class="text">Mode hors-ligne activé</span>
+    <button type="button" class="btn-link" (click)="disable()">Réactiver le réseau</button>
+  </div>
+} @else if (offlineMode.suggestSwitch()) {
+  <div class="offline-banner suggest">
+    <span class="icon material-symbols-outlined">wifi_off</span>
+    <span class="text">Connexion au serveur impossible</span>
+    <button type="button" class="btn-link" (click)="enable()">Passer en mode hors-ligne</button>
+    <button type="button" class="btn-icon dismiss" aria-label="Ignorer" (click)="dismiss()">
+      <span class="icon material-symbols-outlined">close</span>
+    </button>
+  </div>
+}

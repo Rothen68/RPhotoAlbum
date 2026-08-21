@@ -2,6 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, of, tap } from 'rxjs';
 import { ConnectivityService } from '../offline/connectivity.service';
+import { OfflineModeService } from '../offline/offline-mode.service';
 
 // navigator.onLine peut se tromper ou tarder à se mettre à jour (constaté en usage réel :
 // un appareil resté "en ligne" un instant après le passage en mode avion, laissant la requête
@@ -52,6 +53,7 @@ function saveLastKnownSession(session: Session | null): void {
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly connectivity = inject(ConnectivityService);
+  private readonly offlineMode = inject(OfflineModeService);
 
   private readonly session = signal<Session | null>(null);
   readonly isAuthenticated = computed(() => this.session() !== null);
@@ -77,12 +79,13 @@ export class AuthService {
 
   // Interroge la session courante (ex. au démarrage de l'application) sans provoquer d'erreur console si non connecté.
   refresh(): Observable<Session | null> {
-    // Déjà su hors-ligne : inutile d'attendre l'échec (parfois lent, plusieurs secondes selon
-    // l'appareil/réseau) d'une requête réseau vouée à échouer — repli direct sur le dernier
-    // /api/auth/me confirmé, comme le ferait le catchError ci-dessous pour un status 0 (issue
-    // #29 : sans ça, la page /login pouvait rester visiblement bloquée un moment avant que
-    // l'échec réseau soit détecté, malgré une session locale valide disponible immédiatement).
-    if (!this.connectivity.online()) {
+    // Mode hors-ligne forcé par l'utilisateur, ou déjà su hors-ligne : inutile d'attendre
+    // l'échec (parfois lent, plusieurs secondes selon l'appareil/réseau) d'une requête réseau
+    // vouée à échouer — repli direct sur le dernier /api/auth/me confirmé, comme le ferait le
+    // catchError ci-dessous pour un status 0 (issue #29 : sans ça, la page /login pouvait
+    // rester visiblement bloquée un moment avant que l'échec réseau soit détecté, malgré une
+    // session locale valide disponible immédiatement).
+    if (this.offlineMode.manualOfflineMode() || !this.connectivity.online()) {
       const lastKnown = loadLastKnownSession();
       this.session.set(lastKnown);
       return of(lastKnown);
@@ -95,6 +98,7 @@ export class AuthService {
           return;
         }
         settled = true;
+        this.offlineMode.markUnreachable();
         const lastKnown = loadLastKnownSession();
         this.session.set(lastKnown);
         subscriber.next(lastKnown);
@@ -125,6 +129,9 @@ export class AuthService {
           // /api/auth/me réellement confirmé plutôt que d'exiger une reconnexion peut-être
           // impossible sans réseau.
           const isRealRejection = err.status !== 0;
+          if (!isRealRejection) {
+            this.offlineMode.markUnreachable();
+          }
           const lastKnown = isRealRejection ? null : loadLastKnownSession();
           this.session.set(lastKnown);
           if (!lastKnown) {
