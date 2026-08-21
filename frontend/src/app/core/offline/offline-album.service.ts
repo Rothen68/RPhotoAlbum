@@ -210,21 +210,28 @@ export class OfflineAlbumService {
 
   // Avale ses propres erreurs et renvoie une map partielle/vide plutôt que de lever — un cache
   // manquant ou corrompu doit dégrader silencieusement vers le réseau normal côté composant,
-  // jamais casser l'affichage.
+  // jamais casser l'affichage. Lectures en parallèle (Promise.all), pas séquentielles : sur un
+  // grand album (retour utilisateur : 66 médias), un cache.match()+blob() par média l'un après
+  // l'autre pouvait prendre plusieurs secondes cumulées avant que la moindre miniature n'ait sa
+  // véritable Object URL — le composant retombait entre-temps sur l'URL réseau (qui reste
+  // bloquée indéfiniment hors-ligne, une <img> n'ayant aucun délai d'abandon natif). Aucun appel
+  // réseau ici (uniquement Cache Storage local), donc paralléliser ne surcharge rien.
   async buildObjectUrlMap(albumId: string, mediaItems: AlbumItem[]): Promise<Map<number, string>> {
     const result = new Map<number, string>();
     try {
       const cache = await caches.open(cacheNameFor(albumId));
-      for (const item of mediaItems) {
-        const fileId = item.albumCopy?.fileId;
-        if (fileId === undefined) {
-          continue;
-        }
-        const res = await cache.match(this.thumbnailUrl(fileId));
-        if (res) {
-          result.set(fileId, URL.createObjectURL(await res.blob()));
-        }
-      }
+      await Promise.all(
+        mediaItems.map(async (item) => {
+          const fileId = item.albumCopy?.fileId;
+          if (fileId === undefined) {
+            return;
+          }
+          const res = await cache.match(this.thumbnailUrl(fileId));
+          if (res) {
+            result.set(fileId, URL.createObjectURL(await res.blob()));
+          }
+        }),
+      );
     } catch {
       // Cache absent/inaccessible — la map partielle déjà construite (éventuellement vide) suffit.
     }
