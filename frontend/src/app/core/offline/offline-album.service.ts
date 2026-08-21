@@ -5,6 +5,11 @@ const MANIFEST_KEY = 'rphotoalbum:offlineAlbums';
 
 export interface OfflineAlbumMeta {
   itemCount: number;
+  // Nombre total de médias de l'album au moment du téléchargement — peut différer de itemCount
+  // si certaines miniatures ont échoué même après nouvel essai (voir makeAvailable ci-dessous) :
+  // permet à l'UI de signaler un résultat partiel plutôt que de laisser croire à une couverture
+  // complète.
+  totalCount: number;
   sizeBytes: number;
   downloadedAt: string;
 }
@@ -71,11 +76,16 @@ export class OfflineAlbumService {
     return this.albumService.thumbnailUrl(fileId, 800);
   }
 
-  // Tout ou rien, équivalent Cache Storage du pattern tmp+rename déjà utilisé côté serveur
-  // (MediaThumbnailCacheService.cs, #26) : Cache Storage n'a pas de rename atomique, donc on
-  // efface le cache AVANT de commencer (nettoie un essai précédent interrompu) et on ne
-  // committe le manifest qu'après succès complet — tout échec en cours de route (réseau,
-  // QuotaExceededError de cache.put) efface entièrement le cache partiel.
+  // Cache Storage n'a pas de rename atomique — on efface le cache AVANT de commencer (nettoie
+  // un essai précédent interrompu) et on ne committe le manifest qu'à la fin. En revanche, on
+  // n'exige PAS que toutes les miniatures réussissent : MediaController.Thumbnail convertit
+  // toute erreur pCloud (timeout, aléa transitoire) en simple 404 indiscernable d'un média
+  // réellement absent — sur un grand album, un seul aléa parmi des dizaines d'appels ne doit
+  // pas annuler tout le téléchargement (constaté en usage réel : un album de road trip a échoué
+  // intégralement à cause d'une seule miniature en défaut). Chaque miniature est retentée une
+  // fois ; si elle échoue encore, elle est simplement absente du cache (voir totalCount vs
+  // itemCount) plutôt que fatale. Seuls un vrai échec de stockage (QuotaExceededError) ou une
+  // couverture nulle (aucune miniature récupérée) annulent l'opération.
   async makeAvailable(album: AlbumDetail): Promise<void> {
     const albumId = album.id;
     if (this.isDownloading(albumId)) {
@@ -92,16 +102,21 @@ export class OfflineAlbumService {
 
       const mediaItems = album.items.filter((i) => i.type === 'media' && i.albumCopy);
       let sizeBytes = 0;
+      let cachedCount = 0;
       for (let i = 0; i < mediaItems.length; i++) {
         const fileId = mediaItems[i].albumCopy!.fileId;
         const url = this.thumbnailUrl(fileId);
-        const res = await fetch(url, { credentials: 'include' });
-        if (!res.ok) {
-          throw new Error(`Téléchargement échoué pour la miniature ${fileId} (${res.status})`);
+        const res = await this.fetchWithRetry(url);
+        if (res) {
+          sizeBytes += (await res.clone().blob()).size;
+          await cache.put(url, res);
+          cachedCount++;
         }
-        sizeBytes += (await res.clone().blob()).size;
-        await cache.put(url, res);
         this.setProgress(albumId, (i + 1) / mediaItems.length);
+      }
+
+      if (mediaItems.length > 0 && cachedCount === 0) {
+        throw new Error("Aucune miniature n'a pu être téléchargée.");
       }
 
       const albumResponse = new Response(JSON.stringify(album), {
@@ -111,7 +126,12 @@ export class OfflineAlbumService {
 
       const next = {
         ...this.manifest(),
-        [albumId]: { itemCount: mediaItems.length, sizeBytes, downloadedAt: new Date().toISOString() },
+        [albumId]: {
+          itemCount: cachedCount,
+          totalCount: mediaItems.length,
+          sizeBytes,
+          downloadedAt: new Date().toISOString(),
+        },
       };
       this.manifest.set(next);
       saveManifest(next);
@@ -122,6 +142,27 @@ export class OfflineAlbumService {
       this.setDownloading(albumId, false);
       this.setProgress(albumId, 0);
     }
+  }
+
+  // Un seul nouvel essai après un court délai — suffisant pour absorber un aléa transitoire
+  // (pCloud, timeout réseau mobile) sans ralentir excessivement un grand album. Renvoie null
+  // (jamais ne lève) : un échec de miniature individuel est géré par l'appelant comme un simple
+  // "manquant", pas une erreur fatale — voir makeAvailable.
+  private async fetchWithRetry(url: string): Promise<Response | null> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(url, { credentials: 'include' });
+        if (res.ok) {
+          return res;
+        }
+      } catch {
+        // Échec réseau (pas de réponse du tout) — même logique de nouvel essai ci-dessous.
+      }
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+    }
+    return null;
   }
 
   async remove(albumId: string): Promise<void> {

@@ -23,7 +23,13 @@
   </div>
 } @else if (offlineAvailable() && offlineMeta(); as meta) {
   <p class="muted offline-status">
-    Disponible hors-ligne ({{ formatMb(meta.sizeBytes) }} Mo) — Safari iOS peut supprimer ce cache si l'app reste inutilisée un moment.
+    Disponible hors-ligne
+    @if (meta.itemCount < meta.totalCount) {
+      ({{ meta.itemCount }}/{{ meta.totalCount }} miniatures, {{ formatMb(meta.sizeBytes) }} Mo — quelques-unes n'ont pas pu être récupérées)
+    } @else {
+      ({{ formatMb(meta.sizeBytes) }} Mo)
+    }
+    — Safari iOS peut supprimer ce cache si l'app reste inutilisée un moment.
   </p>
 }
 @if (offlineError(); as err) {
