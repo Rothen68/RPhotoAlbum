@@ -15,6 +15,10 @@ export class MarkdownPipe implements PipeTransform {
     if (!value) {
       return '';
     }
-    return this.sanitizer.bypassSecurityTrustHtml(marked.parse(value, { async: false }) as string);
+    // breaks: true — un simple retour à la ligne (Entrée) dans l'éditeur devient un vrai saut de
+    // ligne rendu, pas seulement un espace (comportement CommonMark par défaut, qui exige une
+    // ligne vide entre paragraphes ou deux espaces en fin de ligne pour un saut "dur" — contre-
+    // intuitif ici, où la zone de texte est une note libre, pas du Markdown académique).
+    return this.sanitizer.bypassSecurityTrustHtml(marked.parse(value, { async: false, breaks: true }) as string);
   }
 }
