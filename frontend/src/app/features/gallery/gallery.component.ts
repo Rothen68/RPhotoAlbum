@@ -169,6 +169,14 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
   private scrolledIndexSub?: Subscription;
   private currentTopDate: string | null = null;
 
+  // Issue #8 : badge de date flottant (façon Google Photos), en lecture seule — remplace la
+  // barre de défilement draguable de la V2 (retirée : trois rounds de correctifs sans jamais
+  // atteindre une synchronisation fiable). Flux à sens unique (scroll -> label/visibilité), pas
+  // d'état à resynchroniser dans l'autre sens comme l'exigeait une poignée draguable.
+  protected readonly currentDateLabel = signal<string | null>(null);
+  protected readonly badgeVisible = signal(false);
+  private badgeHideTimer?: ReturnType<typeof setTimeout>;
+
   ngOnInit(): void {
     this.mediaService.dateGroups(this.currentFilters()).subscribe((groups) => {
       this.dateGroups.set(groups);
@@ -185,6 +193,17 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
       const row = this.rows()[index];
       if (row) {
         this.currentTopDate = row.date;
+        // scrolledIndexChange est émis hors zone Angular (écouteur de scroll CDK) — ngZone.run
+        // nécessaire pour que ces signaux (contrairement à currentTopDate, un simple champ) se
+        // répercutent dans le template.
+        this.ngZone.run(() => {
+          this.currentDateLabel.set(formatDateLabel(row.date));
+          this.badgeVisible.set(true);
+        });
+        clearTimeout(this.badgeHideTimer);
+        this.badgeHideTimer = setTimeout(() => {
+          this.ngZone.run(() => this.badgeVisible.set(false));
+        }, 1200);
       }
     });
 
@@ -213,6 +232,7 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
     this.resizeObserver?.disconnect();
     this.scrolledIndexSub?.unsubscribe();
     clearTimeout(this.searchDebounceTimer);
+    clearTimeout(this.badgeHideTimer);
   }
 
   setColumns(count: number): void {
