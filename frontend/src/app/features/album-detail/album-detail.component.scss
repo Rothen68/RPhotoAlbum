@@ -109,7 +109,9 @@
   border: none;
   background: transparent;
   cursor: pointer;
-  padding: 4px;
+  // padding 10px + glyphe 24px = ~44px de cible tactile réelle (ARCHITECTURE.md §19), sans
+  // agrandir le glyphe visuel lui-même (.dashed-circle reste à 24px).
+  padding: 10px;
 
   .dashed-circle {
     width: 24px;
@@ -247,12 +249,10 @@
     display: flex;
     flex-direction: column;
 
+    // Pas de largeur/hauteur locale : le standard global .btn-icon (styles.scss, 44px) s'applique
+    // tel quel — ARCHITECTURE.md §19 impose 44x44px minimum, une surcharge locale plus petite ici
+    // l'écrasait auparavant.
     button {
-      width: 28px;
-      height: 28px;
-      min-width: 28px;
-      min-height: 28px;
-
       .icon {
         font-size: 18px;
       }
@@ -282,10 +282,8 @@
   right: 4px;
   background: rgba(0, 0, 0, 0.45);
   color: white;
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
+  // Pas de largeur/hauteur locale : le standard global .btn-icon (44px, ARCHITECTURE.md §19)
+  // s'applique tel quel.
   border-radius: 999px;
 
   .icon {
@@ -308,10 +306,8 @@
 .group-btn {
   background: rgba(0, 0, 0, 0.45);
   color: white;
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
+  // Pas de largeur/hauteur locale : le standard global .btn-icon (44px, ARCHITECTURE.md §19)
+  // s'applique tel quel.
   border-radius: 999px;
 
   .icon {

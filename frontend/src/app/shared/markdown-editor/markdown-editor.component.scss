@@ -7,13 +7,11 @@
   gap: 2px;
   margin-bottom: 0.25rem;
 
-  .btn-icon {
-    min-width: 32px;
-    min-height: 32px;
-
-    .icon {
-      font-size: 18px;
-    }
+  // Pas de min-width/min-height locale : le standard global .btn-icon (44px, ARCHITECTURE.md
+  // §19) s'applique tel quel — 6 boutons à 44px + gap tiennent encore confortablement sur un
+  // écran de 360px de large.
+  .btn-icon .icon {
+    font-size: 18px;
   }
 
   .preview-toggle.active {

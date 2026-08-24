@@ -185,8 +185,9 @@
 
 // --- Poignées/boutons de secours par album, visibles en mode Organiser ---
 
-// Cibles tactiles agrandies (retour utilisateur : trop petites sur téléphone réel) — boutons à
-// 40px (proche du minimum recommandé ~44px pour le tactile) plutôt que les 26px initiaux.
+// Cibles tactiles agrandies (retour utilisateur : trop petites sur téléphone réel) — 44px
+// (ARCHITECTURE.md §19), le standard global .btn-icon, plutôt que les 26px initiaux ou le
+// compromis à 40px qui avait suivi.
 .organize-controls {
   position: absolute;
   top: 4px;
@@ -207,10 +208,8 @@
   }
 
   button {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-    min-height: 40px;
+    min-width: 44px;
+    min-height: 44px;
     color: white;
 
     .icon {

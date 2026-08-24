@@ -23,13 +23,10 @@
     white-space: nowrap;
   }
 
-  .dismiss {
-    min-width: 32px;
-    min-height: 32px;
-
-    .icon {
-      font-size: 16px;
-    }
+  // Pas de min-width/min-height locale : le standard global .btn-icon (44px, ARCHITECTURE.md
+  // §19) s'applique tel quel.
+  .dismiss .icon {
+    font-size: 16px;
   }
 }
 

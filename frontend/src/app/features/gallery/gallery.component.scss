@@ -76,7 +76,9 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  height: 32px;
+  // 44px (ARCHITECTURE.md §19) plutôt que 32px — pas juste min-height : ce bouton a une largeur
+  // variable (padding horizontal + libellé), min-height suffit à ne pas casser ce comportement.
+  min-height: 44px;
   padding: 0 0.6rem;
   border: 1px solid var(--color-border);
   border-radius: 6px;
@@ -176,11 +178,9 @@
   margin-left: auto;
 }
 
+// Pas de largeur/hauteur locale : le standard global .btn-icon (44px, ARCHITECTURE.md §19)
+// s'applique tel quel.
 .column-btn {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  min-height: 36px;
   border-radius: 6px;
   font-size: 0.8125rem;
   color: var(--color-text-muted);
