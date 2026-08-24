@@ -5,11 +5,14 @@ import { AuthService } from '../../core/auth/auth.service';
 import { AppConfiguration, ConfigService, SourceFolder } from '../../core/config/config.service';
 import { ExifJobStatus, GeoJobStatus, MediaCacheStatus, MediaService } from '../../core/media/media.service';
 import { OfflineModeService } from '../../core/offline/offline-mode.service';
-import { PCloudService, PCloudStatus } from '../../core/pcloud/pcloud.service';
+import { PCloudQuotaStatus, PCloudService, PCloudStatus } from '../../core/pcloud/pcloud.service';
 import { PCloudFolderPickerComponent, PCloudFolderRef } from '../../shared/pcloud-folder-picker/pcloud-folder-picker.component';
 import { APP_VERSION } from '../../core/version';
 
 const STATUS_POLL_MS = 3000;
+// Seuil d'alerte visuelle du quota pCloud — la compression étant désactivée (ARCHITECTURE.md
+// §13/§20), c'est la seule limite dure de stockage que l'application ne contrôle pas elle-même.
+const QUOTA_WARNING_THRESHOLD = 0.85;
 
 type PickerMode = 'album' | 'source' | null;
 
@@ -32,6 +35,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
   protected readonly offlineMode = inject(OfflineModeService);
 
   protected readonly pcloudStatus = signal<PCloudStatus | null>(null);
+  protected readonly pcloudQuota = signal<PCloudQuotaStatus | null>(null);
   protected readonly config = signal<AppConfiguration | null>(null);
   protected readonly pickerMode = signal<PickerMode>(null);
   protected readonly saving = signal(false);
@@ -73,7 +77,23 @@ export class ConfigComponent implements OnInit, OnDestroy {
   }
 
   private refreshPCloudStatus(): void {
-    this.pcloud.status().subscribe((status) => this.pcloudStatus.set(status));
+    this.pcloud.status().subscribe((status) => {
+      this.pcloudStatus.set(status);
+      // Le quota n'a de sens qu'une fois connecté (sinon 502, aucun jeton pCloud disponible).
+      if (status.connected) {
+        this.pcloud.quota().subscribe((quota) => this.pcloudQuota.set(quota));
+      } else {
+        this.pcloudQuota.set(null);
+      }
+    });
+  }
+
+  protected quotaRatio(quota: PCloudQuotaStatus): number {
+    return quota.totalBytes > 0 ? quota.usedBytes / quota.totalBytes : 0;
+  }
+
+  protected isQuotaHigh(quota: PCloudQuotaStatus): boolean {
+    return this.quotaRatio(quota) >= QUOTA_WARNING_THRESHOLD;
   }
 
   private loadConfig(): void {

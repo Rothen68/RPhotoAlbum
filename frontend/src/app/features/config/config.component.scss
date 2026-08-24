@@ -61,6 +61,12 @@ section {
   height: 100%;
   background: var(--color-accent);
   transition: width 300ms ease;
+
+  // Quota pCloud proche du plein (issue de clôture V3) — même couleur que le texte d'erreur pour
+  // rester cohérent avec le reste de la page.
+  &.warning {
+    background: var(--color-danger);
+  }
 }
 
 .source-folder-list {

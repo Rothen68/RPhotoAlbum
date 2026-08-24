@@ -22,6 +22,9 @@ public interface IPCloudClient
     Task<byte[]> DownloadTailAsync(long fileId, int maxBytes, CancellationToken ct = default);
     Task<(byte[] Bytes, string? ContentType)> DownloadAsync(long fileId, CancellationToken ct = default);
     Task<string> GetFileNameAsync(long fileId);
+    // Quota de stockage du compte pCloud (octets utilisés / totaux) — pour l'alerte de la page
+    // Configuration, distincte du cache miniatures local déjà surveillé par ailleurs.
+    Task<(long UsedBytes, long TotalBytes)> GetQuotaAsync();
     // Octets de la miniature (pas juste le lien, contrairement à GetThumbLinkAsync) — voir issue
     // #26 (cache disque des miniatures).
     Task<(byte[] Bytes, string? ContentType)> GetThumbnailAsync(

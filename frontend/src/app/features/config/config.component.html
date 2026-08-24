@@ -27,6 +27,24 @@
     @if (status.connected) {
       <p>Connecté ({{ status.hostname }})</p>
       <button type="button" (click)="disconnectPCloud()">Déconnecter pCloud</button>
+      @if (pcloudQuota(); as quota) {
+        <p class="muted cache-status-label">
+          Stockage pCloud : {{ formatMb(quota.usedBytes) }} / {{ formatMb(quota.totalBytes) }} Mo utilisés.
+        </p>
+        <div class="progress-bar">
+          <div
+            class="progress-bar-fill"
+            [class.warning]="isQuotaHigh(quota)"
+            [style.width.%]="quotaRatio(quota) * 100"
+          ></div>
+        </div>
+        @if (isQuotaHigh(quota)) {
+          <p class="error">
+            Quota pCloud presque plein — la copie des médias dans les albums (compression
+            désactivée) continuera de consommer cet espace.
+          </p>
+        }
+      }
     } @else {
       <a [href]="connectUrl">Connecter mon compte pCloud</a>
     }

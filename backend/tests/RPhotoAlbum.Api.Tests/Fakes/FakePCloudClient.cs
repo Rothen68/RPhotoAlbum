@@ -87,6 +87,8 @@ public class FakePCloudClient : IPCloudClient
 
     public Task<string> GetFileNameAsync(long fileId) => throw new NotSupportedException();
 
+    public Task<(long UsedBytes, long TotalBytes)> GetQuotaAsync() => throw new NotSupportedException();
+
     public void SetThumbnail(long fileId, int width, int height, bool crop, byte[] bytes) =>
         _thumbnails[ThumbnailKey(fileId, width, height, crop)] = bytes;
 

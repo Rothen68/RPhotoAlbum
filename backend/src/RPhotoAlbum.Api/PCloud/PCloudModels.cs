@@ -61,3 +61,11 @@ public record PCloudUploadResponse(
     [property: JsonPropertyName("result")] int Result,
     [property: JsonPropertyName("error")] string? Error,
     [property: JsonPropertyName("fileids")] long[]? FileIds);
+
+// quota/usedquota en octets — voir méthode pCloud `userinfo`. Alerte de quota de stockage (pas
+// le cache miniatures local, déjà borné/surveillé séparément — voir MediaController.CacheStatus).
+public record PCloudUserInfoResponse(
+    [property: JsonPropertyName("result")] int Result,
+    [property: JsonPropertyName("error")] string? Error,
+    [property: JsonPropertyName("quota")] long Quota,
+    [property: JsonPropertyName("usedquota")] long UsedQuota);

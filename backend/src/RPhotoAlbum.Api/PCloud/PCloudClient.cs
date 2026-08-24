@@ -360,6 +360,25 @@ public class PCloudClient(HttpClient httpClient, IOptions<PCloudOptions> options
         return response.Metadata.Name;
     }
 
+    public async Task<(long UsedBytes, long TotalBytes)> GetQuotaAsync()
+    {
+        var connection = await RequireConnectionAsync();
+        var url = QueryHelpers.AddQueryString($"https://{connection.Hostname}/userinfo", new Dictionary<string, string?>
+        {
+            ["access_token"] = connection.AccessToken,
+        });
+
+        var response = await httpClient.GetFromJsonAsync<PCloudUserInfoResponse>(url)
+            ?? throw new InvalidOperationException("Réponse pCloud invalide (userinfo).");
+
+        if (response.Result != 0)
+        {
+            throw new InvalidOperationException($"Erreur pCloud userinfo (result={response.Result}: {response.Error}).");
+        }
+
+        return (response.UsedQuota, response.Quota);
+    }
+
     private async Task<string> ResolveFileLinkAsync(long fileId)
     {
         var connection = await RequireConnectionAsync();

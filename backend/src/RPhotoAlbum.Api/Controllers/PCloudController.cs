@@ -92,6 +92,24 @@ public class PCloudController(
         return Ok();
     }
 
+    // Quota du compte pCloud (pas le cache miniatures local, voir MediaController.CacheStatus) —
+    // alerte de stockage en Configuration, la copie brute des médias (compression désactivée,
+    // ARCHITECTURE.md §13/§20) n'a aucune limite intégrée à l'application.
+    [HttpGet("api/pcloud/quota")]
+    public async Task<IActionResult> Quota()
+    {
+        try
+        {
+            var (usedBytes, totalBytes) = await client.GetQuotaAsync();
+            return Ok(new { usedBytes, totalBytes });
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Échec de la lecture du quota pCloud.");
+            return StatusCode(StatusCodes.Status502BadGateway, new { error = $"Impossible de lire le quota pCloud : {ex.Message}" });
+        }
+    }
+
     // Navigation de dossiers pour le sélecteur (dossier des albums / dossiers sources) — voir ARCHITECTURE.md §11.1.
     [HttpGet("api/pcloud/folders/{folderId:long}")]
     public async Task<IActionResult> Folders(long folderId)
