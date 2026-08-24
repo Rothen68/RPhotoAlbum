@@ -1,7 +1,9 @@
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using RPhotoAlbum.Api.Albums;
 using RPhotoAlbum.Api.Auth;
@@ -111,6 +113,28 @@ builder.Services.AddAuthorizationBuilder()
         .RequireAuthenticatedUser()
         .Build());
 
+// Limite les tentatives de connexion (aucune protection avant, VPN/LAN seul rempart) —
+// partitionné par IP cliente (pas un compteur global) : un tiers qui force le mot de passe ne
+// bloque pas l'utilisateur légitime. RemoteIpAddress reflète déjà la vraie IP grâce à
+// UseForwardedHeaders (X-Forwarded-For transmis par nginx), configuré plus bas.
+builder.Services.AddRateLimiter(options =>
+{
+    options.OnRejected = async (context, ct) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new { error = "Trop de tentatives, réessayez plus tard." }, ct);
+    };
+    options.AddPolicy("login", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
+});
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -153,6 +177,7 @@ app.UseForwardedHeaders(forwardedHeadersOptions);
 
 app.UseHttpsRedirection();
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
