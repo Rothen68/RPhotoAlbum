@@ -7,9 +7,9 @@
   gap: 2px;
   margin-bottom: 0.25rem;
 
-  // Pas de min-width/min-height locale : le standard global .btn-icon (44px, ARCHITECTURE.md
-  // §19) s'applique tel quel — 6 boutons à 44px + gap tiennent encore confortablement sur un
-  // écran de 360px de large.
+  // No local min-width/min-height: the global .btn-icon standard (44px, ARCHITECTURE.md
+  // §19) applies as-is — 6 buttons at 44px + gap still fit comfortably on a
+  // 360px-wide screen.
   .btn-icon .icon {
     font-size: 18px;
   }

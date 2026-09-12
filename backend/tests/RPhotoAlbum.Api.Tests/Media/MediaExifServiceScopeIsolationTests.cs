@@ -11,13 +11,13 @@ using RPhotoAlbum.Api.Tests.Fakes;
 
 namespace RPhotoAlbum.Api.Tests.Media;
 
-// Régression #12 (voir issue #17) : MediaExifService.ExtractAsync s'exécute en concurrence bornée
-// (MaxConcurrency) et DOIT résoudre son propre scope — donc son propre IPCloudClient, donc son
-// propre CacheDbContext — pour chaque opération, jamais un scope partagé entre deux extractions
-// simultanées (EF Core DbContext n'est pas thread-safe). Ce test vérifie directement ce mécanisme
-// via un IServiceScopeFactory qui enregistre chaque IPCloudClient résolu, plutôt que d'inférer
-// l'isolation indirectement depuis l'absence de crash (signal trop faible : un DbContext partagé
-// peut aussi bien réussir par chance selon le timing).
+// Regression #12 (see issue #17): MediaExifService.ExtractAsync runs with bounded concurrency
+// (MaxConcurrency) and MUST resolve its own scope — hence its own IPCloudClient, hence its
+// own CacheDbContext — for each operation, never a scope shared between two simultaneous
+// extractions (EF Core DbContext is not thread-safe). This test verifies that mechanism
+// directly via an IServiceScopeFactory that records every resolved IPCloudClient, rather than
+// inferring isolation indirectly from the absence of a crash (too weak a signal: a shared
+// DbContext could just as well succeed by chance depending on timing).
 public sealed class MediaExifServiceScopeIsolationTests : IDisposable
 {
     private readonly SqliteConnection _connection;
@@ -31,9 +31,9 @@ public sealed class MediaExifServiceScopeIsolationTests : IDisposable
 
         var services = new ServiceCollection();
         services.AddDbContext<CacheDbContext>(o => o.UseSqlite(_connection));
-        // Scoped (pas singleton) : une nouvelle instance par scope, comme IPCloudClient en
-        // production (AddHttpClient<IPCloudClient, PCloudClient>()) — nécessaire pour que deux
-        // scopes distincts soient effectivement observables comme deux instances distinctes.
+        // Scoped (not singleton): a new instance per scope, like IPCloudClient in
+        // production (AddHttpClient<IPCloudClient, PCloudClient>()) — necessary for two
+        // distinct scopes to actually be observable as two distinct instances.
         services.AddScoped<IPCloudClient, FakePCloudClient>();
         _provider = services.BuildServiceProvider();
 
@@ -80,9 +80,9 @@ public sealed class MediaExifServiceScopeIsolationTests : IDisposable
         await exifService.StartAsync();
         await WaitUntilIdleAsync(exifService);
 
-        // Au moins un IPCloudClient résolu par média (RunAsync/GeoLookupService en résolvent
-        // aussi un chacun pour leur propre compte — >= plutôt que ==, sans importance ici : seule
-        // compte l'absence de partage entre extractions concurrentes).
+        // At least one IPCloudClient resolved per media item (RunAsync/GeoLookupService also
+        // each resolve one for their own use — >= rather than ==, which doesn't matter here:
+        // all that counts is the absence of sharing between concurrent extractions).
         Assert.True(_scopeFactory.ResolvedClients.Count >= itemCount);
         Assert.Equal(_scopeFactory.ResolvedClients.Count, _scopeFactory.ResolvedClients.Distinct().Count());
     }
@@ -104,9 +104,9 @@ public sealed class MediaExifServiceScopeIsolationTests : IDisposable
     }
 }
 
-// Délègue à un vrai IServiceScopeFactory tout en enregistrant chaque IPCloudClient résolu à la
-// création d'un scope — permet de vérifier après coup qu'aucune instance n'a été partagée entre
-// deux scopes distincts (voir commentaire de classe ci-dessus).
+// Delegates to a real IServiceScopeFactory while recording every IPCloudClient resolved at
+// scope creation — allows verifying afterward that no instance was shared between two
+// distinct scopes (see the class comment above).
 internal sealed class RecordingServiceScopeFactory(IServiceProvider inner) : IServiceScopeFactory
 {
     private readonly IServiceScopeFactory _innerFactory = inner.GetRequiredService<IServiceScopeFactory>();

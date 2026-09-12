@@ -1,7 +1,7 @@
 namespace RPhotoAlbum.Api.Auth;
 
-// Compte applicatif mono-utilisateur — voir ARCHITECTURE.md §5.2.
-// Renseigné via App__AdminUsername / App__AdminPasswordHash (variables d'environnement Docker).
+// Single-user application account — see ARCHITECTURE.md §5.2.
+// Set via App__AdminUsername / App__AdminPasswordHash (Docker environment variables).
 public class AppAuthOptions
 {
     public string AdminUsername { get; set; } = "";

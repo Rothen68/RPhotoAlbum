@@ -1,11 +1,11 @@
 import { Directive, ElementRef, EventEmitter, NgZone, OnDestroy, OnInit, Output, inject } from '@angular/core';
 
-// Émet la hauteur réelle rendue de l'hôte à chaque changement (ResizeObserver) — utilisé pour
-// corriger après-coup les hauteurs de rangée précalculées de la vue album virtualisée quand le
-// contenu (bloc texte Markdown) n'a pas de hauteur connaissable à l'avance (issue #30). Les
-// callbacks ResizeObserver s'exécutent hors zone Angular — ngZone.run() nécessaire pour que la
-// mise à jour du signal consommateur déclenche bien une détection de changement (même pattern
-// que le ResizeObserver déjà en place dans AlbumDetailComponent pour containerWidth).
+// Emits the host's actual rendered height on every change (ResizeObserver) — used to correct,
+// after the fact, the precomputed row heights of the virtualized album view when the content
+// (a Markdown text block) has no height knowable in advance (issue #30). ResizeObserver
+// callbacks run outside the Angular zone — ngZone.run() is needed so that updating the
+// consuming signal actually triggers change detection (same pattern as the ResizeObserver
+// already in place in AlbumDetailComponent for containerWidth).
 @Directive({
   selector: '[appMeasureHeight]',
   standalone: true,
@@ -18,10 +18,10 @@ export class MeasureHeightDirective implements OnInit, OnDestroy {
   private observer?: ResizeObserver;
 
   ngOnInit(): void {
-    // offsetHeight (boîte de bordure, padding inclus) plutôt que ResizeObserverEntry.contentRect
-    // (boîte de contenu, padding EXCLU) — l'espace à réserver dans la rangée doit correspondre à
-    // l'empreinte visuelle totale de l'élément, padding compris (constaté : un écart exact de la
-    // valeur du padding entre les deux, la rangée restait plus courte que son propre contenu).
+    // offsetHeight (border box, padding included) rather than ResizeObserverEntry.contentRect
+    // (content box, padding EXCLUDED) — the space reserved in the row must match the element's
+    // total visual footprint, padding included (observed: a discrepancy exactly equal to the
+    // padding value between the two, the row stayed shorter than its own content).
     const element = this.el.nativeElement;
     this.observer = new ResizeObserver(() => {
       this.ngZone.run(() => this.heightChange.emit(element.offsetHeight));

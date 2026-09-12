@@ -5,9 +5,9 @@ import { BehaviorSubject, Observable, Subscription } from 'rxjs';
 import { DateGroup, MediaItem, MediaSourcePage } from '../../core/media/media.service';
 import { PrecomputedVirtualScrollStrategy } from '../../shared/virtual-scroll/precomputed-virtual-scroll-strategy';
 
-// Une rangée virtualisée : soit un en-tête de date, soit une rangée de `itemCount` photos
-// consécutives dans la séquence plate (`startOffset`), au plus `columns` par rangée.
-// Construite une fois à partir de date-groups seul (pas besoin des médias eux-mêmes).
+// A virtualized row: either a date header, or a row of `itemCount` consecutive
+// photos in the flat sequence (`startOffset`), at most `columns` per row.
+// Built once from date-groups alone (no need for the media items themselves).
 export interface VirtualRow {
   type: 'header' | 'photos';
   date: string;
@@ -46,12 +46,12 @@ export function buildRows(dateGroups: DateGroup[], columns: number): VirtualRow[
   return rows;
 }
 
-// Pont entre les rangées (connues intégralement à l'avance) et les médias (chargés par
-// pages, à la demande, selon la plage visible du viewport CDK). Le cache de pages sert
-// uniquement à dédupliquer les requêtes ; les médias résolus sont exposés au composant via
-// le callback onPageLoaded (source unique pour le template et la visionneuse, sous forme de
-// signal côté composant). Indépendant du nombre de colonnes — pas invalidé par un changement
-// de layout, seulement par une action mutante (rejet) ou un rechargement complet.
+// Bridge between the rows (known entirely in advance) and the media items (loaded by
+// page, on demand, according to the CDK viewport's visible range). The page cache is
+// only used to deduplicate requests; resolved media items are exposed to the component via
+// the onPageLoaded callback (single source for the template and the viewer, as a
+// signal on the component side). Independent of the column count — not invalidated by a
+// layout change, only by a mutating action (reject) or a full reload.
 export class GalleryDataSource extends DataSource<VirtualRow> {
   private readonly rowsSubject: BehaviorSubject<VirtualRow[]>;
   private readonly pageCache = new Set<number>();
@@ -122,11 +122,11 @@ export class GalleryDataSource extends DataSource<VirtualRow> {
   }
 }
 
-// Fournit la stratégie sur-mesure (hauteurs connues à l'avance, voir PrecomputedVirtualScrollStrategy)
-// au viewport CDK via le token VIRTUAL_SCROLL_STRATEGY — même mécanisme que
-// CdkFixedSizeVirtualScroll, appliqué en attribut sur <cdk-virtual-scroll-viewport
-// appGalleryVirtualScroll>. Le composant Gallery récupère cette directive via @ViewChild pour
-// appeler updateRowHeights/scrollToIndex et s'abonner à scrolledIndexChange.
+// Provides the custom strategy (heights known in advance, see PrecomputedVirtualScrollStrategy)
+// to the CDK viewport via the VIRTUAL_SCROLL_STRATEGY token — same mechanism as
+// CdkFixedSizeVirtualScroll, applied as an attribute on <cdk-virtual-scroll-viewport
+// appGalleryVirtualScroll>. The Gallery component retrieves this directive via @ViewChild to
+// call updateRowHeights/scrollToIndex and subscribe to scrolledIndexChange.
 @Directive({
   selector: 'cdk-virtual-scroll-viewport[appGalleryVirtualScroll]',
   standalone: true,

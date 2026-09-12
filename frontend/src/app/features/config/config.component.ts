@@ -10,8 +10,8 @@ import { PCloudFolderPickerComponent, PCloudFolderRef } from '../../shared/pclou
 import { APP_VERSION } from '../../core/version';
 
 const STATUS_POLL_MS = 3000;
-// Seuil d'alerte visuelle du quota pCloud — la compression étant désactivée (ARCHITECTURE.md
-// §13/§20), c'est la seule limite dure de stockage que l'application ne contrôle pas elle-même.
+// Visual alert threshold for pCloud quota — since compression is disabled (ARCHITECTURE.md
+// §13/§20), this is the only hard storage limit the application doesn't control itself.
 const QUOTA_WARNING_THRESHOLD = 0.85;
 
 type PickerMode = 'album' | 'source' | null;
@@ -79,7 +79,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
   private refreshPCloudStatus(): void {
     this.pcloud.status().subscribe((status) => {
       this.pcloudStatus.set(status);
-      // Le quota n'a de sens qu'une fois connecté (sinon 502, aucun jeton pCloud disponible).
+      // The quota only makes sense once connected (otherwise 502, no pCloud token available).
       if (status.connected) {
         this.pcloud.quota().subscribe((quota) => this.pcloudQuota.set(quota));
       } else {
@@ -220,7 +220,7 @@ export class ConfigComponent implements OnInit, OnDestroy {
     this.auth.logout().subscribe(() => this.router.navigateByUrl('/login'));
   }
 
-  // --- Extraction EXIF + géolocalisation (étape 9) ---
+  // --- EXIF extraction + geolocation (step 9) ---
 
   startExif(): void {
     this.mediaService.startExif().subscribe(() => this.refreshExifStatus());
@@ -238,9 +238,9 @@ export class ConfigComponent implements OnInit, OnDestroy {
     this.mediaService.stopGeo().subscribe(() => this.refreshGeoStatus());
   }
 
-  // Re-sondage tant que le job tourne (setTimeout plutôt qu'un intervalle fixe : évite
-  // d'empiler des requêtes si une réponse tarde) — la progression elle-même vient toujours du
-  // serveur (recalculée depuis la base), jamais estimée côté client.
+  // Re-polling as long as the job is running (setTimeout rather than a fixed interval: avoids
+  // stacking up requests if a response is slow) — the progress itself always comes from the
+  // server (recomputed from the database), never estimated client-side.
   private refreshExifStatus(): void {
     clearTimeout(this.exifPollTimer);
     this.mediaService.exifStatus().subscribe((status) => {

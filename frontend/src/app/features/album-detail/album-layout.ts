@@ -2,12 +2,12 @@ import { AlbumItem } from '../../core/albums/album.service';
 
 const MAX_ROW_SPAN = 3;
 
-// Regroupe la liste à plat en rangées d'affichage : un item média isolé ou un bloc texte
-// forme une rangée à lui seul, un groupe de 2/3 médias consécutifs (RowSpan porté par
-// l'ancre, le premier item du groupe) forme une rangée à N colonnes. Chaque rangée devient
-// une mini-grille indépendante (grid-template-columns: repeat(N, 1fr)) — un unique grid
-// partagé pour tout le fil ne peut pas donner à une rangée de 2 photos une largeur 50/50 et à
-// une rangée de 3 une largeur 33/33/33 avec des colonnes de largeur uniforme.
+// Groups the flat list into display rows: an isolated media item or a text block
+// forms a row on its own, a group of 2/3 consecutive media (RowSpan carried by
+// the anchor, the group's first item) forms an N-column row. Each row becomes
+// an independent mini-grid (grid-template-columns: repeat(N, 1fr)) — a single grid
+// shared across the whole feed can't give a row of 2 photos a 50/50 width and
+// a row of 3 a 33/33/33 width with uniform-width columns.
 export interface AlbumRow {
   items: AlbumItem[];
   startIndex: number;

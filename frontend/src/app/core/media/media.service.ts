@@ -14,9 +14,9 @@ export interface MediaItem {
   size: number;
   createdAt: string | null;
   modifiedAt: string | null;
-  // Déjà renvoyés par GET /api/media/source (l'entité MediaIndexEntry complète), simplement pas
-  // déclarés ici jusqu'ici — voir issue #22. Absents tant que les jobs EXIF/géo n'ont pas encore
-  // traité le média.
+  // Already returned by GET /api/media/source (the full MediaIndexEntry entity), simply not
+  // declared here until now — see issue #22. Absent until the EXIF/geo jobs have processed the
+  // media.
   dateTaken: string | null;
   country: string | null;
   region: string | null;
@@ -45,9 +45,9 @@ export interface MediaFilters {
   city?: string;
 }
 
-// Une ligne par combinaison distincte pays/région/ville observée dans la bibliothèque — permet
-// au frontend de dériver des filtres dépendants (issue #10) sans aller-retour supplémentaire à
-// chaque changement de sélection.
+// One row per distinct country/region/city combination observed in the library — lets the
+// frontend derive dependent filters (issue #10) without an extra round trip on every
+// selection change.
 export interface LocationCombo {
   country: string;
   region: string | null;
@@ -64,8 +64,8 @@ export interface ExifJobStatus {
 
 export type GeoJobStatus = ExifJobStatus;
 
-// Occupation du cache disque des miniatures (issue #27) — en octets, converti en Mo côté
-// composant pour l'affichage.
+// Thumbnail disk cache usage (issue #27) — in bytes, converted to MB on the component side
+// for display.
 export interface MediaCacheStatus {
   usedBytes: number;
   maxBytes: number;

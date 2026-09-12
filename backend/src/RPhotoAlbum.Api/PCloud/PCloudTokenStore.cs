@@ -7,21 +7,21 @@ namespace RPhotoAlbum.Api.PCloud;
 
 public record PCloudConnectionInfo(string Hostname, string AccessToken);
 
-// Ligne unique persistée dans le cache local (SQLite) — jeton chiffré au repos
-// via Data Protection, jamais exposé au frontend — voir ARCHITECTURE.md §14.
+// Single row persisted in the local cache (SQLite) — token encrypted at rest
+// via Data Protection, never exposed to the frontend — see ARCHITECTURE.md §14.
 public class PCloudTokenStore
 {
     private const int SingletonId = 1;
     private const string ProtectorPurpose = "PCloudAccessToken";
-    // Pas de TTL : le jeton ne change que sur reconnexion/déconnexion, invalidé explicitement
-    // dans SaveAsync/ClearAsync plutôt que sur une durée arbitraire. Avant ce cache, GetAsync()
-    // interrogeait la base SQLite à CHAQUE appel pCloud (le jeton n'était jamais mis en cache) —
-    // avec un job comme l'extraction EXIF qui fait un appel par média, ça représentait des
-    // dizaines de milliers de requêtes DB évitables, et c'est ce qui a rendu visible (issues
-    // #12, #13) qu'un DbContext EF Core partagé entre opérations concurrentes n'est pas
-    // thread-safe. Le cache mémoire (thread-safe, lui) élimine l'essentiel de cette charge ;
-    // le correctif scope-par-tâche déjà en place (voir MediaExifService, AlbumService) reste la
-    // protection de fond pour les cache-miss concurrents.
+    // No TTL: the token only changes on reconnect/disconnect, explicitly invalidated
+    // in SaveAsync/ClearAsync rather than on an arbitrary duration. Before this cache, GetAsync()
+    // queried the SQLite database on EVERY pCloud call (the token was never cached) —
+    // with a job like EXIF extraction making one call per media item, that represented
+    // tens of thousands of avoidable DB queries, and this is what exposed (issues
+    // #12, #13) that an EF Core DbContext shared across concurrent operations is not
+    // thread-safe. The memory cache (which is thread-safe) eliminates most of this load;
+    // the per-task scope fix already in place (see MediaExifService, AlbumService) remains the
+    // underlying protection for concurrent cache misses.
     private const string CacheKey = "pcloud:connection";
 
     private readonly CacheDbContext _db;

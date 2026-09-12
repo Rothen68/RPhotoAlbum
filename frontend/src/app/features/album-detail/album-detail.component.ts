@@ -26,17 +26,17 @@ import { isRawFileName } from '../../shared/raw-format';
 import { AlbumRow, groupIntoRows } from './album-layout';
 import { AlbumVirtualScrollDirective, computeRowHeight } from './album-virtual';
 
-// CDK n'auto-scrolle de façon fiable que les conteneurs explicitement scrollables
-// (overflow: auto/scroll) — pas le scroll naturel de la page/fenêtre utilisé ici,
-// constaté en test réel (PC et mobile) : impossible de sortir un item de la zone
-// visible pendant un glisser. Implémentation manuelle du scroll auto près des bords.
+// CDK only auto-scrolls containers that are explicitly scrollable
+// (overflow: auto/scroll) reliably — not the natural page/window scroll used here,
+// observed in real testing (PC and mobile): impossible to drag an item out of the
+// visible area while dragging. Manual implementation of auto-scroll near the edges.
 const AUTO_SCROLL_EDGE_PX = 80;
 const AUTO_SCROLL_MAX_SPEED = 18;
 
-// navigator.onLine peut se tromper ou tarder à se mettre à jour (constaté en usage réel : une
-// requête restée bloquée en attente indéfiniment après le passage en mode avion plutôt que
-// d'échouer proprement) — un délai explicite garantit un repli sur le cache hors-ligne (#29)
-// même si la détection de connectivité n'aide pas.
+// navigator.onLine can be wrong or slow to update (observed in real usage: a
+// request left stuck pending indefinitely after switching to airplane mode rather
+// than failing cleanly) — an explicit timeout guarantees a fallback to the offline cache (#29)
+// even if connectivity detection doesn't help.
 const REQUEST_TIMEOUT_MS = 6000;
 
 @Component({
@@ -57,22 +57,22 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly hostEl = inject(ElementRef<HTMLElement>);
   private readonly ngZone = inject(NgZone);
 
-  // Vue de base virtualisée (issue #20) : hauteurs de rangée précalculées à partir de la seule
-  // largeur du conteneur (voir album-virtual.ts). Le mode Edit, lui, reste en rendu complet non
-  // virtualisé — combiner virtual-scroll et drag-and-drop par rangée (recyclage DOM pendant un
-  // défilement auto-scroll déclenché par le drag) est une des combinaisons CDK les plus fragiles
-  // en pratique, et un mode Edit reste une session d'action délibérée et bornée (contrairement
-  // au simple défilement de consultation, bien plus fréquent) — un compromis délibéré, pas un
-  // repli après échec comme la barre de date de Gallery.
+  // Virtualized base view (issue #20): row heights precomputed from the container
+  // width alone (see album-virtual.ts). Edit mode, on the other hand, stays in full,
+  // non-virtualized rendering — combining virtual-scroll and per-row drag-and-drop
+  // (DOM recycling during drag-triggered auto-scroll) is one of the most fragile CDK
+  // combinations in practice, and Edit mode remains a deliberate, bounded action
+  // session (unlike plain viewing scroll, far more frequent) — a deliberate trade-off, not a
+  // fallback after failure like the Gallery date bar.
   @ViewChild(AlbumVirtualScrollDirective) private scrollStrategy?: AlbumVirtualScrollDirective;
-  // Conteneur scrollable du mode Edit (rendu complet, pas de viewport CDK) — l'auto-scroll
-  // pendant un glisser doit défiler CE conteneur plutôt que window/document maintenant que les
-  // deux modes partagent le même agencement flex borné en hauteur (voir SCSS).
+  // Scrollable container for Edit mode (full render, no CDK viewport) — auto-scroll
+  // during a drag must scroll THIS container rather than window/document now that the
+  // two modes share the same height-bounded flex layout (see SCSS).
   @ViewChild('editScroll') private editScrollEl?: ElementRef<HTMLElement>;
   protected readonly containerWidth = signal(0);
-  // Hauteurs réelles des blocs texte, mesurées après rendu (issue #30) — clé = id du premier
-  // (unique) item de la rangée texte, même clé que trackRow. Tant qu'une rangée texte n'a pas
-  // encore été mesurée, computeRowHeight retombe sur TEXT_BLOCK_HEIGHT_ESTIMATE_PX.
+  // Actual text block heights, measured after render (issue #30) — key = id of the first
+  // (only) item of the text row, same key as trackRow. As long as a text row hasn't
+  // been measured yet, computeRowHeight falls back to TEXT_BLOCK_HEIGHT_ESTIMATE_PX.
   protected readonly measuredTextHeights = signal<Map<string, number>>(new Map());
   protected readonly rowHeights = computed(() =>
     this.rows().map((row) =>
@@ -85,10 +85,10 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
 
   protected readonly album = signal<AlbumDetail | null>(null);
   protected readonly loading = signal(true);
-  // Mode unique regroupant édition de texte, ajout/suppression et réorganisation des
-  // médias — la vue de base reste purement dédiée à la consultation (voir retour
-  // utilisateur : avoir un mode "Reorder" séparé du texte éditable en permanence
-  // en vue normale était source de confusion).
+  // Single mode combining text editing, add/remove and reordering of
+  // media — the base view stays purely dedicated to viewing (see user
+  // feedback: having a separate "Reorder" mode from permanently editable text
+  // in the normal view was a source of confusion).
   protected readonly editMode = signal(false);
 
   protected readonly insertingAt = signal<string | null | undefined>(undefined);
@@ -100,7 +100,7 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
 
   protected readonly viewerIndex = signal<number | null>(null);
 
-  // --- Consultation hors-ligne (issue #29) ---
+  // --- Offline viewing (issue #29) ---
   protected readonly offlineAvailable = computed(() => this.offlineAlbumService.isOffline(this.albumId));
   protected readonly offlineMeta = computed(() => this.offlineAlbumService.metaFor(this.albumId));
   protected readonly offlineDownloading = computed(() => this.offlineAlbumService.isDownloading(this.albumId));
@@ -136,15 +136,15 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   private autoScrollFrame: number | null = null;
 
   constructor() {
-    // Couvre le cas "les hauteurs changent pendant que le viewport est déjà attaché" (résultat
-    // d'une mutation d'album). Le cas "le viewport vient d'être (re)créé" est couvert séparément
-    // par pushRowHeights(), appelée sur l'événement (attached) de la directive — voir
-    // AlbumVirtualScrollDirective pour la raison (l'ordre effect-vs-attach() n'est pas garanti).
+    // Covers the case "heights change while the viewport is already attached" (result
+    // of an album mutation). The case "the viewport was just (re)created" is covered separately
+    // by pushRowHeights(), called on the directive's (attached) event — see
+    // AlbumVirtualScrollDirective for the reason (the effect-vs-attach() order isn't guaranteed).
     effect(() => this.pushRowHeights());
 
-    // Bascule les miniatures affichées vers le cache hors-ligne (Object URL) dès que la
-    // connectivité tombe, pour un album rendu disponible hors-ligne — voir OfflineAlbumService
-    // (issue #29). Le chemin en ligne (thumbnailUrl() retombant sur l'URL réseau) est inchangé.
+    // Switches the displayed thumbnails to the offline cache (Object URL) as soon as
+    // connectivity drops, for an album made available offline — see OfflineAlbumService
+    // (issue #29). The online path (thumbnailUrl() falling back to the network URL) is unchanged.
     effect(() => {
       const offline = this.offlineMode.manualOfflineMode() || !this.connectivity.online();
       const album = this.album();
@@ -181,13 +181,13 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     this.revokeObjectUrls();
   }
 
-  // La stratégie de scroll (offsets cumulés) a besoin de l'empreinte TOTALE de chaque rangée
-  // (contenu + marge visuelle), alors que rowHeights() — utilisée pour dimensionner .row/
-  // .media-block eux-mêmes — doit rester au contenu exact, sans quoi l'image serait étirée en
-  // trop. Le marge (ROW_GAP_PX) doit correspondre exactement au margin-bottom de .row-wrapper
-  // en vue virtualisée (voir SCSS) : régression repérée par l'utilisateur (V2.24 déployée sans
-  // aucun espacement visuel entre rangées dans la vue de base — le calcul de hauteur ne prenait
-  // jusqu'ici en compte QUE le contenu, jamais d'espacement entre rangées).
+  // The scroll strategy (cumulative offsets) needs the TOTAL footprint of each row
+  // (content + visual margin), whereas rowHeights() — used to size .row/
+  // .media-block themselves — must stay at the exact content size, or the image would be
+  // stretched too much. The margin (ROW_GAP_PX) must match exactly the margin-bottom of .row-wrapper
+  // in the virtualized view (see SCSS): regression spotted by the user (V2.24 shipped with
+  // no visual spacing between rows at all in the base view — the height calculation only
+  // accounted for content until now, never spacing between rows).
   private static readonly ROW_GAP_PX = 8;
 
   protected pushRowHeights(): void {
@@ -195,11 +195,11 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     this.scrollStrategy?.updateRowHeights(heights);
   }
 
-  // Corrige la hauteur d'une rangée texte une fois son contenu réellement rendu (issue #30) —
-  // met à jour measuredTextHeights, ce qui recalcule rowHeights() et repousse les nouveaux
-  // offsets à la stratégie de virtualisation via l'effect() déjà en place (constructeur). Ignore
-  // les mesures inchangées pour éviter un cycle signal → détection de changement → resize sans
-  // fin en cas de valeur identique renvoyée par ResizeObserver.
+  // Corrects a text row's height once its content is actually rendered (issue #30) —
+  // updates measuredTextHeights, which recomputes rowHeights() and pushes the new
+  // offsets to the virtualization strategy via the effect() already in place (constructor). Ignores
+  // unchanged measurements to avoid an endless signal → change detection → resize cycle
+  // when ResizeObserver returns an identical value.
   protected onTextHeightMeasured(itemId: string, height: number): void {
     if (this.measuredTextHeights().get(itemId) === height) {
       return;
@@ -212,22 +212,22 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   private load(): void {
     this.loading.set(true);
 
-    // Mode hors-ligne forcé par l'utilisateur, ou déjà su hors-ligne : inutile d'attendre
-    // l'échec (parfois lent, plusieurs secondes selon l'appareil/réseau) d'une requête réseau
-    // vouée à échouer — on retombe directement sur le cache si disponible (issue #29, retour
-    // utilisateur : la page restait visiblement bloquée sur "Loading…" plus longtemps que
-    // nécessaire).
+    // Offline mode forced by the user, or already known to be offline: no point waiting for
+    // the failure (sometimes slow, several seconds depending on device/network) of a network
+    // request bound to fail — fall back directly to the cache if available (issue #29, user
+    // feedback: the page stayed visibly stuck on "Loading…" longer than
+    // necessary).
     if ((this.offlineMode.manualOfflineMode() || !this.connectivity.online()) && this.offlineAlbumService.isOffline(this.albumId)) {
       this.loadFromCache();
       return;
     }
 
-    // Minuteur JS ordinaire plutôt que l'opérateur RxJS timeout() : constaté en usage réel qu'une
-    // requête interceptée par le service worker (toute requête /api/* l'est, même sans règle de
-    // cache dédiée) peut rester bloquée bien au-delà du délai RxJS — jusqu'à l'échec naturel de
-    // la connexion TCP sous-jacente (net::ERR_CONNECTION_TIMED_OUT, observé à plusieurs MINUTES).
-    // Ce repli ne dépend d'aucun mécanisme d'annulation de la requête HTTP elle-même : passé le
-    // délai, on affiche le repli hors-ligne et on ignore simplement toute réponse tardive.
+    // Plain JS timer rather than the RxJS timeout() operator: observed in real usage that a
+    // request intercepted by the service worker (every /api/* request is, even without a
+    // dedicated cache rule) can stay stuck well past the RxJS timeout — until the underlying
+    // TCP connection naturally fails (net::ERR_CONNECTION_TIMED_OUT, observed after several MINUTES).
+    // This fallback doesn't depend on any cancellation mechanism for the HTTP request itself: once the
+    // timeout passes, we show the offline fallback and simply ignore any late response.
     let settled = false;
     const fallbackTimer = setTimeout(() => {
       if (settled) {
@@ -252,9 +252,9 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
         this.album.set(album);
         this.loading.set(false);
       },
-      // Serveur injoignable malgré navigator.onLine (faux positif fréquent : Wi-Fi connecté
-      // sans accès réel à Internet/au serveur) : même repli si cet album est disponible
-      // hors-ligne, plutôt que de simplement abandonner (issue #29).
+      // Server unreachable despite navigator.onLine (frequent false positive: Wi-Fi connected
+      // without actual access to the Internet/server): same fallback if this album is
+      // available offline, rather than simply giving up (issue #29).
       error: () => {
         if (settled) {
           return;
@@ -289,8 +289,8 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     const mediaItems = album.items.filter((i) => i.type === 'media');
     const next = await this.offlineAlbumService.buildObjectUrlMap(this.albumId, mediaItems);
     if (generation !== this.objectUrlGeneration) {
-      // Un rebuild plus récent a déjà démarré (ou la connectivité est repassée en ligne) — on
-      // jette ce résultat obsolète plutôt que d'écraser une map plus à jour.
+      // A more recent rebuild has already started (or connectivity switched back online) — we
+      // discard this stale result rather than overwriting a more up-to-date map.
       for (const url of next.values()) {
         URL.revokeObjectURL(url);
       }
@@ -307,7 +307,7 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     this.objectUrlMap.clear();
   }
 
-  // --- Consultation hors-ligne : actions (issue #29) ---
+  // --- Offline viewing: actions (issue #29) ---
 
   makeOfflineAvailable(): void {
     const album = this.album();
@@ -318,13 +318,13 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     this.offlineAlbumService.makeAvailable(album).catch((err) => this.reportOfflineError(err));
   }
 
-  // Distingue les causes d'échec (issue #29, retour utilisateur : le message générique ne
-  // permettait pas de savoir laquelle s'appliquait) :
-  // - contexte non sécurisé (accès en HTTP simple, pas HTTPS/localhost) — l'API Cache Storage
-  //   n'existe alors tout simplement pas, message dédié plutôt que de laisser croire à un souci
-  //   réseau ou stockage ;
-  // - dépassement de quota — chiffres réels de l'appareil via navigator.storage.estimate() ;
-  // - échec générique (réseau, ou aucune miniature récupérable même après nouvel essai).
+  // Distinguishes the failure causes (issue #29, user feedback: the generic message didn't
+  // allow figuring out which one applied):
+  // - insecure context (accessed over plain HTTP, not HTTPS/localhost) — the Cache Storage API
+  //   then simply doesn't exist, dedicated message rather than letting the user think it's a
+  //   network or storage issue;
+  // - quota exceeded — actual device figures via navigator.storage.estimate();
+  // - generic failure (network, or no thumbnail retrievable even after retrying).
   private async reportOfflineError(err: unknown): Promise<void> {
     if (err instanceof DOMException && err.name === 'InsecureContextError') {
       this.offlineError.set(
@@ -376,12 +376,12 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     this.editingItemId.set(null);
   }
 
-  // --- Visionneuse (§11.8) ---
+  // --- Viewer (§11.8) ---
 
   onMediaClick(item: AlbumItem): void {
-    // Les vidéos gardent leur lecture inline (<video controls>, comportement existant) — ouvrir
-    // la visionneuse plein écran par-dessus gênerait plus qu'autre chose vu qu'on peut déjà les
-    // lire directement dans le fil. Utile surtout pour les photos, dont la miniature est petite.
+    // Videos keep their inline playback (<video controls>, existing behavior) — opening
+    // the fullscreen viewer over them would be more of a hindrance than a help since they can
+    // already be played directly in the feed. Mainly useful for photos, whose thumbnail is small.
     if (item.mediaType === 'video') {
       return;
     }
@@ -392,7 +392,7 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  // --- Insertion de texte en ligne (§11.5) ---
+  // --- Inline text insertion (§11.5) ---
 
   startInsert(afterItemId: string | null): void {
     this.draftText = '';
@@ -414,8 +414,8 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   startEditText(item: AlbumItem): void {
-    // Le bloc texte reste affiché en vue de base (hors mode Edit), mais uniquement
-    // pour consultation — cliquer dessus n'y ouvre pas l'édition.
+    // The text block stays displayed in the base view (outside Edit mode), but only
+    // for viewing — clicking it doesn't open editing there.
     if (!this.editMode()) {
       return;
     }
@@ -438,11 +438,11 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     this.albumService.updateText(this.albumId, item.id, text).subscribe((album) => this.album.set(album));
   }
 
-  // --- Layout en grille (§11.7) ---
+  // --- Grid layout (§11.7) ---
 
-  // "Grouper avec le suivant" et "Séparer" sont deux actions indépendantes, pas les deux états
-  // d'un même bouton : une rangée déjà groupée à 2 doit pouvoir grandir à 3 (canGrow) ET être
-  // séparée (retour à 1) — les afficher l'un XOR l'autre empêchait de dépasser un groupe de 2.
+  // "Group with next" and "Separate" are two independent actions, not the two states
+  // of the same button: a row already grouped at 2 must be able to grow to 3 (canGrow) AND be
+  // separated (back to 1) — showing them XOR each other prevented going beyond a group of 2.
   groupWithNext(row: AlbumRow): void {
     if (!row.canGrow) {
       return;
@@ -465,11 +465,11 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     this.albumService.removeItem(this.albumId, itemId).subscribe((album) => this.album.set(album));
   }
 
-  // Unité de réorganisation = la RANGÉE (une ligne de texte, ou un groupe d'1 à 3 photos),
-  // pas l'item individuel — un seul bouton/poignée par rangée, un groupe s'y déplace comme un
-  // bloc atomique sans logique de repositionnement dédiée (voir retour utilisateur : la
-  // sélection multiple par item s'est avérée trop complexe pour peu de bénéfice une fois la
-  // rangée déjà disponible comme unité naturelle depuis l'étape 7).
+  // Reorder unit = the ROW (a text line, or a group of 1 to 3 photos),
+  // not the individual item — a single button/handle per row, a group moves as an
+  // atomic block with no dedicated repositioning logic (see user feedback: per-item
+  // multi-selection turned out too complex for little benefit once the
+  // row was already available as a natural unit since step 7).
   moveRowUp(rowIndex: number): void {
     const rows = this.rows();
     if (rowIndex <= 0) {
@@ -547,13 +547,13 @@ export class AlbumDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  // Réordonne l'état local IMMÉDIATEMENT (avant même l'appel réseau) : CDK annule son propre
-  // rendu de drag (transform de prévisualisation) dès le drop, en s'attendant à ce que les
-  // données sous-jacentes reflètent déjà le nouvel ordre au même tick — sans ça, l'item revient
-  // un instant à sa position d'origine avant de sauter à sa position finale une fois la réponse
-  // serveur arrivée (constaté par l'utilisateur, PC et mobile). L'appel serveur suit derrière
-  // pour persister ; sa réponse re-synchronise l'état au cas où (rare) où le serveur aurait dû
-  // ajuster quelque chose (ex. normalisation de RowSpan).
+  // Reorders local state IMMEDIATELY (even before the network call): CDK cancels its own
+  // drag rendering (preview transform) right on drop, expecting the underlying
+  // data to already reflect the new order in the same tick — without this, the item briefly
+  // snaps back to its original position before jumping to its final position once the
+  // server response arrives (observed by the user, PC and mobile). The server call follows
+  // behind to persist it; its response re-syncs state in the (rare) case where the server had to
+  // adjust something (e.g. RowSpan normalization).
   private reorderTo(ids: string[]): void {
     const current = this.album();
     if (current) {

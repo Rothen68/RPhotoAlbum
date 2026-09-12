@@ -41,8 +41,8 @@
   @if (!editMode() && a.items.length === 0) {
     <p class="muted empty-state">No media yet. Add photos from the Gallery.</p>
   } @else if (!editMode()) {
-    <!-- Vue de base : virtualisée (issue #20), lecture seule — pas de drag-and-drop ni de
-         contrôles superposés, voir album-virtual.ts pour le calcul des hauteurs de rangée. -->
+    <!-- Base view: virtualized (issue #20), read-only — no drag-and-drop or overlaid
+         controls, see album-virtual.ts for the row height calculation. -->
     <cdk-virtual-scroll-viewport appAlbumVirtualScroll class="virtual-viewport" (attached)="pushRowHeights()">
       <div *cdkVirtualFor="let row of rows(); trackBy: trackRow; let i = index" class="row-wrapper">
         <div class="row" [style.--row-cols]="row.items.length" [style.height.px]="rowHeights()[i]">
@@ -75,8 +75,8 @@
       </div>
     </cdk-virtual-scroll-viewport>
   } @else {
-    <!-- Mode Edit : rendu complet (pas de virtualisation), drag-and-drop par rangée — voir
-         commentaire sur AlbumDetailComponent pour la raison de ce compromis délibéré. -->
+    <!-- Edit mode: full render (no virtualization), drag-and-drop by row — see
+         comment on AlbumDetailComponent for the reason behind this deliberate trade-off. -->
     <div class="feed-scroll" #editScroll>
       <div class="feed" cdkDropList [cdkDropListData]="rows()" (cdkDropListDropped)="onCdkDrop($event)">
         <div class="insert-gap">

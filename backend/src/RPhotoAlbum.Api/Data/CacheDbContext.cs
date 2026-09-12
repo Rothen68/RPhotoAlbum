@@ -4,9 +4,9 @@ using RPhotoAlbum.Api.PCloud;
 
 namespace RPhotoAlbum.Api.Data;
 
-// Cache local (SQLite) : index de performance reconstructible depuis pCloud.
-// N'est jamais la source de vérité métier — voir ARCHITECTURE.md §3 et §6.1.
-// Exception : PCloudConnections stocke le jeton OAuth chiffré, qui n'existe pas côté pCloud.
+// Local cache (SQLite): a performance index rebuildable from pCloud.
+// Never the business source of truth — see ARCHITECTURE.md §3 and §6.1.
+// Exception: PCloudConnections stores the encrypted OAuth token, which doesn't exist on pCloud's side.
 public class CacheDbContext(DbContextOptions<CacheDbContext> options) : DbContext(options)
 {
     public DbSet<MediaIndexEntry> MediaIndex => Set<MediaIndexEntry>();

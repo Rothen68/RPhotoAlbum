@@ -1,10 +1,10 @@
 import { Injectable, NgZone, inject, signal } from '@angular/core';
 
-// Signal partagé connecté aux événements online/offline du navigateur — utilisé pour basculer
-// l'affichage des miniatures d'album vers le cache local hors-ligne (voir OfflineAlbumService,
-// issue #29). navigator.onLine peut donner un faux positif ("en ligne" alors que le réseau est en
-// réalité inaccessible, ex. portail captif) mais jamais de faux négatif fiable — suffisant ici
-// puisqu'un faux positif se rattrape par l'échec normal des requêtes réseau.
+// Shared signal wired to the browser's online/offline events — used to switch the album
+// thumbnail display over to the local offline cache (see OfflineAlbumService, issue #29).
+// navigator.onLine can give a false positive ("online" while the network is actually
+// unreachable, e.g. a captive portal) but never a reliable false negative — sufficient here
+// since a false positive is caught by the normal failure of network requests.
 @Injectable({ providedIn: 'root' })
 export class ConnectivityService {
   private readonly ngZone = inject(NgZone);

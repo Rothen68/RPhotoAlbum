@@ -62,8 +62,8 @@ section {
   background: var(--color-accent);
   transition: width 300ms ease;
 
-  // Quota pCloud proche du plein (issue de clôture V3) — même couleur que le texte d'erreur pour
-  // rester cohérent avec le reste de la page.
+  // pCloud quota close to full (V3 closure issue) — same color as the error text to
+  // stay consistent with the rest of the page.
   &.warning {
     background: var(--color-danger);
   }
@@ -94,10 +94,10 @@ section {
   white-space: nowrap;
 }
 
-// Couleurs codées en dur (héritées d'une première version en thème clair) au lieu des variables
-// de thème utilisées partout ailleurs dans l'app — sur le thème sombre actuel, le texte
-// (hérité de `body { color: var(--color-text) }`, quasi blanc) devenait illisible sur un fond
-// `background: white` : voir issue #5.
+// Hard-coded colors (inherited from an early light-theme version) instead of the
+// theme variables used everywhere else in the app — on the current dark theme, the text
+// (inherited from `body { color: var(--color-text) }`, near-white) became unreadable on a
+// `background: white`: see issue #5.
 button {
   min-height: 44px;
   padding: 0 0.75rem;

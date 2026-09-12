@@ -19,9 +19,9 @@ public record PCloudFolderMetadata(
     [property: JsonPropertyName("path")] string? Path,
     [property: JsonPropertyName("contents")] List<PCloudItem>? Contents);
 
-// created/modified restent des chaînes brutes (format pCloud, ex. "Wed, 12 Jun 2013 12:15:41 +0000") —
-// le calcul de la date de tri (ARCHITECTURE.md §7) fera le parsing lors de l'indexation.
-// Contents n'est peuplé que lors d'un appel listfolder avec recursive=1 (sous-dossiers imbriqués).
+// created/modified stay as raw strings (pCloud format, e.g. "Wed, 12 Jun 2013 12:15:41 +0000") —
+// the sort-date computation (ARCHITECTURE.md §7) will do the parsing during indexing.
+// Contents is only populated by a listfolder call with recursive=1 (nested subfolders).
 public record PCloudItem(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("isfolder")] bool IsFolder,
@@ -62,8 +62,8 @@ public record PCloudUploadResponse(
     [property: JsonPropertyName("error")] string? Error,
     [property: JsonPropertyName("fileids")] long[]? FileIds);
 
-// quota/usedquota en octets — voir méthode pCloud `userinfo`. Alerte de quota de stockage (pas
-// le cache miniatures local, déjà borné/surveillé séparément — voir MediaController.CacheStatus).
+// quota/usedquota in bytes — see the pCloud `userinfo` method. Storage quota alert (not
+// the local thumbnail cache, already bounded/monitored separately — see MediaController.CacheStatus).
 public record PCloudUserInfoResponse(
     [property: JsonPropertyName("result")] int Result,
     [property: JsonPropertyName("error")] string? Error,

@@ -36,17 +36,17 @@ builder.Services.Configure<AppAuthOptions>(builder.Configuration.GetSection("App
 builder.Services.Configure<PCloudOptions>(builder.Configuration.GetSection("PCloud"));
 builder.Services.AddScoped<PCloudTokenStore>();
 builder.Services.AddMemoryCache();
-// IPCloudClient (pas juste PCloudClient) : permet un faux fait main dans les tests
-// (RPhotoAlbum.Api.Tests) sans dépendre du vrai réseau pCloud — voir issue GitHub #17.
-// Timeout explicite (défaut HttpClient sinon : 100s, jamais configuré jusqu'ici) — plafonnait
-// silencieusement TOUTE requête pCloud à 100s quel que soit le CancellationToken passé en appel,
-// masqué tant que le proxy_read_timeout de nginx (60s par défaut) était de toute façon plus court
-// et coupait la connexion en premier — révélé seulement une fois ce dernier corrigé (issue #26).
-// Réglé au-dessus du délai applicatif du cache miniatures
-// (MediaThumbnailCacheService.ThumbnailFetchTimeout, 150s) et en dessous du proxy_read_timeout
-// nginx (180s, voir reverse-proxy/nginx.conf) pour garder l'ordre voulu : c'est toujours le délai
-// applicatif qui tranche en premier (échec propre, 404), HttpClient et nginx ne servant que de
-// filets de sécurité.
+// IPCloudClient (not just PCloudClient): allows a hand-written fake in tests
+// (RPhotoAlbum.Api.Tests) without depending on the real pCloud network — see GitHub issue #17.
+// Explicit timeout (otherwise HttpClient's default: 100s, never configured until now) — was
+// silently capping EVERY pCloud request at 100s regardless of the CancellationToken passed at
+// call time, hidden as long as nginx's proxy_read_timeout (60s by default) was shorter anyway
+// and cut the connection first — only revealed once that was fixed (issue #26).
+// Set above the thumbnail cache's application-level timeout
+// (MediaThumbnailCacheService.ThumbnailFetchTimeout, 150s) and below nginx's proxy_read_timeout
+// (180s, see reverse-proxy/nginx.conf) to keep the intended order: the application-level timeout
+// is always the one that triggers first (a clean failure, 404), with HttpClient and nginx
+// serving only as safety nets.
 builder.Services.AddHttpClient<IPCloudClient, PCloudClient>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(170);
@@ -58,8 +58,8 @@ builder.Services.AddHostedService<MediaIndexBackgroundService>();
 
 builder.Services.AddScoped<MediaExifService>();
 
-// User-Agent personnalisé obligatoire par la politique d'usage Nominatim (pas celui, générique,
-// de HttpClient) — voir GeoLookupService.
+// Custom User-Agent required by Nominatim's usage policy (not HttpClient's generic default
+// one) — see GeoLookupService.
 builder.Services.AddHttpClient<GeoLookupService>(client =>
 {
     client.DefaultRequestHeaders.UserAgent.ParseAdd("RPhotoAlbum/1.0 (usage personnel, self-hosted)");
@@ -67,10 +67,10 @@ builder.Services.AddHttpClient<GeoLookupService>(client =>
 
 builder.Services.AddScoped<AlbumService>();
 
-// Cache disque des miniatures (issue #26) — évite de repasser par pCloud (getthumblink + CDN) à
-// chaque affichage. Scoped (pas singleton) : IPCloudClient dépend de PCloudTokenStore, lui-même
-// scoped — même piège de dépendance captive que #12, évité en ne remontant jamais ce service
-// au-delà de la portée requête.
+// Thumbnail disk cache (issue #26) — avoids going back through pCloud (getthumblink + CDN) on
+// every display. Scoped (not singleton): IPCloudClient depends on PCloudTokenStore, which is
+// itself scoped — the same captive dependency trap as #12, avoided by never promoting this
+// service beyond request scope.
 builder.Services.Configure<MediaCacheOptions>(builder.Configuration.GetSection("MediaCache"));
 builder.Services.AddScoped<MediaThumbnailCacheService>();
 builder.Services.AddHostedService<MediaCacheEvictionBackgroundService>();
@@ -113,10 +113,10 @@ builder.Services.AddAuthorizationBuilder()
         .RequireAuthenticatedUser()
         .Build());
 
-// Limite les tentatives de connexion (aucune protection avant, VPN/LAN seul rempart) —
-// partitionné par IP cliente (pas un compteur global) : un tiers qui force le mot de passe ne
-// bloque pas l'utilisateur légitime. RemoteIpAddress reflète déjà la vraie IP grâce à
-// UseForwardedHeaders (X-Forwarded-For transmis par nginx), configuré plus bas.
+// Limits login attempts (no protection before this, VPN/LAN was the only safeguard) —
+// partitioned by client IP (not a global counter): a third party brute-forcing the password
+// does not lock out the legitimate user. RemoteIpAddress already reflects the real IP thanks to
+// UseForwardedHeaders (X-Forwarded-For forwarded by nginx), configured further below.
 builder.Services.AddRateLimiter(options =>
 {
     options.OnRejected = async (context, ct) =>
@@ -142,10 +142,10 @@ using (var scope = app.Services.CreateScope())
     var cacheDb = scope.ServiceProvider.GetRequiredService<CacheDbContext>();
     cacheDb.Database.Migrate();
 
-    // Mode WAL — réglage stocké dans le fichier lui-même (pas par connexion), donc suffit de le
-    // faire une fois au démarrage ; idempotent si déjà activé. Réduit la contention entre les
-    // jobs qui écrivent en tâche de fond (indexation, EXIF, géolocalisation) et les requêtes
-    // normales de l'app pendant qu'un job tourne — voir issue #18.
+    // WAL mode — a setting stored in the file itself (not per connection), so it only needs to
+    // be done once at startup; idempotent if already enabled. Reduces contention between
+    // background write jobs (indexing, EXIF, geolocation) and the app's normal requests while a
+    // job is running — see issue #18.
     var connection = cacheDb.Database.GetDbConnection();
     await connection.OpenAsync();
     await using (var pragma = connection.CreateCommand())
@@ -160,13 +160,14 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-// La terminaison TLS se fait entièrement côté reverse-proxy (nginx) — le backend ne reçoit
-// jamais que du HTTP simple en interne (réseau Docker), donc Request.IsHttps y serait toujours
-// false sans ce middleware, même quand le client est en HTTPS (issue #29 : cookie de session et
-// cookie OAuth pCloud, voir PCloudController.cs, ne seraient alors jamais marqués Secure).
-// KnownNetworks/KnownProxies vidés : le service backend n'a aucun port publié dans
-// docker-compose.yml, le reverse-proxy est donc le seul appelant possible — faire confiance à
-// n'importe quelle IP source interne est sûr ici, pas d'exposition directe possible.
+// TLS termination happens entirely on the reverse-proxy side (nginx) — the backend only ever
+// receives plain HTTP internally (Docker network), so Request.IsHttps would always be false
+// there without this middleware, even when the client is on HTTPS (issue #29: the session
+// cookie and the pCloud OAuth cookie, see PCloudController.cs, would then never be marked
+// Secure).
+// KnownNetworks/KnownProxies cleared: the backend service has no port published in
+// docker-compose.yml, so the reverse-proxy is the only possible caller — trusting any internal
+// source IP is safe here, since direct exposure is not possible.
 var forwardedHeadersOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,

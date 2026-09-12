@@ -1,130 +1,200 @@
-# Cahier d'architecture détaillé — Application d'albums photo/vidéo sur pCloud
+# Detailed Architecture Document — pCloud-backed Photo/Video Album Application
 
-> **Révision 2 — 2026-08-14**
-> Ce document remplace la version initiale suite aux décisions suivantes : frontend **Angular** (au lieu de React), backend **.NET Core** (au lieu de Node.js), ajout d'un **cache local SQLite** (index de performance reconstructible), **compression désactivée** pour cette version (copie brute uniquement), **authentification applicative mono-utilisateur** (login/mot de passe), suppression du conteneur `worker` de compression.
+> **Revision 2 — 2026-08-14**
+> This document replaces the initial version following these decisions: **Angular** frontend
+> (instead of React), **.NET Core** backend (instead of Node.js), addition of a **local SQLite
+> cache** (rebuildable performance index), **compression disabled** for this version (raw copy
+> only), **single-user application authentication** (login/password), removal of the compression
+> `worker` container.
 >
-> **Révision 3 — 2026-08-15**
-> UI/UX affinée à partir d'une spécification détaillée (Gallery/Albums/Album Detail, thème sombre "Nocturne"). Changements de fond par rapport à la révision 2 :
-> - **Gallery globale** : la grille de médias n'est plus filtrée par album ni par statut ajouté/disponible — elle montre tous les médias indexés (non rejetés). L'ajout à un ou plusieurs albums se fait via une sélection multiple suivie d'un choix d'albums (bottom sheet), plutôt qu'un parcours d'ajout/rejet par album.
-> - **Rejet devenu global** (et non plus par album, §6.3 de la révision 2) : un média rejeté disparaît définitivement de la Gallery, quel que soit l'album. Déclenché depuis le mode sélection de la Gallery (bouton "Reject" à côté de "Add to Album").
-> - **Un média peut appartenir à plusieurs albums** : chaque appartenance est un `AlbumItem` indépendant (position propre), voir §6.2.
-> - Copie sur ajout (§9.6) **conservée** : ajouter un média à un album continue de dupliquer le fichier dans le dossier pCloud de l'album, pour ne pas dépendre de la pérennité des dossiers source.
+> **Revision 3 — 2026-08-15**
+> UI/UX refined based on a detailed spec (Gallery/Albums/Album Detail, dark "Nocturne" theme).
+> Substantial changes compared to revision 2:
+> - **Global Gallery**: the media grid is no longer filtered by album or by added/available
+>   status — it shows all indexed (non-rejected) media. Adding to one or more albums is done via
+>   multi-select followed by an album choice (bottom sheet), rather than a per-album add/reject
+>   flow.
+> - **Rejection is now global** (no longer per album, §6.3 of revision 2): a rejected media item
+>   disappears permanently from the Gallery, regardless of album. Triggered from the Gallery's
+>   selection mode ("Reject" button next to "Add to Album").
+> - **A media item can belong to several albums**: each membership is an independent `AlbumItem`
+>   (with its own position), see §6.2.
+> - Copy-on-add (§9.6) **kept as-is**: adding a media item to an album still duplicates the file
+>   into the album's pCloud folder, so it doesn't depend on the source folders' permanence.
 
-## 1. Objet
-Cette application web permet de créer, consulter et éditer des albums photo/vidéo enrichis de textes Markdown, ordonnés chronologiquement, et entièrement stockés sur pCloud. L'application elle-même est hébergée sur un serveur privé sous Docker, sur le réseau local de l'utilisateur (accès via VPN existant), tandis que tous les médias et fichiers JSON d'albums sont stockés sur pCloud. [docs.pcloud](https://docs.pcloud.com/)
+## 1. Purpose
 
-## 2. Contexte d'hébergement
-Le déploiement cible un serveur privé, situé sur le réseau local de l'utilisateur et administré par lui. L'accès distant se fait via un VPN déjà en place — l'application n'est pas exposée publiquement sur Internet. L'application est livrée sous forme de conteneurs Docker séparant frontend, backend API et reverse proxy HTTPS.
+This web application lets you create, view, and edit photo/video albums enriched with Markdown
+text, ordered chronologically, and entirely stored on pCloud. The application itself is hosted on
+a private Docker server, on the user's home network (accessed via an existing VPN), while all
+media and album JSON files are stored on pCloud. [docs.pcloud](https://docs.pcloud.com/)
 
-Architecture cible :
-- un conteneur **reverse-proxy** (Traefik ou Nginx) pour TLS, routage et en-têtes de sécurité ;
-- un conteneur **backend** (ASP.NET Core Web API) pour la logique métier, l'intégration pCloud et l'authentification ;
-- un conteneur **frontend** (Angular buildé statiquement, servi par Nginx) pour l'interface utilisateur.
+## 2. Hosting context
 
-Aucun conteneur de traitement média (`worker`) n'est prévu dans cette version : la compression est en standby (voir §13).
+The deployment targets a private server, located on the user's home network and administered by
+them. Remote access goes through an already-existing VPN — the application is not publicly
+exposed on the Internet. The application is delivered as Docker containers separating the
+frontend, the backend API, and the HTTPS reverse proxy.
 
-Un conteneur optionnel **logs** ([Dozzle](https://dozzle.dev/)) expose une interface de consultation des logs Docker en temps réel (port dédié, hors reverse-proxy), pour le diagnostic en exploitation. Il lit le socket Docker en lecture seule et n'a accès à aucune donnée applicative ; sa protection repose sur le même périmètre réseau (VPN/LAN) que le reste du déploiement.
+Target architecture:
+- a **reverse-proxy** container (Traefik or Nginx) for TLS, routing, and security headers;
+- a **backend** container (ASP.NET Core Web API) for business logic, pCloud integration, and
+  authentication;
+- a **frontend** container (statically built Angular app, served by Nginx) for the user
+  interface.
 
-## 3. Principes directeurs
-Les choix d'architecture doivent respecter les principes suivants :
-- pCloud comme source de vérité pour les albums et médias ;
-- un **cache local SQLite** est autorisé en tant qu'index de performance (métadonnées, pagination, miniatures), à condition d'être entièrement reconstructible depuis pCloud — il ne stocke aucune donnée métier qui n'existerait pas déjà sur pCloud ;
-- secrets et jetons pCloud conservés uniquement côté serveur ;
-- accès à l'application protégé par un couple identifiant/mot de passe applicatif (mono-utilisateur), en complément de la restriction réseau via VPN ;
-- interface mobile-first utilisable sur smartphone, tablette et PC ;
-- séparation nette entre médias source, médias dupliqués dans l'album et métadonnées éditoriales.
+No media processing container (`worker`) is planned in this version: compression is on standby
+(see §13).
 
-## 4. Vue d'ensemble logique
-L'architecture logique se compose de quatre domaines.
+An optional **logs** container ([Dozzle](https://dozzle.dev/)) exposes a real-time Docker log
+viewer (dedicated port, outside the reverse proxy) for operational diagnostics. It reads the
+Docker socket read-only and has no access to any application data; its protection relies on the
+same network perimeter (VPN/LAN) as the rest of the deployment.
 
-### 4.1 Interface web (Angular)
-Le frontend permet :
-- l'écran de connexion (login/mot de passe) ;
-- la configuration des dossiers source pCloud ;
-- la sélection du dossier parent des albums ;
-- la création, consultation et édition d'albums ;
-- la visualisation de la chronologie ;
-- l'insertion de blocs texte Markdown ;
-- les actions de masse depuis la Gallery : sélection multiple, rejet global, ajout à un ou plusieurs albums ;
-- la navigation paginée dans la grille de médias disponibles, avec affichage de miniatures.
+## 3. Guiding principles
 
-### 4.2 API applicative (.NET Core)
-Le backend centralise :
-- l'authentification applicative (login/mot de passe) et la session utilisateur ;
-- l'authentification vers pCloud (OAuth 2.0) ;
-- la lecture des dossiers source et la mise à jour du cache local ;
-- la normalisation des métadonnées ;
-- la création des sous-dossiers d'albums ;
-- la duplication (copie brute) des médias ;
-- la lecture/écriture des JSON d'albums ;
-- le calcul de l'état de rejet global des médias et de leur appartenance aux albums ;
-- la pagination des listes de médias.
+Architecture choices must respect the following principles:
+- pCloud as the source of truth for albums and media;
+- a **local SQLite cache** is allowed as a performance index (metadata, pagination, thumbnails),
+  provided it is fully rebuildable from pCloud — it stores no business data that wouldn't already
+  exist on pCloud;
+- pCloud secrets and tokens kept server-side only;
+- application access protected by a single-user application login/password pair, in addition to
+  network restriction via VPN;
+- mobile-first interface usable on smartphone, tablet, and PC;
+- clean separation between source media, media duplicated into an album, and editorial metadata.
 
-### 4.3 Stockage pCloud
-pCloud héberge :
-- les dossiers source externes saisis par l'utilisateur ;
-- un dossier parent réservé aux albums ;
-- un sous-dossier par album ;
-- les JSON d'albums ;
-- les médias copiés dans les albums (copie brute, sans transformation).
+## 4. Logical overview
 
-### 4.4 Cache local (SQLite)
-Le cache local réalise :
-- l'indexation des médias source (id pCloud, nom, date, hash, statut) pour paginer et trier sans re-scanner pCloud à chaque requête ;
-- l'indexation légère des albums (id, nom, date de mise à jour) pour la liste d'albums ;
-- une reconstruction complète possible à tout moment par un scan pCloud, en cas de perte ou d'incohérence du cache.
+The logical architecture is made up of four domains.
 
-## 5. Intégration pCloud
-pCloud expose une API HTTP/JSON et impose l'usage du bon point d'accès selon la localisation des données utilisateur. La documentation indique que l'autorisation OAuth 2.0 en code flow est le mode recommandé lorsqu'une application dispose d'un serveur, et que les paramètres `locationid` et `hostname` retournés lors de l'autorisation servent à déterminer le bon hôte API, notamment Europe ou États-Unis. [docs.pcloud](https://docs.pcloud.com/)
+### 4.1 Web interface (Angular)
 
-### 5.1 Authentification pCloud
-Le flux recommandé est le suivant :
-1. L'utilisateur, déjà connecté à l'application (login applicatif), déclenche la connexion pCloud dans l'interface.
-2. Le backend redirige vers l'écran d'autorisation pCloud.
-3. pCloud renvoie un `code`, un `locationid` et un `hostname`.
-4. Le backend échange le `code` contre un `access_token` via `oauth2_token`.
-5. Le backend stocke ce jeton de manière sécurisée côté serveur, jamais dans le frontend. [docs.pcloud](https://docs.pcloud.com/methods/oauth_2.0/authorize.html)
+The frontend provides:
+- the login screen (login/password);
+- configuration of pCloud source folders;
+- selection of the albums' parent folder;
+- creating, viewing, and editing albums;
+- a chronological timeline view;
+- inserting Markdown text blocks;
+- bulk actions from the Gallery: multi-select, global rejection, adding to one or more albums;
+- paginated navigation through the grid of available media, with thumbnails.
 
-### 5.2 Authentification applicative
-En complément de l'OAuth pCloud, l'accès à l'application elle-même est protégé par un login/mot de passe mono-utilisateur :
-1. Le frontend Angular présente un écran de connexion.
-2. Le backend valide les identifiants contre un compte unique configuré (nom d'utilisateur + hash de mot de passe stockés en variable d'environnement/secret Docker).
-3. Une session (cookie sécurisé ou JWT) est émise et requise pour toutes les routes `/api/*` hors `/api/auth/login` et `/api/health`.
-Cette couche s'ajoute à la restriction d'accès réseau (VPN) déjà en place, sans viser une gestion multi-utilisateur ni de rôles.
+### 4.2 Application API (.NET Core)
 
-### 5.3 Gestion régionale
-Le backend doit mémoriser le `hostname` ou déduire le bon endpoint API afin d'éviter les erreurs liées à la localisation des données. La documentation pCloud précise en effet que les appels doivent cibler `api.pcloud.com` ou `eapi.pcloud.com` selon le datacenter de l'utilisateur. [docs.pcloud](https://docs.pcloud.com/)
+The backend centralizes:
+- application authentication (login/password) and the user session;
+- authentication toward pCloud (OAuth 2.0);
+- reading source folders and updating the local cache;
+- metadata normalization;
+- creating album subfolders;
+- duplicating (raw copy) media;
+- reading/writing album JSON files;
+- computing the global rejection status of media and their album memberships;
+- paginating media lists.
 
-### 5.4 Miniatures
-Pour les images disposant du drapeau `thumb`, pCloud fournit `getthumblink`, qui retourne un lien de miniature à une taille demandée. Les dimensions doivent respecter des contraintes précises, et les miniatures sont générées au premier appel puis mises en cache côté pCloud. [docs.pcloud](https://docs.pcloud.com/methods/thumbnails/getthumblink.html)
+### 4.3 pCloud storage
 
-Conséquence d'architecture :
-- la grille d'édition (paginée) demande des miniatures pCloud pour chaque page affichée ;
-- le backend peut proxyfier ces URLs pour simplifier la sécurité et le cache ;
-- le cache local SQLite peut stocker l'URL de miniature obtenue et son hash source associé, afin d'éviter des appels `getthumblink` redondants ;
-- le hash du fichier doit être surveillé pour invalider une miniature devenue obsolète, conformément à la documentation pCloud. [docs.pcloud](https://docs.pcloud.com/methods/thumbnails/getthumblink.html)
+pCloud hosts:
+- the external source folders entered by the user;
+- a parent folder reserved for albums;
+- one subfolder per album;
+- the album JSON files;
+- media copied into albums (raw copy, no transformation).
 
-## 6. Modèle de données
+### 4.4 Local cache (SQLite)
 
-### 6.1 Source de vérité vs cache
-- **Source de vérité** : les fichiers `album.json` sur pCloud (voir §6.2).
-- **Cache de performance** : base SQLite locale, purement dérivée, reconstructible à tout moment. Elle indexe :
-  - les médias trouvés dans les dossiers source (id pCloud, nom, hash, date, dimensions, lien miniature) ;
-  - un résumé léger de chaque album (id, nom, slug, date de mise à jour) pour affichage rapide de la liste d'albums sans télécharger chaque JSON.
+The local cache handles:
+- indexing source media (pCloud id, name, date, hash, status) to paginate and sort without
+  re-scanning pCloud on every request;
+- lightweight indexing of albums (id, name, last-updated date) for the album list;
+- a full rebuild possible at any time via a pCloud scan, in case the cache is lost or
+  inconsistent.
 
-### 6.2 Entités principales
-- **Configuration de connexion** : informations d'accès à pCloud et choix des dossiers.
-- **Compte applicatif** : identifiant et hash du mot de passe de l'utilisateur unique.
-- **Album** : métadonnées globales (nom, dossier pCloud) et sa liste ordonnée de blocs (`items`).
-- **AlbumItem (bloc)** : élément de la timeline d'un album, de type `media` (référence vers un média + sa copie dans le dossier de l'album) ou `text` (contenu Markdown). Un même média peut apparaître dans plusieurs albums ; chaque appartenance est un `AlbumItem` distinct avec sa propre position — voir révision 3 en tête de document.
-- **Média indexé (cache)** : entrée du cache local pour un fichier détecté dans un dossier source (id pCloud, hash, dates, type). Porte aussi le **rejet**, désormais **global** (voir §6.4) et non plus par album.
+## 5. pCloud integration
 
-### 6.3 Schéma recommandé d'un album
+pCloud exposes an HTTP/JSON API and requires using the correct endpoint depending on where the
+user's data is located. The documentation states that OAuth 2.0 authorization code flow is the
+recommended mode when an application has a server, and that the `locationid` and `hostname`
+parameters returned during authorization are used to determine the correct API host, notably
+Europe or United States. [docs.pcloud](https://docs.pcloud.com/)
+
+### 5.1 pCloud authentication
+
+The recommended flow is as follows:
+1. The user, already logged into the application (application login), triggers the pCloud
+   connection in the UI.
+2. The backend redirects to the pCloud authorization screen.
+3. pCloud returns a `code`, a `locationid`, and a `hostname`.
+4. The backend exchanges the `code` for an `access_token` via `oauth2_token`.
+5. The backend stores this token securely server-side, never in the frontend.
+   [docs.pcloud](https://docs.pcloud.com/methods/oauth_2.0/authorize.html)
+
+### 5.2 Application authentication
+
+In addition to pCloud OAuth, access to the application itself is protected by a single-user
+login/password:
+1. The Angular frontend presents a login screen.
+2. The backend validates the credentials against a single configured account (username +
+   password hash stored as a Docker environment variable/secret).
+3. A session (secure cookie or JWT) is issued and required for all `/api/*` routes except
+   `/api/auth/login` and `/api/health`.
+This layer is on top of the network access restriction (VPN) already in place, and does not aim
+for multi-user or role-based management.
+
+### 5.3 Regional handling
+
+The backend must remember the `hostname` or derive the correct API endpoint to avoid errors
+related to data location. The pCloud documentation specifies that calls must target
+`api.pcloud.com` or `eapi.pcloud.com` depending on the user's datacenter.
+[docs.pcloud](https://docs.pcloud.com/)
+
+### 5.4 Thumbnails
+
+For images with the `thumb` flag, pCloud provides `getthumblink`, which returns a thumbnail link
+at a requested size. The dimensions must respect specific constraints, and thumbnails are
+generated on first call and then cached on pCloud's side.
+[docs.pcloud](https://docs.pcloud.com/methods/thumbnails/getthumblink.html)
+
+Architectural consequence:
+- the (paginated) editing grid requests pCloud thumbnails for each displayed page;
+- the backend may proxy these URLs to simplify security and caching;
+- the local SQLite cache may store the obtained thumbnail URL and its associated source hash, to
+  avoid redundant `getthumblink` calls;
+- the file hash must be watched to invalidate a thumbnail that has become stale, per pCloud
+  documentation. [docs.pcloud](https://docs.pcloud.com/methods/thumbnails/getthumblink.html)
+
+## 6. Data model
+
+### 6.1 Source of truth vs cache
+
+- **Source of truth**: the `album.json` files on pCloud (see §6.2).
+- **Performance cache**: local SQLite database, purely derived, rebuildable at any time. It
+  indexes:
+  - media found in source folders (pCloud id, name, hash, date, dimensions, thumbnail link);
+  - a lightweight summary of each album (id, name, slug, last-updated date) for fast display of
+    the album list without downloading each JSON file.
+
+### 6.2 Main entities
+
+- **Connection configuration**: pCloud access information and folder choices.
+- **Application account**: the single user's username and password hash.
+- **Album**: global metadata (name, pCloud folder) and its ordered list of blocks (`items`).
+- **AlbumItem (block)**: a timeline element of an album, of type `media` (reference to a media
+  item + its copy in the album folder) or `text` (Markdown content). The same media item can
+  appear in several albums; each membership is a distinct `AlbumItem` with its own position — see
+  revision 3 at the top of this document.
+- **Indexed media (cache)**: a local cache entry for a file detected in a source folder (pCloud
+  id, hash, dates, type). Also carries **rejection**, now **global** (see §6.4) and no longer per
+  album.
+
+### 6.3 Recommended album schema
+
 ```json
 {
   "id": "alb_20260703_ab12cd",
-  "slug": "vacances-bretagne-2026",
-  "name": "Vacances Bretagne 2026",
+  "slug": "brittany-vacation-2026",
+  "name": "Brittany Vacation 2026",
   "createdAt": "2026-07-03T12:00:00Z",
   "updatedAt": "2026-07-03T12:00:00Z",
   "albumFolder": {
@@ -160,34 +230,48 @@ Conséquence d'architecture :
       "id": "txt_002",
       "type": "text",
       "date": "2026-06-14T12:00:00Z",
-      "markdown": "## Arrivée\nTrès beau temps et mer calme."
+      "markdown": "## Arrival\nLovely weather, calm sea."
     }
   ]
 }
 ```
-Tous les éléments d'`items` sont par définition "ajoutés" à cet album — il n'y a plus de champ `status` par item, ni de liste `rejected` dans le JSON album (le rejet est désormais global, voir §6.4). L'ordre du tableau `items` est l'ordre d'affichage, modifiable via le mode Reorder (§11.7).
 
-### 6.4 États d'un média
-Un média indexé peut être :
-- **disponible** : visible dans la Gallery, sélectionnable pour être ajouté à un ou plusieurs albums ;
-- **rejeté** : écarté définitivement de la Gallery (indicateur global, stocké sur l'entrée de cache correspondante — pas dans un album.json). Déclenché depuis le mode sélection de la Gallery (§11.3).
+All elements of `items` are, by definition, "added" to this album — there is no more per-item
+`status` field, nor a `rejected` list in the album JSON (rejection is now global, see §6.4). The
+order of the `items` array is the display order, editable via Reorder mode (§11.7).
 
-Un média peut simultanément être "disponible" (visible en Gallery) et déjà présent dans un ou plusieurs albums — les deux ne s'excluent pas, contrairement à la révision précédente de ce document.
+### 6.4 States of a media item
 
-## 7. Règles de datation et tri chronologique
-pCloud renvoie différentes métadonnées telles que `created`, `modified`, `width`, `height`, `duration`, `rotate`, `thumb` et `category`, utiles pour classer et présenter les médias. Ces champs restent toutefois des métadonnées de stockage ou de traitement pCloud et ne remplacent pas systématiquement une date EXIF ou une date éditoriale choisie par l'utilisateur. [docs.pcloud](https://docs.pcloud.com/)
+An indexed media item can be:
+- **available**: visible in the Gallery, selectable to be added to one or more albums;
+- **rejected**: permanently excluded from the Gallery (a global indicator, stored on the
+  corresponding cache entry — not in an `album.json`). Triggered from the Gallery's selection
+  mode (§11.3).
 
-La règle de calcul de la date de tri doit être, dans l'ordre :
-1. date corrigée manuellement dans l'album ;
-2. date extraite des métadonnées natives du média par le backend si disponible ;
-3. date `created` pCloud ;
-4. date `modified` pCloud ;
-5. date d'ajout dans l'album.
+A media item can simultaneously be "available" (visible in the Gallery) and already present in
+one or more albums — the two are not mutually exclusive, unlike the previous revision of this
+document.
 
-Le flux utilisateur affiche ensuite les éléments du plus récent au plus ancien, conformément au besoin exprimé.
+## 7. Dating and chronological sorting rules
 
-## 8. Structure physique sur pCloud
-La structure cible recommandée est la suivante :
+pCloud returns various metadata such as `created`, `modified`, `width`, `height`, `duration`,
+`rotate`, `thumb`, and `category`, useful for classifying and presenting media. These fields
+remain pCloud storage/processing metadata, however, and don't systematically replace an EXIF date
+or an editorial date chosen by the user. [docs.pcloud](https://docs.pcloud.com/)
+
+The rule for computing the sort date must be, in order:
+1. date manually corrected in the album;
+2. date extracted from the media's native metadata by the backend, if available;
+3. pCloud `created` date;
+4. pCloud `modified` date;
+5. date the item was added to the album.
+
+The user flow then displays items from most recent to oldest, per the stated requirement.
+
+## 8. Physical structure on pCloud
+
+The recommended target structure is as follows:
+
 ```text
 /RPhotoAlbum
   /albums
@@ -199,186 +283,246 @@ La structure cible recommandée est la suivante :
       album.json
       ...
 ```
-Chaque album possède son propre sous-dossier afin d'isoler :
-- le JSON métier ;
-- les médias effectivement retenus, en copie brute (sans dérivés compressés dans cette version).
 
-Cette séparation évite qu'un album change si les dossiers source sont modifiés ou supprimés ultérieurement.
+Each album has its own subfolder in order to isolate:
+- the business JSON file;
+- the media items actually kept, as raw copies (no compressed derivatives in this version).
 
-## 9. Services applicatifs
-Le backend (.NET Core) peut être découpé en services clairs.
+This separation prevents an album from changing if the source folders are later modified or
+deleted.
 
-### 9.1 Service d'authentification applicative
-Responsabilités :
-- valider les identifiants du compte unique ;
-- émettre et vérifier la session (cookie sécurisé ou JWT) ;
-- protéger les routes API.
+## 9. Application services
 
-### 9.2 Service de configuration
-Responsabilités :
-- enregistrer la configuration applicative minimale ;
-- valider les identifiants de dossiers source et du dossier parent ;
-- tester les droits d'accès pCloud.
+The (.NET Core) backend can be split into clearly defined services.
 
-### 9.3 Service pCloud
-Responsabilités :
-- encapsuler les appels API (client HTTP typé C#) ;
-- gérer OAuth 2.0 ;
-- résoudre l'hôte API correct ;
-- lister dossiers, fichiers et métadonnées ;
-- récupérer miniatures et liens de téléchargement ;
-- créer dossiers et téléverser JSON.
+### 9.1 Application authentication service
 
-### 9.4 Service d'indexation / cache (SQLite via EF Core)
-Responsabilités :
-- scanner les dossiers source configurés et peupler le cache local ;
-- filtrer images et vidéos ;
-- normaliser les métadonnées ;
-- exposer une liste fusionnée triée et **paginée** ;
-- rafraîchir ou reconstruire le cache à la demande.
+Responsibilities:
+- validate the single account's credentials;
+- issue and verify the session (secure cookie or JWT);
+- protect API routes.
 
-### 9.5 Service album
-Responsabilités :
-- créer, lister et supprimer les albums ;
-- lire et écrire `album.json` (blocs `items`, ordre) ;
-- ajouter/retirer des médias en masse (flux "Add to Album", §11.4) ;
-- insérer, éditer et supprimer des blocs texte Markdown ;
-- appliquer le nouvel ordre des blocs (Reorder, §11.7) ;
-- déterminer, pour un ensemble de médias sélectionnés, dans quels albums ils sont déjà entièrement présents (pour l'état "inclus" du bottom sheet, §11.4).
+### 9.2 Configuration service
 
-### 9.6 Service d'ingestion média
-Responsabilités :
-- copier le média source vers le dossier album (copie brute, sans compression) lors d'un ajout ;
-- associer source et copie dans le JSON de l'album ;
-- supprimer la copie album (et le bloc correspondant) lors d'un retrait, sans jamais toucher au fichier source dans le dossier source.
+Responsibilities:
+- store the minimal application configuration;
+- validate source folder and parent folder identifiers;
+- test pCloud access rights.
 
-### 9.7 Service de rendu Markdown
-Responsabilités :
-- convertir le Markdown en HTML sécurisé ;
-- empêcher l'injection HTML non souhaitée ;
-- rendre les blocs texte homogènes entre consultation et édition.
+### 9.3 pCloud service
 
-## 10. API interne proposée
-L'API applicative peut exposer les routes suivantes.
+Responsibilities:
+- encapsulate API calls (typed C# HTTP client);
+- handle OAuth 2.0;
+- resolve the correct API host;
+- list folders, files, and metadata;
+- retrieve thumbnails and download links;
+- create folders and upload JSON files.
 
-| Méthode | Route | Usage |
+### 9.4 Indexing / cache service (SQLite via EF Core)
+
+Responsibilities:
+- scan configured source folders and populate the local cache;
+- filter images and videos;
+- normalize metadata;
+- expose a sorted, **paginated** merged list;
+- refresh or rebuild the cache on demand.
+
+### 9.5 Album service
+
+Responsibilities:
+- create, list, and delete albums;
+- read and write `album.json` (`items` blocks, order);
+- bulk add/remove media ("Add to Album" flow, §11.4);
+- insert, edit, and delete Markdown text blocks;
+- apply the new block order (Reorder, §11.7);
+- for a set of selected media, determine which albums already fully contain all of them (for the
+  "included" state of the bottom sheet, §11.4).
+
+### 9.6 Media ingestion service
+
+Responsibilities:
+- copy the source media into the album folder (raw copy, no compression) when added;
+- link the source and the copy in the album's JSON;
+- delete the album copy (and the corresponding block) when removed, never touching the source
+  file in the source folder.
+
+### 9.7 Markdown rendering service
+
+Responsibilities:
+- convert Markdown into sanitized HTML;
+- prevent unwanted HTML injection;
+- keep text blocks consistent between viewing and editing.
+
+## 10. Proposed internal API
+
+The application API may expose the following routes.
+
+| Method | Route | Usage |
 |---|---|---|
-| POST | `/api/auth/login` | Connexion applicative (login/mot de passe) |
-| POST | `/api/auth/logout` | Déconnexion applicative |
-| GET | `/api/health` | Vérification technique du service |
-| GET | `/api/config` | Lecture de la configuration applicative |
-| PUT | `/api/config` | Enregistrement des IDs de dossiers source et dossier parent |
-| GET | `/api/auth/pcloud/start` | Démarrage OAuth pCloud |
-| GET | `/api/auth/pcloud/callback` | Retour OAuth pCloud |
-| GET | `/api/pcloud/status` | État de la connexion pCloud (connecté/hostname) |
-| POST | `/api/pcloud/disconnect` | Déconnexion du compte pCloud |
-| GET | `/api/pcloud/folders/:folderId` | Navigation des dossiers pCloud (sélecteur de dossier) |
-| GET | `/api/media/source?page=&pageSize=` | Liste paginée des médias disponibles (non rejetés, via cache) |
-| POST | `/api/media/reindex` | Reconstruction du cache local depuis pCloud |
-| POST | `/api/media/reject` | Rejet global d'un ou plusieurs médias (masqués de la Gallery) |
-| POST | `/api/albums` | Création d'un album (nom uniquement) |
-| GET | `/api/albums` | Liste des albums (couverture, nombre d'éléments) |
-| GET | `/api/albums/:id` | Lecture détaillée d'un album (blocs ordonnés) |
-| DELETE | `/api/albums/:id` | Suppression d'un album |
-| POST | `/api/albums/membership` | Pour un ensemble de médias, indique dans quels albums ils sont déjà tous présents (bottom sheet "Add to Album") |
-| POST | `/api/albums/:id/media/add` | Ajout en masse de médias à l'album (copie brute vers le dossier album) |
-| POST | `/api/albums/:id/media/remove` | Retrait en masse de médias de l'album (supprime la copie album, pas la source) |
-| POST | `/api/albums/:id/text` | Insertion d'un bloc texte Markdown à une position donnée |
-| PUT | `/api/albums/:id/items/:itemId` | Édition d'un bloc texte |
-| DELETE | `/api/albums/:id/items/:itemId` | Retrait d'un bloc (média ou texte) de l'album |
-| PUT | `/api/albums/:id/order` | Nouvel ordre des blocs (Reorder) |
+| POST | `/api/auth/login` | Application login (login/password) |
+| POST | `/api/auth/logout` | Application logout |
+| GET | `/api/health` | Technical service health check |
+| GET | `/api/config` | Read the application configuration |
+| PUT | `/api/config` | Save source folder IDs and the parent folder |
+| GET | `/api/auth/pcloud/start` | Start pCloud OAuth |
+| GET | `/api/auth/pcloud/callback` | pCloud OAuth callback |
+| GET | `/api/pcloud/status` | pCloud connection status (connected/hostname) |
+| POST | `/api/pcloud/disconnect` | Disconnect the pCloud account |
+| GET | `/api/pcloud/folders/:folderId` | Browse pCloud folders (folder picker) |
+| GET | `/api/media/source?page=&pageSize=` | Paginated list of available media (non-rejected, via cache) |
+| POST | `/api/media/reindex` | Rebuild the local cache from pCloud |
+| POST | `/api/media/reject` | Global rejection of one or more media items (hidden from the Gallery) |
+| POST | `/api/albums` | Create an album (name only) |
+| GET | `/api/albums` | List albums (cover, item count) |
+| GET | `/api/albums/:id` | Detailed read of an album (ordered blocks) |
+| DELETE | `/api/albums/:id` | Delete an album |
+| POST | `/api/albums/membership` | For a set of media items, indicate which albums already fully contain all of them ("Add to Album" bottom sheet) |
+| POST | `/api/albums/:id/media/add` | Bulk add media to the album (raw copy to the album folder) |
+| POST | `/api/albums/:id/media/remove` | Bulk remove media from the album (deletes the album copy, not the source) |
+| POST | `/api/albums/:id/text` | Insert a Markdown text block at a given position |
+| PUT | `/api/albums/:id/items/:itemId` | Edit a text block |
+| DELETE | `/api/albums/:id/items/:itemId` | Remove a block (media or text) from the album |
+| PUT | `/api/albums/:id/order` | New block order (Reorder) |
 
-Toutes les routes `/api/*`, hormis `/api/auth/login` et `/api/health`, nécessitent une session applicative valide.
+All `/api/*` routes, except `/api/auth/login` and `/api/health`, require a valid application
+session.
 
-## 11. Parcours fonctionnels détaillés
+## 11. Detailed functional flows
 
-### 11.1 Connexion
-1. L'utilisateur ouvre l'application (via VPN).
-2. Il saisit son identifiant et son mot de passe.
-3. Le backend valide et émet une session.
-4. Le frontend redirige vers la liste des albums.
+### 11.1 Login
 
-### 11.2 Configuration initiale
-1. L'utilisateur connecte son compte pCloud (OAuth).
-2. L'utilisateur saisit les IDs des dossiers source.
-3. L'utilisateur saisit le dossier parent des albums.
-4. L'application valide l'accès aux dossiers et déclenche une première indexation (cache SQLite).
-5. La configuration est enregistrée côté backend.
+1. The user opens the application (via VPN).
+2. They enter their username and password.
+3. The backend validates and issues a session.
+4. The frontend redirects to the album list.
 
-### 11.3 Création d'un album
-1. Depuis l'écran Albums, l'utilisateur tape sur "+" : une boîte de dialogue s'ouvre avec un seul champ (nom), focus automatique.
-2. "Create" reste désactivé tant que le nom est vide ; Entrée ou "Create" crée un album vide et ferme la boîte.
-3. Un album peut aussi être créé à la volée depuis le bottom sheet "Add to Album" (§11.4), pré-rempli avec les médias en cours de sélection.
+### 11.2 Initial configuration
 
-### 11.4 Sélection, rejet et ajout à un ou plusieurs albums (Gallery)
-1. La Gallery affiche en grille tous les médias indexés non rejetés (colonnes réglables, 1 à 4).
-2. L'utilisateur active le mode sélection (bouton "Select") et coche un ou plusieurs médias.
-3. Une barre d'action apparaît en bas : nombre sélectionné, bouton "Reject" et bouton principal "Add to Album" (désactivés tant que rien n'est sélectionné).
-4. "Reject" marque les médias sélectionnés comme rejetés (globalement) et les retire immédiatement de la grille.
-5. "Add to Album" ouvre un bottom sheet listant "New album" puis chaque album existant, avec son état d'inclusion (inclus si tous les médias sélectionnés y figurent déjà). Taper sur un album bascule l'inclusion de **tous** les médias sélectionnés dans cet album : ajoute ceux qui manquent, ou retire tout si déjà tous présents (ré-appui = annulation sûre).
-6. Chaque ajout copie le fichier (copie brute) dans le dossier pCloud de l'album et insère un bloc `media` dans `album.json` ; chaque retrait supprime le bloc et la copie associée, sans toucher au fichier source.
-7. Les changements s'appliquent immédiatement, sans étape de sauvegarde séparée. "Done" ferme le sheet ; "Cancel" ou la fin du flux quitte le mode sélection et vide la sélection.
+1. The user connects their pCloud account (OAuth).
+2. The user enters the source folder IDs.
+3. The user enters the albums' parent folder.
+4. The application validates folder access and triggers a first indexing pass (SQLite cache).
+5. The configuration is saved on the backend.
 
-### 11.5 Insertion de texte dans un album
-1. Dans l'Album Detail, l'utilisateur tape sur le "+" affiché entre deux blocs (ou avant le premier).
-2. Un champ de texte italique s'ouvre en ligne, à cet emplacement exact, avec le focus.
-3. Perdre le focus avec du texte non vide crée un bloc `text` à cette position ; un champ vide ne crée rien.
-4. Taper sur un bloc texte existant (hors mode Reorder) rouvre son édition en ligne ; le vider entièrement à la perte du focus supprime le bloc.
+### 11.3 Creating an album
 
-### 11.6 Réorganisation et retrait de blocs
-1. "Reorder" bascule l'album en mode réorganisation : chaque bloc gagne une poignée de glisser-déposer, des boutons haut/bas, et un bouton de suppression (×).
-2. Le glisser-déposer déplace un bloc à la position visée ; les boutons haut/bas offrent une alternative tactile.
-3. Le bouton (×) retire un bloc (média ou texte) de l'album — la copie pCloud associée est supprimée, le média source ne l'est jamais.
-4. "Done" quitte le mode réorganisation.
+1. From the Albums screen, the user taps "+": a dialog opens with a single field (name),
+   auto-focused.
+2. "Create" stays disabled while the name is empty; Enter or "Create" creates an empty album and
+   closes the dialog.
+3. An album can also be created on the fly from the "Add to Album" bottom sheet (§11.4),
+   pre-filled with the media currently selected.
 
-## 12. Règles de synchronisation
-La cohérence du système repose sur des règles simples.
-- Un bloc `media` d'un album doit toujours posséder une copie dans le dossier de cet album.
-- Un média rejeté (indicateur global sur le cache) ne doit plus apparaître dans la Gallery, quel que soit l'album — mais reste inchangé dans les albums où il aurait déjà été ajouté avant son rejet.
-- Un média source supprimé après ajout à un album reste visible dans cet album via la copie album, si celle-ci existe toujours.
-- Un média source supprimé avant tout ajout ne doit plus apparaître dans la Gallery lors de la prochaine indexation.
-- Le cache local SQLite peut devenir incohérent avec pCloud (source déplacée/supprimée en dehors de l'application) ; une reconstruction manuelle (`POST /api/media/reindex`) doit toujours permettre de revenir à un état cohérent. Le rejet global, bien que porté par une entrée du cache, est un choix utilisateur et non une donnée reconstructible — voir §6.4.
-- La régénération de la Gallery et de l'Album Detail doit être idempotente à partir du cache local et des `album.json`.
+### 11.4 Selecting, rejecting, and adding to one or more albums (Gallery)
 
-## 13. Compression et optimisation — hors périmètre v1 (standby)
-La compression est **désactivée pour cette version** : tous les médias (images et vidéos) sont copiés bruts depuis le dossier source vers le dossier album, sans redimensionnement ni ré-encodage.
+1. The Gallery shows all non-rejected indexed media in a grid (adjustable columns, 1 to 4).
+2. The user enables selection mode ("Select" button) and checks one or more media items.
+3. An action bar appears at the bottom: selected count, a "Reject" button, and a primary "Add to
+   Album" button (disabled while nothing is selected).
+4. "Reject" marks the selected media items as rejected (globally) and immediately removes them
+   from the grid.
+5. "Add to Album" opens a bottom sheet listing "New album" then each existing album, with its
+   inclusion state (included if all selected media items are already in it). Tapping an album
+   toggles the inclusion of **all** selected media items in that album: adds the ones missing, or
+   removes all of them if already all present (tapping again = safe undo).
+6. Each addition copies the file (raw copy) into the album's pCloud folder and inserts a `media`
+   block into `album.json`; each removal deletes the block and its associated copy, without
+   touching the source file.
+7. Changes apply immediately, with no separate save step. "Done" closes the sheet; "Cancel" or
+   the end of the flow exits selection mode and clears the selection.
 
-Cette décision simplifie le pipeline d'ingestion (§9.6) et supprime le besoin d'un conteneur `worker` dédié (§16) ainsi que des dépendances de traitement média (Sharp/FFmpeg) pour cette version.
+### 11.5 Inserting text into an album
 
-Piste d'évolution future, à ne pas implémenter maintenant : réintroduire une étape de compression optionnelle (images redimensionnées, vidéos ré-encodées) si le volume de stockage ou la fluidité d'affichage mobile le justifie. Les miniatures pCloud (`getthumblink`, §5.4) suffisent pour la grille d'édition dans l'intervalle.
+1. In Album Detail, the user taps the "+" shown between two blocks (or before the first one).
+2. An italic inline text field opens at that exact position, with focus.
+3. Losing focus with non-empty text creates a `text` block at that position; an empty field
+   creates nothing.
+4. Tapping an existing text block (outside Reorder mode) reopens its inline editing; fully
+   clearing it on focus loss deletes the block.
 
-## 14. Sécurité
-Les exigences minimales sont les suivantes :
-- authentification pCloud en code flow côté serveur uniquement ;
-- authentification applicative mono-utilisateur (login/mot de passe hashé, ex. ASP.NET Core `PasswordHasher`) en complément de la restriction d'accès réseau via VPN ;
-- secret applicatif et jetons dans des variables d'environnement Docker ;
-- HTTPS recommandé même sur réseau local ;
-- journalisation sans fuite de token ni de mot de passe ;
-- validation stricte des IDs de dossiers et des entrées Markdown. [docs.pcloud](https://docs.pcloud.com/)
+### 11.6 Reordering and removing blocks
 
-Les jetons pCloud peuvent être utilisés via un paramètre dans les appels API — `auth` pour un jeton issu d'une authentification par mot de passe, `access_token` pour un jeton issu du flux OAuth 2.0 (utiliser `auth` avec un jeton OAuth échoue silencieusement avec l'erreur pCloud générique *"Log in failed"*, result 2000). Dans les deux cas, cela impose une vigilance forte sur les logs, les traces réseau et les erreurs applicatives pour ne jamais exposer ce paramètre côté client ou dans des fichiers de diagnostic. [docs.pcloud](https://docs.pcloud.com/methods/intro/authentication.html)
+1. "Reorder" switches the album into reorganization mode: each block gains a drag handle, up/down
+   buttons, and a delete button (×).
+2. Drag-and-drop moves a block to the target position; the up/down buttons offer a touch-friendly
+   alternative.
+3. The (×) button removes a block (media or text) from the album — the associated pCloud copy is
+   deleted, the source media item never is.
+4. "Done" exits reorganization mode.
 
-## 15. Observabilité et exploitation
-Le système doit fournir :
-- un endpoint `/api/health` ;
-- des logs structurés (ex. Serilog) ;
-- des logs d'indexation/cache ;
-- un niveau d'erreur clair pour les échecs pCloud ;
-- une journalisation de corrélation par requête.
+## 12. Synchronization rules
 
-Des métriques simples suffisent dans un premier temps :
-- temps de scan/indexation des dossiers source ;
-- temps d'ajout d'un média ;
-- taux d'échec d'upload vers pCloud ;
-- taille du cache local (nombre d'entrées).
+System consistency relies on simple rules.
+- A `media` block in an album must always have a copy in that album's folder.
+- A rejected media item (global indicator on the cache) must no longer appear in the Gallery,
+  regardless of album — but remains unchanged in albums it had already been added to before its
+  rejection.
+- A source media item deleted after being added to an album remains visible in that album via the
+  album copy, as long as it still exists.
+- A source media item deleted before ever being added must no longer appear in the Gallery on the
+  next indexing pass.
+- The local SQLite cache can become inconsistent with pCloud (source moved/deleted outside the
+  application); a manual rebuild (`POST /api/media/reindex`) must always restore a consistent
+  state. Global rejection, although carried by a cache entry, is a user choice and not
+  reconstructible data — see §6.4.
+- Regenerating the Gallery and Album Detail must be idempotent from the local cache and the
+  `album.json` files.
 
-## 16. Architecture Docker cible
-Une composition Docker recommandée :
-- `reverse-proxy` : Traefik ou Nginx, terminaison TLS, routage `/` vers frontend et `/api` vers backend ;
-- `frontend` : application Angular buildée statiquement et servie par Nginx ;
-- `backend` : API ASP.NET Core, hébergeant également la base SQLite du cache (volume local dédié).
+## 13. Compression and optimization — out of scope for v1 (standby)
 
-Variables d'environnement minimales :
+Compression is **disabled for this version**: all media (images and videos) is copied raw from
+the source folder to the album folder, with no resizing or re-encoding.
+
+This decision simplifies the ingestion pipeline (§9.6) and removes the need for a dedicated
+`worker` container (§16) as well as media-processing dependencies (Sharp/FFmpeg) for this version.
+
+Future direction, not to be implemented now: reintroduce an optional compression step (resized
+images, re-encoded videos) if storage volume or mobile display smoothness justifies it. pCloud
+thumbnails (`getthumblink`, §5.4) are sufficient for the editing grid in the meantime.
+
+## 14. Security
+
+The minimum requirements are as follows:
+- pCloud authentication via server-side-only code flow;
+- single-user application authentication (hashed login/password, e.g. ASP.NET Core
+  `PasswordHasher`) in addition to network access restriction via VPN;
+- application secret and tokens in Docker environment variables;
+- HTTPS recommended even on the local network;
+- logging with no token or password leakage;
+- strict validation of folder IDs and Markdown input. [docs.pcloud](https://docs.pcloud.com/)
+
+pCloud tokens can be used via a parameter in API calls — `auth` for a token from
+password-based authentication, `access_token` for a token from the OAuth 2.0 flow (using `auth`
+with an OAuth token fails silently with pCloud's generic *"Log in failed"* error, result 2000). In
+both cases, this requires strong vigilance over logs, network traces, and application errors to
+never expose this parameter client-side or in diagnostic files.
+[docs.pcloud](https://docs.pcloud.com/methods/intro/authentication.html)
+
+## 15. Observability and operations
+
+The system must provide:
+- an `/api/health` endpoint;
+- structured logs (e.g. Serilog);
+- indexing/cache logs;
+- a clear error level for pCloud failures;
+- per-request correlation logging.
+
+Simple metrics are enough for a first pass:
+- source folder scan/indexing time;
+- time to add a media item;
+- pCloud upload failure rate;
+- local cache size (number of entries).
+
+## 16. Target Docker architecture
+
+A recommended Docker composition:
+- `reverse-proxy`: Traefik or Nginx, TLS termination, routing `/` to the frontend and `/api` to
+  the backend;
+- `frontend`: statically built Angular application, served by Nginx;
+- `backend`: ASP.NET Core API, also hosting the cache's SQLite database (dedicated local volume).
+
+Minimum environment variables:
 - `PCLOUD_CLIENT_ID`
 - `PCLOUD_CLIENT_SECRET`
 - `PCLOUD_REDIRECT_URI`
@@ -388,57 +532,78 @@ Variables d'environnement minimales :
 - `APP_ADMIN_PASSWORD_HASH`
 - `LOG_LEVEL`
 
-Aucun volume persistant métier n'est requis (toute la donnée métier est externalisée dans pCloud). Un volume local est conservé pour :
-- la base SQLite du cache (purement reconstructible) ;
-- les logs techniques.
+No persistent business-data volume is required (all business data is externalized to pCloud). A
+local volume is kept for:
+- the cache's SQLite database (purely rebuildable);
+- technical logs.
 
-## 17. Stack recommandée
+## 17. Recommended stack
 
 ### Frontend
-- Angular (dernière version stable), TypeScript
-- Angular Router, Angular Forms (réactifs)
-- client HTTP (`HttpClient`) avec intercepteurs pour la session et la gestion d'erreurs
-- bibliothèque UI légère (ex. Angular Material) ou composants maison
-- rendu Markdown sécurisé (ex. `ngx-markdown` avec sanitation)
+
+- Angular (latest stable version), TypeScript
+- Angular Router, Angular Forms (reactive)
+- HTTP client (`HttpClient`) with interceptors for session handling and error management
+- lightweight UI library (e.g. Angular Material) or custom components
+- sanitized Markdown rendering (e.g. `ngx-markdown` with sanitation)
 
 ### Backend
+
 - .NET Core (ASP.NET Core Web API), C#
-- Entity Framework Core + SQLite pour le cache local
-- client HTTP typé dédié pCloud (`HttpClientFactory`)
-- ASP.NET Core Identity minimal ou implémentation maison légère pour le login mono-utilisateur
-- Serilog pour la journalisation structurée
-- xUnit pour les tests
+- Entity Framework Core + SQLite for the local cache
+- dedicated typed HTTP client for pCloud (`HttpClientFactory`)
+- minimal ASP.NET Core Identity, or a lightweight custom implementation, for single-user login
+- Serilog for structured logging
+- xUnit for tests
 
-### Déploiement
-- Docker Compose pour la première version
-- reverse proxy HTTPS
-- CI simple pour build et déploiement
+### Deployment
 
-## 18. Maquette fonctionnelle des écrans
-Écrans issus de la spécification UI/UX détaillée (révision 3, thème sombre "Nocturne") :
-- Connexion applicative (login/mot de passe)
-- Configuration pCloud (OAuth, dossier des albums, dossiers source)
-- **Gallery** — onglet principal, grille de tous les médias non rejetés, contrôle du nombre de colonnes (1-4), mode sélection avec actions "Reject" / "Add to Album"
-- **Add to Album** — bottom sheet déclenché depuis la sélection : création d'album à la volée + bascule d'inclusion par album
-- **Albums** — second onglet principal, liste de cartes (couverture, nom, nombre d'éléments), création via dialogue "+"
-- **Album Detail** — flux vertical de blocs média/texte, insertion de texte en ligne, mode Reorder (glisser-déposer + boutons haut/bas + suppression de bloc)
+- Docker Compose for the first version
+- HTTPS reverse proxy
+- simple CI for build and deployment
 
-Barre d'onglets à deux entrées (Gallery / Albums) toujours visible, sauf dans Album Detail (vue enfant plein écran) et pendant le mode sélection de la Gallery (qui remplace l'en-tête et ajoute une barre d'action basse, mais n'masque pas la barre d'onglets).
+## 18. Functional screen mockups
 
-## 19. Exigences UX
-Le design de l'application doit respecter une logique webapp responsive : une seule action primaire claire par écran, design mobile-first, tailles de texte compactes, touch targets de 44x44 px minimum, et bascule adaptée de la navigation entre mobile et desktop.
+Screens derived from the detailed UI/UX spec (revision 3, dark "Nocturne" theme):
+- Application login (login/password)
+- pCloud configuration (OAuth, albums folder, source folders)
+- **Gallery** — main tab, grid of all non-rejected media, column-count control (1-4), selection
+  mode with "Reject" / "Add to Album" actions
+- **Add to Album** — bottom sheet triggered from selection: on-the-fly album creation + per-album
+  inclusion toggle
+- **Albums** — second main tab, card list (cover, name, item count), creation via a "+" dialog
+- **Album Detail** — vertical flow of media/text blocks, inline text insertion, Reorder mode
+  (drag-and-drop + up/down buttons + block deletion)
 
-Implications concrètes, précisées par la spécification détaillée :
-- interface dense et sobre : animations subtiles et rapides (~150-180ms), pas d'effets démonstratifs ;
-- grille Gallery : tuiles carrées, 6px d'espacement, coins arrondis 8px ; vignettes vidéo avec icône lecture et durée en overlay ;
-- mode sélection : tuiles sélectionnées légèrement réduites (0.94×) avec contour et pastille de coche en accent ;
-- actions destructrices : la suppression d'un album est irréversible et demande confirmation (seul cas dans l'application) ; le retrait d'un bloc d'album est trivialement réversible (le média source n'est jamais touché) et ne demande donc pas de confirmation ;
-- séparation visuelle nette entre médias disponibles (Gallery) et rejetés (masqués).
+A two-entry tab bar (Gallery / Albums) always visible, except in Album Detail (full-screen child
+view) and during the Gallery's selection mode (which replaces the header and adds a bottom action
+bar, but does not hide the tab bar).
 
-## 20. Risques techniques
-Les principaux risques sont :
-- ambiguïté entre date pCloud et vraie date de prise de vue ;
-- latence réseau lors des scans/indexations de gros dossiers source (atténuée par le cache SQLite et la pagination, §9.4) ;
-- désynchronisation du cache local avec l'état réel de pCloud si des fichiers sont modifiés en dehors de l'application (atténuée par la reconstruction manuelle, §12) ;
-- croissance non maîtrisée du volume de stockage pCloud en l'absence de compression (§13) ;
-- erreurs d'hôte API pCloud si la localisation Europe/US est mal gérée. [docs.pcloud](https://docs.pcloud.com/)
+## 19. UX requirements
+
+The application's design must follow responsive webapp conventions: a single clear primary action
+per screen, mobile-first design, compact text sizes, touch targets of at least 44×44 px, and
+navigation that adapts appropriately between mobile and desktop.
+
+Concrete implications, as specified by the detailed spec:
+- dense, sober interface: subtle, fast animations (~150-180ms), no showy effects;
+- Gallery grid: square tiles, 6px spacing, 8px rounded corners; video thumbnails with a play icon
+  and duration overlay;
+- selection mode: selected tiles slightly shrunk (0.94×) with an accent-colored outline and check
+  badge;
+- destructive actions: deleting an album is irreversible and requires confirmation (the only case
+  in the application); removing a block from an album is trivially reversible (the source media
+  item is never touched) and therefore requires no confirmation;
+- clear visual separation between available media (Gallery) and rejected media (hidden).
+
+## 20. Technical risks
+
+The main risks are:
+- ambiguity between the pCloud date and the actual date the photo/video was taken;
+- network latency when scanning/indexing large source folders (mitigated by the SQLite cache and
+  pagination, §9.4);
+- the local cache drifting out of sync with pCloud's actual state if files are modified outside
+  the application (mitigated by manual rebuilding, §12);
+- unchecked growth of pCloud storage volume in the absence of compression (§13);
+- pCloud API host errors if Europe/US location handling is mishandled.
+  [docs.pcloud](https://docs.pcloud.com/)

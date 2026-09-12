@@ -4,31 +4,31 @@ import { AlbumItem } from '../../core/albums/album.service';
 import { PrecomputedVirtualScrollStrategy } from '../../shared/virtual-scroll/precomputed-virtual-scroll-strategy';
 import { AlbumRow } from './album-layout';
 
-// Estimation utilisée pour un bloc texte tant que sa hauteur réelle n'a pas encore été mesurée
-// (issue #30) — un contenu Markdown n'a pas de hauteur connaissable à l'avance, contrairement à
-// une image (ratio EXIF). AlbumDetailComponent mesure la hauteur réelle une fois chaque bloc
-// rendu (MeasureHeightDirective, ResizeObserver) et corrige l'entrée correspondante — cette
-// estimation ne sert donc que pour le tout premier rendu d'une rangée texte donnée, avant
-// correction (léger réajustement visuel possible à ce moment-là, imperceptible en défilement
-// normal grâce à la zone tampon de la virtualisation qui rend les rangées en avance).
+// Estimate used for a text block as long as its actual height hasn't been measured yet
+// (issue #30) — Markdown content has no height knowable in advance, unlike
+// an image (EXIF ratio). AlbumDetailComponent measures the actual height once each block
+// is rendered (MeasureHeightDirective, ResizeObserver) and corrects the corresponding entry — this
+// estimate therefore only serves the very first render of a given text row, before
+// correction (a slight visual readjustment possible at that point, imperceptible during normal
+// scrolling thanks to the virtualization buffer zone that renders rows ahead of time).
 export const TEXT_BLOCK_HEIGHT_ESTIMATE_PX = 160;
 
-// Ratio largeur/hauteur utilisé tant que les dimensions réelles de l'image ne sont pas encore
-// connues (média pas encore traité par le job EXIF, voir issue #20/MediaExifService) — purement
-// une estimation de mise en page ; se corrige de lui-même dès que l'EXIF est disponible (nouveau
-// chargement de l'album). 4:3 est un compromis neutre, ni portrait ni très large.
+// Width/height ratio used as long as the image's actual dimensions aren't yet
+// known (media not yet processed by the EXIF job, see issue #20/MediaExifService) — purely
+// a layout estimate; corrects itself as soon as EXIF is available (fresh
+// album load). 4:3 is a neutral compromise, neither portrait nor very wide.
 const FALLBACK_ASPECT_RATIO = 4 / 3;
 
 const ROW_GAP_PX = 8; // .row { gap: 0.5rem }
 
-// Hauteur d'une rangée en vue virtualisée (lecture seule, pas de contrôles d'édition en
-// superposition) :
-// - Bloc texte : hauteur réelle si déjà mesurée (issue #30, voir measuredTextHeight), sinon
-//   TEXT_BLOCK_HEIGHT_ESTIMATE_PX en attendant le premier rendu.
-// - Rangée groupée (2-3 médias) : aspect-ratio 1:1 forcé (voir .block.grouped .media-block en
-//   CSS) — la hauteur ne dépend donc que de la largeur de colonne, jamais du contenu.
-// - Média seul (RowSpan=1) : garde son ratio naturel (comportement existant) — utilise les
-//   dimensions réelles (Width/Height) si connues, sinon l'estimation FALLBACK_ASPECT_RATIO.
+// Height of a row in the virtualized view (read-only, no overlaid editing
+// controls):
+// - Text block: actual height if already measured (issue #30, see measuredTextHeight), otherwise
+//   TEXT_BLOCK_HEIGHT_ESTIMATE_PX while waiting for the first render.
+// - Grouped row (2-3 media): forced 1:1 aspect-ratio (see .block.grouped .media-block in
+//   CSS) — the height therefore only depends on column width, never on content.
+// - Single media (RowSpan=1): keeps its natural ratio (existing behavior) — uses the
+//   actual dimensions (Width/Height) if known, otherwise the FALLBACK_ASPECT_RATIO estimate.
 export function computeRowHeight(row: AlbumRow, containerWidth: number, measuredTextHeight?: number): number {
   const first = row.items[0];
   if (first.type === 'text') {
@@ -57,14 +57,15 @@ function aspectRatioOf(item: AlbumItem): number {
   providers: [{ provide: VIRTUAL_SCROLL_STRATEGY, useExisting: AlbumVirtualScrollDirective }],
 })
 export class AlbumVirtualScrollDirective extends PrecomputedVirtualScrollStrategy implements OnDestroy {
-  // CDK attache cette stratégie à son viewport lors de la propre initialisation du composant
-  // <cdk-virtual-scroll-viewport> — un ordre pas garanti par rapport à l'effect() du composant
-  // parent qui pousse les hauteurs (voir AlbumDetailComponent) : constaté en pratique, au retour
-  // en vue de base depuis le mode Edit (viewport recréé), l'effect pouvait se déclencher AVANT
-  // cet attach(), poussant des hauteurs dans le vide (viewport encore interne à null côté
-  // stratégie) sans jamais les réappliquer ensuite — écran vide malgré des données correctes.
-  // Ce signal permet au composant de repousser les hauteurs à coup sûr JUSTE APRÈS l'attache
-  // réelle, plutôt que de dépendre d'un ordre d'exécution implicite.
+  // CDK attaches this strategy to its viewport during the <cdk-virtual-scroll-viewport>
+  // component's own initialization — an order not guaranteed relative to the parent
+  // component's effect() that pushes the heights (see AlbumDetailComponent): observed in
+  // practice, when returning to the base view from Edit mode (viewport recreated), the effect
+  // could fire BEFORE this attach(), pushing heights into the void (viewport still
+  // internally null on the strategy side) without ever reapplying them afterward — blank
+  // screen despite correct data.
+  // This signal lets the component reliably push the heights JUST AFTER the actual
+  // attach, rather than depending on an implicit execution order.
   @Output() readonly attached = new EventEmitter<void>();
 
   override attach(viewport: CdkVirtualScrollViewport): void {

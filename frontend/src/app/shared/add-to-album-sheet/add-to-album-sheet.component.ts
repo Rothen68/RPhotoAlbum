@@ -19,10 +19,10 @@ export class AddToAlbumSheetComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly creatingNew = signal(false);
   protected readonly busyAlbumId = signal<string | null>(null);
-  // Issue #13 : la création d'un album avec beaucoup de médias sélectionnés peut prendre du
-  // temps côté serveur (copie pCloud de chaque média) — sans cet indicateur, rien ne distingue
-  // visuellement une requête en cours d'une page figée, et le bouton restait cliquable
-  // (risque de double soumission créant deux albums).
+  // Issue #13: creating an album with many selected media items can take a while
+  // server-side (pCloud copy of each media item) — without this indicator, nothing
+  // visually distinguishes an in-progress request from a frozen page, and the button
+  // remained clickable (risk of double submission creating two albums).
   protected readonly creatingAlbum = signal(false);
   protected newAlbumName = '';
 

@@ -1,9 +1,9 @@
 namespace RPhotoAlbum.Api.Models;
 
-// Résumé léger d'un album dans le cache local, pour afficher la liste d'albums
-// sans télécharger chaque album.json depuis pCloud — voir ARCHITECTURE.md §6.1.
-// N'est pas la source de vérité (album.json sur pCloud l'est) mais évite un aller-retour
-// pCloud par album affiché ; reconstruit à chaque écriture d'album (AlbumService.PersistAsync).
+// Lightweight summary of an album in the local cache, to display the album list
+// without downloading each album.json from pCloud — see ARCHITECTURE.md §6.1.
+// Not the source of truth (album.json on pCloud is) but avoids a pCloud round trip
+// per displayed album; rebuilt on every album write (AlbumService.PersistAsync).
 public class AlbumSummary
 {
     public required string Id { get; set; }

@@ -10,8 +10,8 @@ using RPhotoAlbum.Api.Tests.Fakes;
 
 namespace RPhotoAlbum.Api.Tests.Albums;
 
-// Couvre AlbumService.ListGroupedAsync/SaveStructureAsync (issue #6) — même approche que
-// MediaIndexServiceTests : SQLite en mémoire + FakePCloudClient, pas de vrai réseau pCloud.
+// Covers AlbumService.ListGroupedAsync/SaveStructureAsync (issue #6) — same approach as
+// MediaIndexServiceTests: in-memory SQLite + FakePCloudClient, no real pCloud network.
 public sealed class AlbumServiceStructureTests : IDisposable
 {
     private readonly SqliteConnection _connection;
@@ -162,7 +162,7 @@ public sealed class AlbumServiceStructureTests : IDisposable
         await AddAlbumAsync("alb_2", "Anniversaire");
         var service = CreateService();
 
-        // alb_2 existe mais n'apparaît nulle part dans le payload envoyé.
+        // alb_2 exists but does not appear anywhere in the payload sent.
         var result = await service.SaveStructureAsync([new AlbumSectionInput(null, "A", ["alb_1"])], []);
 
         Assert.Equal(["alb_1"], result.Sections[0].Albums.Select(a => a.Id));

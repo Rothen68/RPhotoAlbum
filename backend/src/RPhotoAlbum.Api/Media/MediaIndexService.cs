@@ -6,9 +6,9 @@ using RPhotoAlbum.Api.PCloud;
 
 namespace RPhotoAlbum.Api.Media;
 
-// NewlyIndexed (nouveaux médias jamais vus, par opposition aux médias déjà connus et simplement
-// reconfirmés à ce passage) — sert de déclencheur à l'extraction EXIF/géo automatique après
-// indexation (issue #11) : inutile de relancer ces jobs si l'indexation n'a rien trouvé de neuf.
+// NewlyIndexed (new media never seen before, as opposed to media already known and simply
+// reconfirmed on this pass) — used as the trigger for automatic EXIF/geo extraction after
+// indexing (issue #11): no point relaunching these jobs if indexing found nothing new.
 public record MediaIndexResult(int Indexed, int NewlyIndexed, IReadOnlyList<string> FailedFolders)
 {
     public bool IsAlreadyRunning { get; private init; }
@@ -16,21 +16,21 @@ public record MediaIndexResult(int Indexed, int NewlyIndexed, IReadOnlyList<stri
     public static MediaIndexResult AlreadyRunning { get; } = new(0, 0, []) { IsAlreadyRunning = true };
 }
 
-// Scanne les dossiers source configurés et met à jour le cache local — voir ARCHITECTURE.md §9.4.
+// Scans the configured source folders and updates the local cache — see ARCHITECTURE.md §9.4.
 public class MediaIndexService(
     CacheDbContext db,
     IPCloudClient client,
     PCloudTokenStore tokenStore,
     ILogger<MediaIndexService> logger)
 {
-    // Statique : une seule indexation à la fois, tous appelants confondus (job périodique + déclenchement manuel).
+    // Static: only one indexing run at a time, across all callers (periodic job + manual trigger).
     private static readonly SemaphoreSlim Lock = new(1, 1);
 
-    // autoOnly : réservé au passage périodique automatique (MediaIndexBackgroundService) — ne
-    // parcourt que les dossiers marqués SourceFolder.AutoIndex (issue #28), pour épargner pCloud
-    // et le serveur sur les gros dossiers d'archive qui ne changent plus. "Réindexer maintenant"
-    // (déclenchement manuel, autoOnly=false par défaut) continue de tout vérifier, y compris les
-    // dossiers non auto-indexés — c'est un geste explicite de l'utilisateur, pas un coût récurrent.
+    // autoOnly: reserved for the automatic periodic pass (MediaIndexBackgroundService) — only
+    // walks the folders marked SourceFolder.AutoIndex (issue #28), to spare pCloud
+    // and the server on large archive folders that no longer change. "Reindex now"
+    // (manual trigger, autoOnly=false by default) still checks everything, including
+    // non-auto-indexed folders — it's an explicit user action, not a recurring cost.
     public async Task<MediaIndexResult> ReindexAsync(CancellationToken ct = default, bool autoOnly = false)
     {
         if (!await Lock.WaitAsync(0, ct))
@@ -55,10 +55,10 @@ public class MediaIndexService(
 
             var seenFileIds = new HashSet<long>();
             var failedFolders = new List<string>();
-            // Chargé une fois et tenu à jour en mémoire (pas re-requêté par fichier) : évite
-            // d'ajouter deux fois le même PCloudFileId (index unique) quand des dossiers source
-            // se chevauchent (un dossier imbriqué dans un autre, ou un fichier partagé entre deux),
-            // puisque SaveChangesAsync n'est appelé qu'une fois à la toute fin de l'indexation.
+            // Loaded once and kept up to date in memory (not re-queried per file): avoids
+            // adding the same PCloudFileId twice (unique index) when source folders
+            // overlap (a folder nested inside another, or a file shared between two),
+            // since SaveChangesAsync is only called once at the very end of indexing.
             var existingByFileId = await db.MediaIndex.ToDictionaryAsync(m => m.PCloudFileId, ct);
 
             foreach (var folder in sourceFolders)
@@ -94,19 +94,19 @@ public class MediaIndexService(
                 }
             }
 
-            // Purge des entrées disparues des dossiers source — sautée si un dossier n'a pas pu être lu,
-            // pour ne pas confondre une panne pCloud transitoire avec une suppression réelle.
-            // Filtrage en mémoire sur existingByFileId (déjà chargé intégralement) plutôt qu'une
-            // clause SQL "NOT IN" sur seenFileIds : avec un grand dossier source, cette liste peut
-            // dépasser la limite de paramètres de SQLite ("too many SQL variables").
+            // Purge of entries that disappeared from the source folders — skipped if a folder
+            // couldn't be read, so as not to confuse a transient pCloud outage with an actual
+            // deletion. Filtered in memory over existingByFileId (already loaded in full) rather
+            // than a SQL "NOT IN" clause on seenFileIds: with a large source folder, that list
+            // could exceed SQLite's parameter limit ("too many SQL variables").
             //
-            // IMPORTANT (issue #28) : ne considère "disparue" qu'une entrée dont le chemin
-            // appartient à un dossier EFFECTIVEMENT revu lors de CE passage (sourceFolders, pas
-            // allSourceFolders). Sans ce filtrage, un passage automatique limité aux dossiers
-            // actifs (autoOnly=true) purgerait à tort tout le contenu des dossiers d'archive
-            // ignorés ce cycle-là, puisqu'ils n'apparaîtraient jamais dans seenFileIds. Un
-            // "Réindexer maintenant" complet (autoOnly=false) revoit tous les dossiers, donc ce
-            // filtrage ne change rien à son comportement actuel.
+            // IMPORTANT (issue #28): only considers an entry "disappeared" if its path
+            // belongs to a folder ACTUALLY revisited during THIS pass (sourceFolders, not
+            // allSourceFolders). Without this filtering, an automatic pass limited to
+            // active folders (autoOnly=true) would wrongly purge the entire content of the
+            // archive folders skipped that cycle, since they would never appear in seenFileIds.
+            // A full "Reindex now" (autoOnly=false) revisits all folders, so this
+            // filtering changes nothing about its current behavior.
             if (failedFolders.Count == 0)
             {
                 var processedPathPrefixes = sourceFolders.Select(f => f.Path.TrimEnd('/') + "/").ToList();
@@ -116,8 +116,8 @@ public class MediaIndexService(
                 db.MediaIndex.RemoveRange(stale);
             }
 
-            // Compté AVANT SaveChangesAsync : ChangeTracker distingue encore les entités "Added"
-            // (nouveau média, jamais vu) des "Modified" (média déjà connu, juste reconfirmé).
+            // Counted BEFORE SaveChangesAsync: ChangeTracker still distinguishes "Added" entities
+            // (new media, never seen) from "Modified" ones (media already known, just reconfirmed).
             var newlyIndexed = db.ChangeTracker.Entries<MediaIndexEntry>().Count(e => e.State == EntityState.Added);
 
             await db.SaveChangesAsync(ct);

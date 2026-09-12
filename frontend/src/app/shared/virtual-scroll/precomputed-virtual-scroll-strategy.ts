@@ -2,19 +2,19 @@ import { CdkVirtualScrollViewport, VirtualScrollStrategy } from '@angular/cdk/sc
 import { Observable, Subject } from 'rxjs';
 import { distinctUntilChanged } from 'rxjs/operators';
 
-// Stratégie de virtualisation générique à hauteurs de rangée précalculées à l'avance (connues
-// par le composant appelant via updateRowHeights, PAS mesurées après rendu) — extraite de
-// l'implémentation Gallery (V2 étape 4) pour être réutilisée telle quelle par Album Detail
-// (issue #20), qui a le même besoin (rangées de hauteur variable connue par avance) avec un
-// calcul de hauteur différent (grille photo vs bloc texte plutôt que en-tête de date vs photos).
-// Inspirée de CdkFixedSizeVirtualScroll, généralisée aux tailles variables.
+// Generic virtualization strategy with row heights precomputed in advance (known by the
+// calling component via updateRowHeights, NOT measured after render) — extracted from the
+// Gallery implementation (V2 step 4) to be reused as-is by Album Detail (issue #20), which has
+// the same need (rows of variable height known in advance) with a different height calculation
+// (photo grid vs. text block rather than date header vs. photos).
+// Inspired by CdkFixedSizeVirtualScroll, generalized to variable sizes.
 export class PrecomputedVirtualScrollStrategy implements VirtualScrollStrategy {
   private readonly scrolledIndexChangeSubject = new Subject<number>();
   readonly scrolledIndexChange: Observable<number> = this.scrolledIndexChangeSubject.pipe(distinctUntilChanged());
 
   private viewport: CdkVirtualScrollViewport | null = null;
-  // cumulativeOffsets[i] = offset en px où commence la rangée i ; longueur = rowCount + 1
-  // (le dernier élément est la taille totale du contenu).
+  // cumulativeOffsets[i] = offset in px where row i starts; length = rowCount + 1
+  // (the last element is the total content size).
   private cumulativeOffsets: number[] = [0];
   private static readonly BUFFER_PX = 400;
 
@@ -48,19 +48,19 @@ export class PrecomputedVirtualScrollStrategy implements VirtualScrollStrategy {
   }
 
   onContentRendered(): void {
-    // Rien à faire : les hauteurs sont connues à l'avance, pas de mesure post-rendu.
+    // Nothing to do: heights are known in advance, no post-render measurement.
   }
 
   onRenderedOffsetChanged(): void {
-    // Rien à faire : géré par setRenderedContentOffset dans updateRenderedRange.
+    // Nothing to do: handled by setRenderedContentOffset in updateRenderedRange.
   }
 
   scrollToIndex(index: number, behavior: ScrollBehavior): void {
     const clamped = Math.max(0, Math.min(index, this.cumulativeOffsets.length - 1));
     this.viewport?.scrollToOffset(this.cumulativeOffsets[clamped], behavior);
-    // Ne dépend pas du round-trip asynchrone de l'événement 'scroll' natif : mise à jour
-    // immédiate de la plage rendue, pour un saut instantané plutôt qu'un écran vide en
-    // attendant que le navigateur émette l'événement.
+    // Doesn't depend on the asynchronous round trip of the native 'scroll' event: updates the
+    // rendered range immediately, for an instant jump rather than a blank screen while waiting
+    // for the browser to fire the event.
     this.updateRenderedRange();
   }
 
@@ -94,7 +94,7 @@ export class PrecomputedVirtualScrollStrategy implements VirtualScrollStrategy {
     this.scrolledIndexChangeSubject.next(this.findRowAtOffset(scrollOffset));
   }
 
-  // Recherche binaire : dernière rangée dont l'offset de départ est <= offset.
+  // Binary search: last row whose starting offset is <= offset.
   private findRowAtOffset(offset: number): number {
     const rowCount = this.cumulativeOffsets.length - 1;
     let lo = 0;

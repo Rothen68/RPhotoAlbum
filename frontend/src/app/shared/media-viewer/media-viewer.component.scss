@@ -85,10 +85,11 @@ img {
   border-radius: 4px;
 }
 
-// Ancrée en bas du VIEWPORT (pas sous le média lui-même, qui varie en taille/ratio dans un
-// backdrop flex centré) — même langage visuel que les autres chromes (close/download/nav),
-// tous positionnés en overlay absolu plutôt que dans le flux du document. Ne recouvre pas les
-// boutons précédent/suivant (centrés verticalement, pas ancrés en bas) — voir issue #22.
+// Anchored to the bottom of the VIEWPORT (not below the media itself, which varies in
+// size/ratio within a centered flex backdrop) — same visual language as the other chrome
+// elements (close/download/nav), all positioned as an absolute overlay rather than in the
+// document flow. Does not cover the previous/next buttons (vertically centered, not
+// bottom-anchored) — see issue #22.
 .info-zone {
   position: absolute;
   left: 12px;

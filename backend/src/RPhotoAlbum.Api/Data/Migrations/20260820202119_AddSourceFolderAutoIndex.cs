@@ -10,9 +10,9 @@ namespace RPhotoAlbum.Api.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // defaultValue: true (pas le défaut CLR de bool) — sinon les dossiers sources déjà
-            // configurés basculeraient silencieusement en "non auto-indexé" à cette migration,
-            // désactivant leur réindexation périodique sans action explicite de l'utilisateur.
+            // defaultValue: true (not bool's CLR default) — otherwise already-configured
+            // source folders would silently flip to "not auto-indexed" at this migration,
+            // disabling their periodic reindexing without any explicit user action.
             migrationBuilder.AddColumn<bool>(
                 name: "AutoIndex",
                 table: "SourceFolders",

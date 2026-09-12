@@ -2,11 +2,11 @@ using RPhotoAlbum.Api.Albums;
 
 namespace RPhotoAlbum.Api.Tests.Albums;
 
-// Couvre AlbumService.NormalizeRowSpans — la validation appliquée à CHAQUE écriture de
-// album.json (voir le commentaire sur la méthode). Zone volontairement priorisée pour les
-// premiers tests du projet (issue GitHub #17) : logique pure, sans I/O, mais dont une régression
-// silencieuse corromprait durablement album.json — pas un cache reconstructible, la source de
-// vérité réelle vit sur pCloud.
+// Covers AlbumService.NormalizeRowSpans — the validation applied on EVERY write of
+// album.json (see the comment on the method). Area deliberately prioritized for the
+// project's first tests (GitHub issue #17): pure logic, no I/O, but where a silent
+// regression would durably corrupt album.json — not a rebuildable cache, the real
+// source of truth lives on pCloud.
 public class AlbumServiceNormalizeRowSpansTests
 {
     [Fact]
@@ -52,10 +52,10 @@ public class AlbumServiceNormalizeRowSpansTests
     [Fact]
     public void ThreeConsecutiveMedia_AnchorRowSpan3_FollowersResetTo1()
     {
-        // Les items "suiveurs" d'un groupe peuvent porter une valeur RowSpan obsolète/non
-        // significative (voir commentaire sur AlbumItemDocument.RowSpan : seule l'ancre compte) —
-        // NormalizeRowSpans doit les remettre explicitement à 1 plutôt que de laisser une valeur
-        // incohérente traîner dans album.json.
+        // The "follower" items of a group may carry a stale/insignificant RowSpan value
+        // (see comment on AlbumItemDocument.RowSpan: only the anchor matters) —
+        // NormalizeRowSpans must explicitly reset them to 1 rather than leaving an
+        // inconsistent value lingering in album.json.
         var doc = Doc(Media("a", rowSpan: 3), Media("b", rowSpan: 3), Media("c", rowSpan: 3));
 
         AlbumService.NormalizeRowSpans(doc);
@@ -72,16 +72,16 @@ public class AlbumServiceNormalizeRowSpansTests
         AlbumService.NormalizeRowSpans(doc);
 
         Assert.Equal(3, doc.Items[0].RowSpan);
-        // Le 4e média n'appartient pas au groupe de l'ancre — sa propre valeur par défaut (1)
-        // n'est pas touchée par CE groupe (il devient l'ancre du groupe suivant).
+        // The 4th media item does not belong to the anchor's group — its own default value (1)
+        // is not affected by THIS group (it becomes the anchor of the next group).
         Assert.Equal(1, doc.Items[3].RowSpan);
     }
 
     [Fact]
     public void TwoConsecutiveMedia_AnchorRowSpan3_ClampedToAvailable2()
     {
-        // Le plafond n'est pas seulement 3 : il ne peut jamais dépasser le nombre réel d'items
-        // média consécutifs disponibles derrière l'ancre, même si RowSpan stocké est <= 3.
+        // The cap isn't just 3: it can never exceed the actual number of consecutive media
+        // items available after the anchor, even if the stored RowSpan is <= 3.
         var doc = Doc(Media("a", rowSpan: 3), Media("b"));
 
         AlbumService.NormalizeRowSpans(doc);
@@ -92,9 +92,9 @@ public class AlbumServiceNormalizeRowSpansTests
     [Fact]
     public void MediaFollowedByText_AnchorRowSpanReducedTo1()
     {
-        // Cas cité explicitement dans le commentaire de la méthode : un bloc texte inséré au
-        // milieu d'une rangée groupée casse la contiguïté — l'ancre doit retomber à 1, pas
-        // garder une valeur qui engloberait à tort le bloc texte suivant.
+        // Case explicitly mentioned in the method's comment: a text block inserted in the
+        // middle of a grouped row breaks contiguity — the anchor must fall back to 1, not
+        // keep a value that would wrongly encompass the following text block.
         var doc = Doc(Media("a", rowSpan: 3), Text("t"), Media("b"), Media("c"));
 
         AlbumService.NormalizeRowSpans(doc);
@@ -115,8 +115,8 @@ public class AlbumServiceNormalizeRowSpansTests
     [Fact]
     public void MultipleIndependentGroups_EachNormalizedSeparately()
     {
-        // Groupe de 2, puis un média seul, puis un groupe de 3 — chaque groupe doit être évalué
-        // indépendamment (l'algorithme avance de `span` en `span`, pas item par item).
+        // Group of 2, then a single media item, then a group of 3 — each group must be
+        // evaluated independently (the algorithm advances by `span` at a time, not item by item).
         var doc = Doc(
             Media("a", rowSpan: 2), Media("b"),
             Media("c", rowSpan: 1),
@@ -132,12 +132,12 @@ public class AlbumServiceNormalizeRowSpansTests
     [Fact]
     public void AnchorRemoved_NextItemBecomesNewAnchor_StaysAt1()
     {
-        // Simule le résultat d'une suppression : l'ancre d'un ancien groupe de 3 a disparu de la
-        // liste, l'item qui la suivait (RowSpan=1 par défaut, jamais significatif tant qu'il
-        // n'était pas ancre) devient la nouvelle ancre. NormalizeRowSpans ne fait QUE valider/
-        // réduire une valeur existante, jamais l'agrandir — il reste donc à 1 (pas d'absorption
-        // automatique de l'espace laissé par l'ancre supprimée ; regrouper est une action
-        // explicite de l'utilisateur, pas une correction de cohérence).
+        // Simulates the result of a deletion: the anchor of a former group of 3 has disappeared
+        // from the list, the item that followed it (RowSpan=1 by default, never significant as
+        // long as it wasn't an anchor) becomes the new anchor. NormalizeRowSpans only validates/
+        // reduces an existing value, never enlarges it — so it stays at 1 (no automatic
+        // absorption of the space left by the deleted anchor; regrouping is an explicit user
+        // action, not a consistency fix).
         var doc = Doc(Media("b", rowSpan: 1), Media("c", rowSpan: 1));
 
         AlbumService.NormalizeRowSpans(doc);

@@ -44,9 +44,9 @@ export class PCloudFolderPickerComponent implements OnInit {
     return this.history.length > 0;
   }
 
-  // pCloud ne renseigne le champ `path` de la réponse que pour la racine ; pour les
-  // sous-dossiers (navigation par folderid), le chemin est donc reconstruit ici plutôt
-  // que d'être pris tel quel dans la réponse API.
+  // pCloud only populates the `path` field of the response for the root; for
+  // subfolders (navigation by folderid), the path is therefore reconstructed here rather
+  // than taken as-is from the API response.
   private browse(folderId: number, knownPath: string): void {
     this.loading.set(true);
     this.error.set(null);

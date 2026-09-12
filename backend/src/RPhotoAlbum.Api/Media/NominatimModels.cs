@@ -8,10 +8,10 @@ public class NominatimReverseResponse
     public NominatimAddress? Address { get; set; }
 }
 
-// Nominatim ne renseigne que les niveaux administratifs pertinents pour l'endroit trouvé —
-// "city" n'existe pas pour un lieu rural, d'où les alternatives town/village (voir doc API
-// Reverse). La correspondance avec les découpages français (région/département) est
-// approximative : dépend de la qualité des données OSM de la zone concernée.
+// Nominatim only fills in the administrative levels relevant to the place found —
+// "city" doesn't exist for a rural location, hence the town/village fallbacks (see the Reverse
+// API docs). The mapping to French administrative divisions (region/county) is
+// approximate: it depends on the quality of the OSM data for the area concerned.
 public class NominatimAddress
 {
     [JsonPropertyName("country")]

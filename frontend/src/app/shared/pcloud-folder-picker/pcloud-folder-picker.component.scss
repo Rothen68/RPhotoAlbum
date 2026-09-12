@@ -45,9 +45,9 @@
     font-size: 0.875rem;
   }
 
-  // Carte volontairement en thème clair (contrairement au reste de l'app) — mais sans `color`
-  // explicite, ces boutons héritaient du texte quasi blanc du thème sombre global
-  // (`button { color: inherit }`), illisible sur ce fond blanc : voir issue #5.
+  // Card deliberately in light theme (unlike the rest of the app) — but without an
+  // explicit `color`, these buttons inherited the near-white text from the global dark
+  // theme (`button { color: inherit }`), unreadable on this white background: see issue #5.
   button {
     width: 100%;
     min-height: 44px;

@@ -4,8 +4,8 @@ using RPhotoAlbum.Api.Tests.Fakes;
 
 namespace RPhotoAlbum.Api.Tests.Media;
 
-// Couvre MediaThumbnailCacheService (issue #26) — répertoire temporaire réel (pas de provider
-// in-memory pour du vrai I/O disque), nettoyé via IDisposable.
+// Covers MediaThumbnailCacheService (issue #26) — real temporary directory (no in-memory
+// provider, for actual disk I/O), cleaned up via IDisposable.
 public sealed class MediaThumbnailCacheServiceTests : IDisposable
 {
     private readonly string _tempDir;

@@ -1,7 +1,7 @@
 <div class="md-editor">
-  <!-- preventDefault sur mousedown : sans ça, cliquer un bouton de la barre d'outils fait
-       perdre le focus au textarea AVANT le click, ce qui déclenche (blur) côté parent et
-       ferme l'éditeur avant que l'action (gras, lien, etc.) ait pu s'appliquer. -->
+  <!-- preventDefault on mousedown: without this, clicking a toolbar button makes the
+       textarea lose focus BEFORE the click, which triggers (blur) on the parent side and
+       closes the editor before the action (bold, link, etc.) could be applied. -->
   <div class="md-toolbar" (mousedown)="$event.preventDefault()">
     <button type="button" class="btn-icon" (click)="wrap('**')" aria-label="Gras" title="Gras">
       <span class="icon material-symbols-outlined">format_bold</span>

@@ -1,6 +1,6 @@
 namespace RPhotoAlbum.Api.Models;
 
-// Dossier pCloud surveillé pour la recherche de médias — voir ARCHITECTURE.md §6.2, §9.2.
+// pCloud folder watched for media discovery — see ARCHITECTURE.md §6.2, §9.2.
 public class SourceFolder
 {
     public int Id { get; set; }
@@ -8,11 +8,11 @@ public class SourceFolder
     public required string Label { get; set; }
     public required string Path { get; set; }
 
-    // Inclus dans la réindexation périodique automatique (MediaIndexBackgroundService) ou
-    // seulement lors d'un "Réindexer maintenant" manuel — utile pour un dossier d'archive figé
-    // (n'évolue jamais) par opposition à un dossier actif (upload automatique du téléphone,
-    // classement en cours), pour réduire la charge périodique sur pCloud et le serveur sur les
-    // gros dossiers qui ne bougent plus — voir issue GitHub #28. Vrai par défaut : préserve le
-    // comportement actuel pour les dossiers déjà configurés.
+    // Included in the automatic periodic reindexing (MediaIndexBackgroundService) or
+    // only on a manual "Reindex now" — useful for a frozen archive folder
+    // (never changes) as opposed to an active folder (automatic upload from the phone,
+    // ongoing sorting), to reduce the periodic load on pCloud and the server on
+    // large folders that no longer change — see GitHub issue #28. True by default: preserves
+    // current behavior for already-configured folders.
     public bool AutoIndex { get; set; } = true;
 }

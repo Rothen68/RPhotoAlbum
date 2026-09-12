@@ -15,7 +15,7 @@ public class PCloudController(
 {
     private const string StateCookieName = "pcloud_oauth_state";
 
-    // Démarre le flux OAuth 2.0 (code flow) — voir ARCHITECTURE.md §5.1.
+    // Starts the OAuth 2.0 flow (code flow) — see ARCHITECTURE.md §5.1.
     [HttpGet("api/auth/pcloud/start")]
     public IActionResult Start()
     {
@@ -92,9 +92,9 @@ public class PCloudController(
         return Ok();
     }
 
-    // Quota du compte pCloud (pas le cache miniatures local, voir MediaController.CacheStatus) —
-    // alerte de stockage en Configuration, la copie brute des médias (compression désactivée,
-    // ARCHITECTURE.md §13/§20) n'a aucune limite intégrée à l'application.
+    // pCloud account quota (not the local thumbnail cache, see MediaController.CacheStatus) —
+    // storage alert in Configuration; raw media copying (compression disabled,
+    // ARCHITECTURE.md §13/§20) has no limit built into the application.
     [HttpGet("api/pcloud/quota")]
     public async Task<IActionResult> Quota()
     {
@@ -110,7 +110,7 @@ public class PCloudController(
         }
     }
 
-    // Navigation de dossiers pour le sélecteur (dossier des albums / dossiers sources) — voir ARCHITECTURE.md §11.1.
+    // Folder navigation for the picker (albums folder / source folders) — see ARCHITECTURE.md §11.1.
     [HttpGet("api/pcloud/folders/{folderId:long}")]
     public async Task<IActionResult> Folders(long folderId)
     {

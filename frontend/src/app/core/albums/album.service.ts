@@ -24,14 +24,14 @@ export interface AlbumItem {
   albumCopy: AlbumMediaRef | null;
   markdown: string | null;
   rowSpan: number;
-  // Dimensions de l'image d'origine (issues de l'extraction EXIF) — absentes si le média n'a
-  // pas encore été traité, ou pour les vidéos. Utilisées pour précalculer la hauteur d'une
-  // rangée non groupée dans la virtualisation (issue #20).
+  // Original image dimensions (from EXIF extraction) — absent if the media hasn't been
+  // processed yet, or for videos. Used to precompute the height of an ungrouped row in the
+  // virtualization (issue #20).
   width: number | null;
   height: number | null;
-  // Date de prise de vue et localisation (issues des jobs EXIF/géo) — figées au moment où le
-  // média a été ajouté à l'album, pas mises à jour rétroactivement si le média source est
-  // traité plus tard (même limitation que width/height ci-dessus). Voir issue #22.
+  // Date taken and location (from the EXIF/geo jobs) — frozen at the moment the media was
+  // added to the album, not retroactively updated if the source media is processed later
+  // (same limitation as width/height above). See issue #22.
   dateTaken: string | null;
   country: string | null;
   region: string | null;
@@ -51,8 +51,8 @@ export interface AlbumMembership {
   containsAll: boolean;
 }
 
-// Regroupement/ordre des albums (issue #6) — Sections préserve l'ordre persisté, Unsectioned
-// regroupe les albums pas encore rangés (nouveaux albums compris, sans action requise).
+// Album grouping/ordering (issue #6) — Sections preserves the persisted order, Unsectioned
+// groups albums not yet sorted (including new albums, with no action required).
 export interface AlbumSection {
   id: string;
   name: string;

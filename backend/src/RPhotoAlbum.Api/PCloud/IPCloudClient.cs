@@ -1,8 +1,8 @@
 namespace RPhotoAlbum.Api.PCloud;
 
-// Extrait de PCloudClient pour permettre un faux fait main dans les tests (RPhotoAlbum.Api.Tests
-// /Fakes/FakePCloudClient.cs) — voir issue GitHub #17. Signatures identiques à PCloudClient ; pas
-// de logique ici, uniquement le contrat.
+// Extracted from PCloudClient to allow a hand-written fake in tests (RPhotoAlbum.Api.Tests
+// /Fakes/FakePCloudClient.cs) — see GitHub issue #17. Signatures identical to PCloudClient; no
+// logic here, only the contract.
 public interface IPCloudClient
 {
     string BuildAuthorizeUrl(string state);
@@ -17,16 +17,16 @@ public interface IPCloudClient
     Task<string> GetFileLinkAsync(long fileId);
     Task<string> DownloadTextFileAsync(long fileId);
     Task<byte[]> DownloadPartialAsync(long fileId, int maxBytes, CancellationToken ct = default);
-    // Derniers octets du fichier (requête Range en suffixe) — voir issue #21 : l'atome "moov"
-    // d'un conteneur QuickTime/MP4 peut être en fin de fichier plutôt qu'en tête selon l'encodeur.
+    // Last bytes of the file (suffix Range request) — see issue #21: the "moov" atom
+    // of a QuickTime/MP4 container can be at the end of the file rather than the start, depending on the encoder.
     Task<byte[]> DownloadTailAsync(long fileId, int maxBytes, CancellationToken ct = default);
     Task<(byte[] Bytes, string? ContentType)> DownloadAsync(long fileId, CancellationToken ct = default);
     Task<string> GetFileNameAsync(long fileId);
-    // Quota de stockage du compte pCloud (octets utilisés / totaux) — pour l'alerte de la page
-    // Configuration, distincte du cache miniatures local déjà surveillé par ailleurs.
+    // Storage quota of the pCloud account (bytes used / total) — for the Configuration
+    // page's alert, distinct from the local thumbnail cache already monitored elsewhere.
     Task<(long UsedBytes, long TotalBytes)> GetQuotaAsync();
-    // Octets de la miniature (pas juste le lien, contrairement à GetThumbLinkAsync) — voir issue
-    // #26 (cache disque des miniatures).
+    // Thumbnail bytes (not just the link, unlike GetThumbLinkAsync) — see issue
+    // #26 (thumbnail disk cache).
     Task<(byte[] Bytes, string? ContentType)> GetThumbnailAsync(
         long fileId, int width, int height, bool crop = false, CancellationToken ct = default);
 }

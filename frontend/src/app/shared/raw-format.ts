@@ -1,8 +1,8 @@
-// Détection RAW par extension de fichier — aucune donnée de format n'est stockée côté backend
-// (voir issue GitHub #24), donc calculée à la volée à partir du nom déjà disponible partout
-// (MediaItem.name, AlbumItem.source/albumCopy.name). Liste non exhaustive mais couvre les
-// principaux fabricants ; à étendre si besoin plutôt que d'introduire un stockage dédié tant
-// que ça reste une simple question d'affichage (badge).
+// RAW detection by file extension — no format data is stored on the backend side (see
+// GitHub issue #24), so it's computed on the fly from the name already available everywhere
+// (MediaItem.name, AlbumItem.source/albumCopy.name). List is not exhaustive but covers the
+// main manufacturers; extend as needed rather than introducing dedicated storage as long as
+// this stays a simple display matter (badge).
 const RAW_EXTENSIONS = new Set([
   'cr2', 'cr3', // Canon
   'nef', 'nrw', // Nikon
@@ -12,7 +12,7 @@ const RAW_EXTENSIONS = new Set([
   'rw2', // Panasonic
   'pef', // Pentax
   'srw', // Samsung
-  'dng', // Adobe / générique
+  'dng', // Adobe / generic
   'raw', '3fr', 'erf', 'mef', 'mrw', 'x3f',
 ]);
 

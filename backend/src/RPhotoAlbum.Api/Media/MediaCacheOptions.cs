@@ -1,7 +1,7 @@
 namespace RPhotoAlbum.Api.Media;
 
-// Voir issue GitHub #26 — cache disque des miniatures, éviction LRU bornée en taille (pas de TTL :
-// un fileId pCloud référence un contenu immuable).
+// See GitHub issue #26 — thumbnail disk cache, size-bounded LRU eviction (no TTL:
+// a pCloud fileId references immutable content).
 public class MediaCacheOptions
 {
     public int MaxSizeMb { get; set; } = 1024;

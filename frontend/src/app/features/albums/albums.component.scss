@@ -35,8 +35,8 @@
   flex-direction: column;
   gap: 14px;
 
-  // Les éléments flex ont un min-width:auto par défaut : sans ce reset, une image
-  // à la taille intrinsèque élevée pousse la carte à dépasser la largeur du conteneur.
+  // Flex items have min-width:auto by default: without this reset, an image
+  // with a large intrinsic size pushes the card past the container's width.
   li {
     min-width: 0;
   }
@@ -64,8 +64,8 @@
   }
 }
 
-// Indicateur "disponible hors-ligne" (issue #29) — même principe visuel que .raw-glyph
-// (Gallery/Album Detail) : coin bas-droit, fond semi-transparent.
+// "Available offline" indicator (issue #29) — same visual principle as .raw-glyph
+// (Gallery/Album Detail): bottom-right corner, semi-transparent background.
 .offline-glyph {
   position: absolute;
   right: 4px;
@@ -183,11 +183,11 @@
   width: 100%;
 }
 
-// --- Poignées/boutons de secours par album, visibles en mode Organiser ---
+// --- Per-album fallback handles/buttons, visible in Organize mode ---
 
-// Cibles tactiles agrandies (retour utilisateur : trop petites sur téléphone réel) — 44px
-// (ARCHITECTURE.md §19), le standard global .btn-icon, plutôt que les 26px initiaux ou le
-// compromis à 40px qui avait suivi.
+// Enlarged touch targets (user feedback: too small on real phones) — 44px
+// (ARCHITECTURE.md §19), the global .btn-icon standard, rather than the initial 26px or the
+// 40px compromise that followed.
 .organize-controls {
   position: absolute;
   top: 4px;

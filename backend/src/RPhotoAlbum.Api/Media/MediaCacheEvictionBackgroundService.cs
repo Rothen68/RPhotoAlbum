@@ -2,9 +2,9 @@ using Microsoft.Extensions.Options;
 
 namespace RPhotoAlbum.Api.Media;
 
-// Éviction LRU périodique du cache disque des miniatures (issue #26) — même charpente que
-// MediaIndexBackgroundService (PeriodicTimer, un passage par tick, échec d'un passage n'arrête
-// pas le service).
+// Periodic LRU eviction of the thumbnail disk cache (issue #26) — same structure as
+// MediaIndexBackgroundService (PeriodicTimer, one pass per tick, a failed pass doesn't stop
+// the service).
 public class MediaCacheEvictionBackgroundService(
     MediaCacheDirectory cacheDir, IOptions<MediaCacheOptions> options,
     ILogger<MediaCacheEvictionBackgroundService> logger) : BackgroundService
@@ -29,8 +29,8 @@ public class MediaCacheEvictionBackgroundService(
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
-    // internal (pas private) + InternalsVisibleTo(RPhotoAlbum.Api.Tests), même pattern que
-    // AlbumService.NormalizeRowSpans — logique pure testable sans lancer tout le BackgroundService.
+    // internal (not private) + InternalsVisibleTo(RPhotoAlbum.Api.Tests), same pattern as
+    // AlbumService.NormalizeRowSpans — pure logic testable without running the whole BackgroundService.
     internal static void Evict(string dir, long maxBytes)
     {
         if (!Directory.Exists(dir))
@@ -45,8 +45,8 @@ public class MediaCacheEvictionBackgroundService(
             return;
         }
 
-        // Les moins récemment servies (LastWriteTimeUtc, mis à jour à chaque hit de cache par
-        // MediaThumbnailCacheService) partent en premier.
+        // The least recently served (LastWriteTimeUtc, updated on every cache hit by
+        // MediaThumbnailCacheService) go first.
         foreach (var file in files.OrderBy(f => f.LastWriteTimeUtc))
         {
             if (totalSize <= maxBytes)
@@ -61,13 +61,13 @@ public class MediaCacheEvictionBackgroundService(
             }
             catch (IOException)
             {
-                // Verrouillée par une lecture concurrente — retentée au prochain passage.
+                // Locked by a concurrent read — retried on the next pass.
             }
         }
     }
 
-    // Taille actuelle du cache — réutilisée par MediaController pour l'affichage d'occupation
-    // (issue #27), même logique de comptage qu'Evict ci-dessus pour rester toujours cohérentes.
+    // Current cache size — reused by MediaController to display usage
+    // (issue #27), same counting logic as Evict above so the two always stay consistent.
     internal static long ComputeUsedBytes(string dir) =>
         Directory.Exists(dir) ? new DirectoryInfo(dir).GetFiles("*.bin").Sum(f => f.Length) : 0;
 }

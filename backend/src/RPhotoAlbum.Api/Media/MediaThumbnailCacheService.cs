@@ -2,25 +2,25 @@ using RPhotoAlbum.Api.PCloud;
 
 namespace RPhotoAlbum.Api.Media;
 
-// Cache disque des octets de miniature (issue #26) — évite un aller-retour pCloud (getthumblink
-// + CDN) à chaque affichage. Pas de TTL : un fileId pCloud référence un contenu immuable, seule
-// la pression de taille déclenche une éviction (voir MediaCacheEvictionBackgroundService).
+// Disk cache of thumbnail bytes (issue #26) — avoids a pCloud round trip (getthumblink
+// + CDN) on every display. No TTL: a pCloud fileId references immutable content, only
+// size pressure triggers an eviction (see MediaCacheEvictionBackgroundService).
 public class MediaThumbnailCacheService(
     MediaCacheDirectory cacheDir, IPCloudClient client, ILogger<MediaThumbnailCacheService> logger)
 {
-    // Toutes les miniatures passent maintenant par une seule origine (notre backend, proxifié)
-    // au lieu de se répartir sur plusieurs hôtes CDN pCloud comme avec l'ancienne redirection —
-    // le navigateur limite le nombre de connexions concurrentes par origine (~6), donc un seul
-    // fichier "à froid" (pCloud peut mettre plusieurs dizaines de secondes à générer sa
-    // miniature, voir MediaExifService) peut désormais monopoliser un de ces créneaux et ralentir
-    // toute la page. Un délai borné laisse échouer proprement (404, icône cassée) plutôt que de
-    // bloquer indéfiniment — la relecture ultérieure profite du cache disque de toute façon.
-    // 20s puis 90s se sont avérés trop courts en conditions réelles (déploiement serveur, issue
-    // #26) : le vrai plafond était en fait celui de nginx devant nous (proxy_read_timeout, 60s
-    // par défaut — voir reverse-proxy/nginx.conf), qui coupait la connexion bien avant que ce
-    // délai applicatif n'ait sa chance de s'appliquer. nginx est maintenant réglé à 180s ; 150s
-    // ici reste sous ce plafond pour que ce soit toujours CE délai qui tranche en premier (échec
-    // propre, 404) plutôt qu'nginx qui coupe brutalement.
+    // All thumbnails now go through a single origin (our backend, proxied)
+    // instead of being spread across several pCloud CDN hosts as with the old redirection —
+    // the browser limits the number of concurrent connections per origin (~6), so a single
+    // "cold" file (pCloud can take several dozen seconds to generate its
+    // thumbnail, see MediaExifService) can now monopolize one of those slots and slow down
+    // the whole page. A bounded delay lets it fail cleanly (404, broken icon) rather than
+    // blocking indefinitely — a later reload benefits from the disk cache anyway.
+    // 20s then 90s proved too short under real-world conditions (server deployment, issue
+    // #26): the real ceiling was actually the one from nginx in front of us (proxy_read_timeout,
+    // 60s by default — see reverse-proxy/nginx.conf), which cut the connection well before this
+    // application-level delay got a chance to apply. nginx is now set to 180s; 150s
+    // here stays under that ceiling so it's always THIS delay that decides first (clean
+    // failure, 404) rather than nginx cutting the connection abruptly.
     private static readonly TimeSpan ThumbnailFetchTimeout = TimeSpan.FromSeconds(150);
 
     public async Task<(byte[] Bytes, string ContentType)> GetAsync(
@@ -35,8 +35,8 @@ public class MediaThumbnailCacheService(
             try
             {
                 var cached = await File.ReadAllBytesAsync(bytesPath, ct);
-                // Marque l'entrée comme récemment utilisée — c'est ce que l'éviction LRU lit
-                // (DirectoryInfo.LastWriteTimeUtc) pour décider quoi supprimer en premier.
+                // Marks the entry as recently used — this is what LRU eviction reads
+                // (DirectoryInfo.LastWriteTimeUtc) to decide what to delete first.
                 File.SetLastWriteTimeUtc(bytesPath, DateTime.UtcNow);
                 return (cached, "image/jpeg");
             }
@@ -49,14 +49,14 @@ public class MediaThumbnailCacheService(
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(ThumbnailFetchTimeout);
 
-        // pCloud génère toujours ses miniatures en JPEG, quel que soit le format source (y
-        // compris RAW/HEIC) — content-type codé en dur plutôt qu'un fichier compagnon par entrée.
+        // pCloud always generates its thumbnails in JPEG, regardless of the source format
+        // (including RAW/HEIC) — content-type hardcoded rather than a companion file per entry.
         var (bytes, _) = await client.GetThumbnailAsync(fileId, width, height, crop, timeoutCts.Token);
 
         try
         {
-            // Écriture atomique (fichier temporaire + rename) : évite un .bin tronqué/corrompu
-            // si le process est interrompu en plein milieu de l'écriture.
+            // Atomic write (temp file + rename): avoids a truncated/corrupted .bin
+            // if the process is interrupted mid-write.
             var tmpPath = bytesPath + ".tmp";
             await File.WriteAllBytesAsync(tmpPath, bytes, ct);
             File.Move(tmpPath, bytesPath, overwrite: true);

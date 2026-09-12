@@ -1,7 +1,7 @@
 namespace RPhotoAlbum.Api.Models;
 
-// Entrée d'index du cache local (SQLite) pour un média détecté dans un dossier source.
-// Reconstructible à tout moment depuis pCloud — voir ARCHITECTURE.md §6.1 et §9.4.
+// Local cache (SQLite) index entry for a media file detected in a source folder.
+// Rebuildable at any time from pCloud — see ARCHITECTURE.md §6.1 and §9.4.
 public class MediaIndexEntry
 {
     public long Id { get; set; }
@@ -10,7 +10,7 @@ public class MediaIndexEntry
     public required string Path { get; set; }
     public required string Hash { get; set; }
     public required string MediaType { get; set; } // "image" | "video"
-    // DateTime UTC plutôt que DateTimeOffset : SQLite/EF Core ne sait pas trier sur DateTimeOffset.
+    // DateTime UTC rather than DateTimeOffset: SQLite/EF Core cannot sort on DateTimeOffset.
     public DateTime? CreatedAt { get; set; }
     public DateTime? ModifiedAt { get; set; }
     public int? Width { get; set; }
@@ -18,24 +18,24 @@ public class MediaIndexEntry
     public long Size { get; set; }
     public DateTime IndexedAt { get; set; }
 
-    // Rejet global (choix utilisateur, pas une donnée reconstructible) — voir ARCHITECTURE.md §6.4, §12.
+    // Global rejection (user choice, not rebuildable data) — see ARCHITECTURE.md §6.4, §12.
     public bool IsRejected { get; set; }
 
-    // --- EXIF (étape 9) — reconstructible depuis le fichier pCloud, comme le reste de l'index. ---
+    // --- EXIF (step 9) — rebuildable from the pCloud file, like the rest of the index. ---
 
-    // Date de prise de vue réelle (EXIF DateTimeOriginal), par opposition à ModifiedAt/CreatedAt
-    // qui reflètent la date d'upload sur pCloud — voir constat V2 : ~70% de la bibliothèque
-    // importée en une fois partage la même date de fichier.
+    // Actual date taken (EXIF DateTimeOriginal), as opposed to ModifiedAt/CreatedAt
+    // which reflect the pCloud upload date — see V2 finding: ~70% of the library
+    // imported at once shares the same file date.
     public DateTime? DateTaken { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
 
-    // Marque le passage du job d'extraction EXIF, que des données aient été trouvées ou non —
-    // distingue "jamais traité" de "traité, rien à extraire" (sinon un JPEG sans EXIF serait
-    // retraité indéfiniment à chaque lancement du job).
+    // Marks that the EXIF extraction job has run, whether or not data was found —
+    // distinguishes "never processed" from "processed, nothing to extract" (otherwise a JPEG
+    // with no EXIF would be reprocessed indefinitely on every job run).
     public DateTime? ExifProcessedAt { get; set; }
 
-    // Résultat du géocodage inverse (Nominatim) des coordonnées ci-dessus, via GeoLocationCache.
+    // Result of the reverse geocoding (Nominatim) of the coordinates above, via GeoLocationCache.
     public string? Country { get; set; }
     public string? Region { get; set; }
     public string? County { get; set; }

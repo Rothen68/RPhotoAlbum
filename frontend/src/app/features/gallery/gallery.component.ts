@@ -59,9 +59,9 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
   });
 
   protected readonly headerHeightPx = HEADER_ROW_HEIGHT_PX;
-  // Snapshot des hauteurs effectivement poussées à la stratégie de scroll — le template lit
-  // CE tableau (pas rowHeightPx() recalculé en direct) pour rester en permanence synchronisé
-  // avec les offsets cumulés de la stratégie, même quand containerWidth change entre-temps.
+  // Snapshot of the heights actually pushed to the scroll strategy — the template reads
+  // THIS array (not rowHeightPx() recomputed live) to stay permanently in sync
+  // with the strategy's cumulative offsets, even when containerWidth changes in the meantime.
   protected readonly rowHeights = signal<number[]>([]);
   protected readonly columnOptions = [1, 2, 3, 4];
 
@@ -98,8 +98,8 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
   protected readonly mediaTypeFilter = signal<'' | 'image' | 'video'>('');
   protected readonly minSizeFilter = signal<number | undefined>(undefined);
 
-  // Issue #4 : le panneau de filtres est replié par défaut (gain de place sur mobile) — les
-  // filtres actifs restent visibles en lecture seule sous forme de puces quand il est fermé.
+  // Issue #4: the filter panel is collapsed by default (saves space on mobile) — active
+  // filters stay visible in read-only form as chips when it's closed.
   protected readonly filtersOpen = signal(false);
   private static readonly SIZE_OPTIONS: { value: number; label: string }[] = [
     { value: 5242880, label: '> 5 Mo' },
@@ -132,16 +132,16 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
     return chips;
   });
 
-  // Peuplées uniquement avec des valeurs déjà résolues (étape 9) — pas de texte libre, un pays
-  // mal orthographié ne retournerait simplement rien.
+  // Populated only with values already resolved (step 9) — no free text, a
+  // misspelled country would simply return nothing.
   protected readonly locationCombos = signal<LocationCombo[]>([]);
   protected readonly countryFilter = signal('');
   protected readonly regionFilter = signal('');
   protected readonly cityFilter = signal('');
 
-  // Issue #10 : filtres dépendants — un pays sélectionné restreint les régions/villes proposées
-  // à ce pays (sinon on pouvait combiner "Allemagne" + une ville française et n'obtenir aucun
-  // résultat). Dérivés du même jeu de combinaisons plutôt que trois listes indépendantes.
+  // Issue #10: dependent filters — a selected country restricts the regions/cities offered
+  // to that country (otherwise you could combine "Germany" + a French city and get no
+  // results). Derived from the same set of combinations rather than three independent lists.
   protected readonly availableCountries = computed(() =>
     this.distinctSorted(this.locationCombos().map((c) => c.country)),
   );
@@ -169,10 +169,10 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
   private scrolledIndexSub?: Subscription;
   private currentTopDate: string | null = null;
 
-  // Issue #8 : badge de date flottant (façon Google Photos), en lecture seule — remplace la
-  // barre de défilement draguable de la V2 (retirée : trois rounds de correctifs sans jamais
-  // atteindre une synchronisation fiable). Flux à sens unique (scroll -> label/visibilité), pas
-  // d'état à resynchroniser dans l'autre sens comme l'exigeait une poignée draguable.
+  // Issue #8: floating date badge (Google Photos style), read-only — replaces the
+  // V2 draggable scrollbar (removed: three rounds of fixes without ever
+  // achieving reliable synchronization). One-way flow (scroll -> label/visibility), no
+  // state to resync in the other direction like a draggable handle required.
   protected readonly currentDateLabel = signal<string | null>(null);
   protected readonly badgeVisible = signal(false);
   private badgeHideTimer?: ReturnType<typeof setTimeout>;
@@ -186,16 +186,16 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
-    // Suit uniquement la date visible en haut (currentTopDate, un champ simple, pas un signal)
-    // pour resynchroniser le scroll après un changement de colonnes — pas besoin de ngZone.run
-    // ici puisque rien n'en dépend pour le rendu.
+    // Only tracks the date visible at the top (currentTopDate, a plain field, not a signal)
+    // to resync scroll after a column count change — no need for ngZone.run
+    // here since nothing depends on it for rendering.
     this.scrolledIndexSub = this.scrollStrategy?.scrolledIndexChange.subscribe((index) => {
       const row = this.rows()[index];
       if (row) {
         this.currentTopDate = row.date;
-        // scrolledIndexChange est émis hors zone Angular (écouteur de scroll CDK) — ngZone.run
-        // nécessaire pour que ces signaux (contrairement à currentTopDate, un simple champ) se
-        // répercutent dans le template.
+        // scrolledIndexChange is emitted outside the Angular zone (CDK scroll listener) — ngZone.run
+        // is needed for these signals (unlike currentTopDate, a plain field) to
+        // propagate to the template.
         this.ngZone.run(() => {
           this.currentDateLabel.set(formatDateLabel(row.date));
           this.badgeVisible.set(true);
@@ -207,9 +207,9 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     });
 
-    // Mesure synchrone initiale : ne pas dépendre uniquement de ResizeObserver, dont le
-    // premier déclenchement n'est pas garanti immédiat (et s'exécute hors zone Angular —
-    // ngZone.run nécessaire pour que la vue reflète le nouveau signal).
+    // Initial synchronous measurement: don't rely solely on ResizeObserver, whose
+    // first firing isn't guaranteed to be immediate (and runs outside the Angular zone —
+    // ngZone.run is needed for the view to reflect the new signal).
     const initialWidth = this.hostEl.nativeElement.getBoundingClientRect().width;
     if (initialWidth > 0) {
       this.containerWidth.set(initialWidth);
@@ -246,8 +246,8 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
     return stored >= 1 && stored <= 4 ? stored : 3;
   }
 
-  // Reconstruit entièrement la structure de rangées (date-groups et/ou colonnes ont changé) —
-  // recale la table de tailles et resynchronise le scroll sur la date visible avant le changement.
+  // Fully rebuilds the row structure (date-groups and/or columns changed) —
+  // recalibrates the size table and resyncs the scroll to the date visible before the change.
   private recomputeRows(): void {
     const targetDate = this.currentTopDate;
     const newRows = buildRows(this.dateGroups(), this.columns());
@@ -263,7 +263,7 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  // Recalcule uniquement les hauteurs (largeur de conteneur changée, structure inchangée).
+  // Only recomputes heights (container width changed, structure unchanged).
   private pushHeightsToStrategy(): void {
     const heights = this.rows().map((r) => (r.type === 'header' ? this.headerHeightPx : this.rowHeightPx()));
     this.rowHeights.set(heights);
@@ -308,7 +308,7 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
 
   setCountryFilter(value: string): void {
     this.countryFilter.set(value);
-    // Le pays a changé : région/ville sélectionnées peuvent ne plus lui appartenir.
+    // The country changed: the selected region/city might no longer belong to it.
     if (this.regionFilter() && !this.availableRegions().includes(this.regionFilter())) {
       this.regionFilter.set('');
     }
@@ -425,9 +425,9 @@ export class GalleryComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  // Toute action changeant l'ensemble/l'ordre des médias (filtre, recherche, rejet en masse)
-  // décale les index à plat sous-jacents — on ne peut pas corriger le cache en place sans
-  // risquer un décalage silencieux : rechargement complet depuis date-groups.
+  // Any action that changes the set/order of media (filter, search, bulk reject)
+  // shifts the underlying flat indices — we can't fix the cache in place without
+  // risking a silent misalignment: full reload from date-groups.
   private reloadFromScratch(): void {
     this.dataSource.invalidateMediaCache();
     this.loadedItems.set(new Map());

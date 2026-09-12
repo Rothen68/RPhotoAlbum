@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
 
-// Donne au projet de tests l'accès aux membres `internal` (ex. AlbumService.NormalizeRowSpans) —
-// évite de rendre publique une logique interne à la classe uniquement pour la rendre testable.
+// Gives the test project access to `internal` members (e.g. AlbumService.NormalizeRowSpans) —
+// avoids making logic internal to the class public just to make it testable.
 [assembly: InternalsVisibleTo("RPhotoAlbum.Api.Tests")]

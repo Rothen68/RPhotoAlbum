@@ -2,10 +2,10 @@ using RPhotoAlbum.Api.PCloud;
 
 namespace RPhotoAlbum.Api.Tests.Fakes;
 
-// Faux fait main (pas de librairie de mock) — voir issue GitHub #17. Couvre ListFolderAsync
-// (MediaIndexService) et Upload/DownloadTextFileAsync (AlbumService : album.json et, depuis
-// l'issue #6, album-structure.json) ; les autres membres de IPCloudClient lèvent
-// NotSupportedException si jamais appelés par erreur.
+// Hand-written fake (no mocking library) — see GitHub issue #17. Covers ListFolderAsync
+// (MediaIndexService) and Upload/DownloadTextFileAsync (AlbumService: album.json and, since
+// issue #6, album-structure.json); the other members of IPCloudClient throw
+// NotSupportedException if ever called by mistake.
 public class FakePCloudClient : IPCloudClient
 {
     private readonly Dictionary<long, PCloudFolderListing> _listings = new();
@@ -14,14 +14,14 @@ public class FakePCloudClient : IPCloudClient
     private readonly Dictionary<string, byte[]> _thumbnails = new();
     private long _nextFileId = 1;
 
-    // Compte les appels réels vers le faux pCloud par clé de miniature — permet aux tests de
-    // MediaThumbnailCacheService de vérifier qu'un hit de cache disque n'appelle PAS pCloud une
-    // deuxième fois (voir issue #26).
+    // Counts the actual calls to the fake pCloud per thumbnail key — lets
+    // MediaThumbnailCacheService tests verify that a disk cache hit does NOT call pCloud a
+    // second time (see issue #26).
     public Dictionary<string, int> ThumbnailCallCounts { get; } = new();
 
-    // Bloque l'appel tant que la tâche n'est pas complétée — permet de tester la section
-    // critique de MediaIndexService.ReindexAsync (verrou statique) de façon déterministe,
-    // sans dépendre d'un Task.Delay arbitraire et donc potentiellement instable en CI.
+    // Blocks the call until the task is completed — lets the critical section of
+    // MediaIndexService.ReindexAsync (static lock) be tested deterministically,
+    // without relying on an arbitrary Task.Delay that could be flaky in CI.
     public TaskCompletionSource<bool>? Gate { get; set; }
 
     public void SetFolderListing(long folderId, PCloudFolderListing listing) => _listings[folderId] = listing;
@@ -62,9 +62,9 @@ public class FakePCloudClient : IPCloudClient
 
     public Task DeleteFileAsync(long fileId) => throw new NotSupportedException();
 
-    // Chaque appel produit un nouveau fileId (comme le pCloud réel avec renameifexists=0
-    // écrasant en place, mais rien dans AlbumService ne suppose un fileId stable entre deux
-    // écritures — PersistAsync/SaveStructureAsync réassignent toujours celui retourné).
+    // Each call produces a new fileId (like real pCloud with renameifexists=0
+    // overwriting in place, but nothing in AlbumService assumes a stable fileId between two
+    // writes — PersistAsync/SaveStructureAsync always reassign the one returned).
     public Task<long> UploadTextFileAsync(long folderId, string filename, string content)
     {
         var fileId = _nextFileId++;

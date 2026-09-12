@@ -8,17 +8,17 @@ import { ConnectivityService } from '../../core/offline/connectivity.service';
 import { OfflineAlbumMeta, OfflineAlbumService } from '../../core/offline/offline-album.service';
 import { OfflineModeService } from '../../core/offline/offline-mode.service';
 
-// navigator.onLine peut se tromper ou tarder à se mettre à jour (constaté en usage réel : une
-// requête restée bloquée en attente indéfiniment après le passage en mode avion plutôt que
-// d'échouer proprement) — un délai explicite garantit un repli sur les albums hors-ligne (#29)
-// même si la détection de connectivité n'aide pas.
+// navigator.onLine can be wrong or slow to update (observed in real usage: a
+// request left stuck pending indefinitely after switching to airplane mode rather
+// than failing cleanly) — an explicit timeout guarantees a fallback to offline albums (#29)
+// even if connectivity detection doesn't help.
 const REQUEST_TIMEOUT_MS = 6000;
 
 const COLLAPSED_STORAGE_KEY = 'rphotoalbum:collapsedSections';
 const UNSECTIONED_ID = 'unsectioned';
 
-// État local à cet appareil (pas synchronisé sur pCloud) — voir issue #6 : replier une section
-// est un simple repli visuel, pas une donnée métier.
+// Local state for this device (not synced to pCloud) — see issue #6: collapsing a section
+// is a purely visual fold, not business data.
 function loadCollapsedSectionIds(): Set<string> {
   try {
     const raw = localStorage.getItem(COLLAPSED_STORAGE_KEY);
@@ -48,10 +48,10 @@ export class AlbumsComponent implements OnInit {
   protected readonly sections = signal<AlbumSection[]>([]);
   protected readonly unsectioned = signal<AlbumSummary[]>([]);
   protected readonly loading = signal(true);
-  // Repli hors-ligne (issue #29) : /api/albums renvoie sections/ordre, jamais mis en cache
-  // (propre à la structure serveur) — sur échec réseau, on retombe sur la simple liste des
-  // albums rendus disponibles hors-ligne (voir OfflineAlbumService.listOffline), pour qu'un
-  // album déjà téléchargé reste au moins atteignable et cliquable.
+  // Offline fallback (issue #29): /api/albums returns sections/order, never cached
+  // (specific to server structure) — on network failure, we fall back to the plain list of
+  // albums made available offline (see OfflineAlbumService.listOffline), so that an
+  // already-downloaded album stays at least reachable and clickable.
   protected readonly offlineFallbackAlbums = signal<{ id: string; meta: OfflineAlbumMeta }[]>([]);
   protected readonly loadFailed = signal(false);
 
@@ -84,20 +84,20 @@ export class AlbumsComponent implements OnInit {
     this.loading.set(true);
     this.loadFailed.set(false);
 
-    // Mode hors-ligne forcé par l'utilisateur, ou déjà su hors-ligne : inutile d'attendre
-    // l'échec (parfois lent) d'une requête réseau vouée à échouer — repli direct sur les albums
-    // disponibles hors-ligne (issue #29, même raison que AlbumDetailComponent.load()).
+    // Offline mode forced by the user, or already known to be offline: no point waiting for
+    // the failure (sometimes slow) of a network request bound to fail — fall back directly to
+    // offline-available albums (issue #29, same reason as AlbumDetailComponent.load()).
     if (this.offlineMode.manualOfflineMode() || !this.connectivity.online()) {
       this.applyOfflineFallback();
       return;
     }
 
-    // Minuteur JS ordinaire plutôt que l'opérateur RxJS timeout() : constaté en usage réel qu'une
-    // requête interceptée par le service worker (toute requête /api/* l'est, même sans règle de
-    // cache dédiée) peut rester bloquée bien au-delà du délai RxJS — jusqu'à l'échec naturel de
-    // la connexion TCP sous-jacente (net::ERR_CONNECTION_TIMED_OUT, observé à plusieurs MINUTES).
-    // Ce repli ne dépend d'aucun mécanisme d'annulation de la requête HTTP elle-même : passé le
-    // délai, on affiche le repli hors-ligne et on ignore simplement toute réponse tardive.
+    // Plain JS timer rather than the RxJS timeout() operator: observed in real usage that a
+    // request intercepted by the service worker (every /api/* request is, even without a
+    // dedicated cache rule) can stay stuck well past the RxJS timeout — until the underlying
+    // TCP connection naturally fails (net::ERR_CONNECTION_TIMED_OUT, observed after several MINUTES).
+    // This fallback doesn't depend on any cancellation mechanism for the HTTP request itself: once the
+    // timeout passes, we show the offline fallback and simply ignore any late response.
     let settled = false;
     const fallbackTimer = setTimeout(() => {
       if (settled) {
@@ -150,7 +150,7 @@ export class AlbumsComponent implements OnInit {
     this.moveMenuForAlbumId.set(null);
   }
 
-  // --- Nouvel album ---
+  // --- New album ---
 
   openNewAlbumDialog(): void {
     this.newAlbumName.set('');
@@ -169,8 +169,8 @@ export class AlbumsComponent implements OnInit {
 
     this.creating.set(true);
     this.albumService.create(name).subscribe({
-      // Un nouvel album apparaît automatiquement en "non rangés" côté serveur (voir
-      // AlbumService.ListGroupedAsync) — un simple rechargement suffit.
+      // A new album automatically appears in "unsectioned" on the server side (see
+      // AlbumService.ListGroupedAsync) — a simple reload is enough.
       next: () => {
         this.creating.set(false);
         this.showNewAlbumDialog.set(false);
@@ -212,7 +212,7 @@ export class AlbumsComponent implements OnInit {
     this.sections.update((list) => list.map((s) => ({ ...s, albums: s.albums.filter((a) => a.id !== albumId) })));
   }
 
-  // --- Sections : repli/dépli (local, non persisté) ---
+  // --- Sections: collapse/expand (local, not persisted) ---
 
   isCollapsed(sectionId: string): boolean {
     return this.collapsedSectionIds().has(sectionId);
@@ -231,7 +231,7 @@ export class AlbumsComponent implements OnInit {
     });
   }
 
-  // --- Sections : création / renommage / suppression ---
+  // --- Sections: create / rename / delete ---
 
   openNewSectionDialog(): void {
     this.newSectionName.set('');
@@ -249,8 +249,8 @@ export class AlbumsComponent implements OnInit {
     }
 
     this.showNewSectionDialog.set(false);
-    // Id temporaire, remplacé par l'id définitif renvoyé par le serveur après persistStructure()
-    // (voir AlbumService.SaveStructureAsync côté backend, qui génère l'id réel).
+    // Temporary id, replaced by the definitive id returned by the server after persistStructure()
+    // (see AlbumService.SaveStructureAsync on the backend side, which generates the real id).
     this.sections.update((list) => [...list, { id: `tmp_${Date.now()}`, name, albums: [] }]);
     this.persistStructure();
   }
@@ -310,7 +310,7 @@ export class AlbumsComponent implements OnInit {
     this.persistStructure();
   }
 
-  // --- Albums : déplacement / réorganisation ---
+  // --- Albums: moving / reordering ---
 
   albumsOf(containerId: string): AlbumSummary[] {
     return containerId === UNSECTIONED_ID
@@ -368,12 +368,12 @@ export class AlbumsComponent implements OnInit {
     this.persistStructure();
   }
 
-  // Ne PAS appeler event.stopPropagation() ici : la carte album est un <a routerLink>, et c'est
-  // le gestionnaire (click) posé sur .organize-controls (dans le template) qui empêche la
-  // navigation via preventDefault() — un stopPropagation() posé plus bas dans l'arbre (sur ce
-  // bouton) empêcherait l'événement d'atteindre ce gestionnaire parent, laissant la navigation
-  // native de l'ancre se déclencher malgré tout (bug constaté : le clic ouvrait l'album au lieu
-  // du menu "Déplacer vers…").
+  // Do NOT call event.stopPropagation() here: the album card is an <a routerLink>, and it's
+  // the (click) handler placed on .organize-controls (in the template) that prevents
+  // navigation via preventDefault() — a stopPropagation() placed further down the tree (on this
+  // button) would prevent the event from reaching that parent handler, letting the anchor's
+  // native navigation fire anyway (observed bug: the click opened the album instead of
+  // the "Move to…" menu).
   toggleMoveMenu(albumId: string): void {
     this.moveMenuForAlbumId.update((current) => (current === albumId ? null : albumId));
   }
@@ -410,9 +410,9 @@ export class AlbumsComponent implements OnInit {
     this.persistStructure();
   }
 
-  // Remplace l'intégralité de la structure côté serveur puis adopte la réponse (ids de section
-  // définitifs, ids d'album inconnus déjà filtrés) — même philosophie que le reste de l'app :
-  // le document persisté sur pCloud fait autorité, pas l'état local optimiste.
+  // Replaces the entire structure server-side then adopts the response (definitive
+  // section ids, unknown album ids already filtered out) — same philosophy as the rest of the app:
+  // the document persisted on pCloud is authoritative, not the optimistic local state.
   private persistStructure(): void {
     const sectionsPayload = this.sections().map((s) => ({
       id: s.id.startsWith('tmp_') ? null : s.id,

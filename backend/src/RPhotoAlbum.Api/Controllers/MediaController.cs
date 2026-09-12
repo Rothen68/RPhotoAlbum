@@ -33,10 +33,10 @@ public class MediaController(
             return Conflict(new { error = "Une indexation est déjà en cours." });
         }
 
-        // Issue #11 : même déclenchement automatique que la réindexation périodique
-        // (MediaIndexBackgroundService) — sinon une réindexation manuelle depuis Configuration
-        // se comporte différemment de la périodique, ce qui n'a pas de sens du point de vue de
-        // l'utilisateur (les deux appellent le même MediaIndexService.ReindexAsync).
+        // Issue #11: same automatic trigger as the periodic reindex (MediaIndexBackgroundService)
+        // — otherwise a manual reindex from Configuration would behave differently from the
+        // periodic one, which makes no sense from the user's point of view (both call the same
+        // MediaIndexService.ReindexAsync).
         if (result.NewlyIndexed > 0)
         {
             await exifService.StartAsync();
@@ -45,8 +45,8 @@ public class MediaController(
         return Ok(new { indexed = result.Indexed, newlyIndexed = result.NewlyIndexed, failedFolders = result.FailedFolders });
     }
 
-    // Occupation du cache disque des miniatures (issue #27) — affiché sous la section
-    // Indexation de la page Configuration, à côté du bouton de réindexation manuelle.
+    // Thumbnail disk cache usage (issue #27) — displayed under the Indexing section of the
+    // Configuration page, next to the manual reindex button.
     [HttpGet("cache-status")]
     public IActionResult CacheStatus()
     {
@@ -55,7 +55,7 @@ public class MediaController(
         return Ok(new MediaCacheStatusDto(usedBytes, maxBytes));
     }
 
-    // Gallery : uniquement les médias non rejetés (§6.4, §11.4).
+    // Gallery: only non-rejected media (§6.4, §11.4).
     [HttpGet("source")]
     public async Task<IActionResult> Source(
         [FromQuery] int page = 1,
@@ -79,10 +79,10 @@ public class MediaController(
         return Ok(new { total, page, pageSize, items });
     }
 
-    // Comptage par jour des médias non rejetés (mêmes filtres et ordre que Source) — utilisé
-    // par la Gallery pour le regroupement par date et la barre de défilement par date.
-    // Volontairement léger (pas de fileId par média) : chargé une fois pour toute la
-    // bibliothèque (filtrée), pas paginé.
+    // Per-day count of non-rejected media (same filters and order as Source) — used by the
+    // Gallery for date grouping and the date scrollbar.
+    // Deliberately lightweight (no fileId per media item): loaded once for the entire
+    // (filtered) library, not paginated.
     [HttpGet("date-groups")]
     public async Task<IActionResult> DateGroups(
         [FromQuery] string? search = null,
@@ -105,12 +105,12 @@ public class MediaController(
         return Ok(groups);
     }
 
-    // Valeurs distinctes de localisation déjà résolues (étape 9), pour peupler les filtres de
-    // la Gallery sans texte libre — un pays/région/ville mal orthographié dans un champ libre
-    // ne retournerait simplement rien. Combinaisons distinctes (pas trois listes séparées) : le
-    // frontend a besoin de savoir quelles régions/villes appartiennent à quel pays pour proposer
-    // des filtres dépendants (sélectionner un pays restreint les régions/villes proposées à ce
-    // pays, plutôt que de permettre des combinaisons incohérentes — issue #10).
+    // Distinct location values already resolved (step 9), to populate the Gallery filters
+    // without free text — a misspelled country/region/city in a free-text field would simply
+    // return nothing. Distinct combinations (not three separate lists): the frontend needs to
+    // know which regions/cities belong to which country in order to offer dependent filters
+    // (selecting a country restricts the regions/cities offered to that country, rather than
+    // allowing inconsistent combinations — issue #10).
     [HttpGet("locations")]
     public async Task<IActionResult> Locations()
     {
@@ -160,7 +160,7 @@ public class MediaController(
         return query.OrderByDescending(m => m.DateTaken ?? m.ModifiedAt ?? m.CreatedAt ?? m.IndexedAt);
     }
 
-    // --- Extraction EXIF + géolocalisation (étape 9) ---
+    // --- EXIF extraction + geolocation (step 9) ---
 
     [HttpPost("exif/start")]
     public async Task<IActionResult> StartExif()
@@ -196,13 +196,13 @@ public class MediaController(
         return Ok();
     }
 
-    // Rejet global depuis le mode sélection de la Gallery — voir ARCHITECTURE.md §11.4.
+    // Bulk rejection from the Gallery's selection mode — see ARCHITECTURE.md §11.4.
     [HttpPost("reject")]
     public async Task<IActionResult> Reject(RejectMediaRequest request)
     {
         var rejected = 0;
-        // Découpage par lots : une sélection nombreuse dépasserait la limite de paramètres
-        // SQLite ("too many SQL variables") sur une clause IN unique.
+        // Chunked processing: a large selection would exceed the SQLite parameter limit
+        // ("too many SQL variables") on a single IN clause.
         foreach (var chunk in request.FileIds.Distinct().Chunk(500))
         {
             var entries = await db.MediaIndex.Where(m => chunk.Contains(m.PCloudFileId)).ToListAsync();
@@ -218,10 +218,10 @@ public class MediaController(
         return Ok(new { rejected });
     }
 
-    // Proxifie les octets de la miniature à travers notre propre origine, avec mise en cache
-    // disque (MediaThumbnailCacheService) — plus une simple redirection vers pCloud à chaque
-    // requête, voir issue #26. Cache-Control en plus du cache disque : évite même de repasser
-    // par le backend pour un média déjà vu dans la session (scroll aller-retour).
+    // Proxies the thumbnail bytes through our own origin, with disk caching
+    // (MediaThumbnailCacheService) — no longer a simple redirect to pCloud on every request, see
+    // issue #26. Cache-Control in addition to the disk cache: avoids even going back through the
+    // backend for media already seen in the session (scrolling back and forth).
     [HttpGet("{fileId:long}/thumbnail")]
     public async Task<IActionResult> Thumbnail(
         long fileId, [FromQuery] int width = 300, [FromQuery] int height = 300, [FromQuery] bool crop = true, CancellationToken ct = default)
@@ -239,20 +239,20 @@ public class MediaController(
         }
     }
 
-    // Téléchargement du fichier original depuis la vue plein écran (Gallery et Album) — issue
-    // #1. Contrairement à /stream (redirection), on proxifie ici le contenu : une redirection
-    // vers un lien pCloud cross-origine ignore l'attribut `download` d'un <a> et se contente
-    // d'ouvrir/afficher le fichier au lieu de le télécharger. En passant par notre propre origine
-    // avec un Content-Disposition: attachment explicite, le navigateur déclenche toujours un
-    // téléchargement, quel que soit le type de fichier.
+    // Download of the original file from the fullscreen view (Gallery and Album) — issue #1.
+    // Unlike /stream (redirect), here we proxy the content: a redirect to a cross-origin pCloud
+    // link ignores the `download` attribute of an <a> and simply opens/displays the file instead
+    // of downloading it. By going through our own origin with an explicit
+    // Content-Disposition: attachment, the browser always triggers a download, regardless of the
+    // file type.
     [HttpGet("{fileId:long}/download")]
     public async Task<IActionResult> Download(long fileId, CancellationToken ct)
     {
         try
         {
-            // MediaIndex ne couvre que les dossiers source configurés : un média affiché depuis
-            // un album (copié dans le dossier de l'album, voir AlbumService) n'y figure pas —
-            // on retombe alors sur pCloud directement pour le nom de fichier.
+            // MediaIndex only covers the configured source folders: media displayed from an
+            // album (copied into the album folder, see AlbumService) is not present there — in
+            // that case we fall back directly to pCloud for the file name.
             var entry = await db.MediaIndex.AsNoTracking().FirstOrDefaultAsync(m => m.PCloudFileId == fileId, ct);
             var name = entry?.Name ?? await client.GetFileNameAsync(fileId);
 
@@ -266,7 +266,7 @@ public class MediaController(
         }
     }
 
-    // Redirige vers le fichier original pour la lecture vidéo — voir ARCHITECTURE.md §5.4.
+    // Redirects to the original file for video playback — see ARCHITECTURE.md §5.4.
     [HttpGet("{fileId:long}/stream")]
     public async Task<IActionResult> Stream(long fileId)
     {

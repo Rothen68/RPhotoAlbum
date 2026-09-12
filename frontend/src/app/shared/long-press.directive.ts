@@ -3,10 +3,10 @@ import { Directive, ElementRef, EventEmitter, OnDestroy, Output, inject } from '
 const PRESS_DURATION_MS = 500;
 const MOVE_THRESHOLD_PX = 10;
 
-// Détection d'appui long (souris + tactile via Pointer Events) — voir ARCHITECTURE.md
-// (V2, Gallery/Album Detail : entrée en mode sélection/réorganisation avec présélection).
-// Supprime le clic de relâchement qui suit un appui long, pour éviter un double déclenchement
-// (ex. ouverture de la visionneuse en plus de l'entrée en mode sélection).
+// Long-press detection (mouse + touch via Pointer Events) — see ARCHITECTURE.md
+// (V2, Gallery/Album Detail: entering selection/reorder mode with preselection).
+// Suppresses the release click that follows a long press, to avoid a double trigger
+// (e.g. opening the viewer in addition to entering selection mode).
 @Directive({
   selector: '[appLongPress]',
   standalone: true,
@@ -71,7 +71,7 @@ export class LongPressDirective implements OnDestroy {
     this.clearTimer();
   };
 
-  // Capture-phase : intercepte le clic de relâchement qui suit un appui long déjà traité.
+  // Capture phase: intercepts the release click that follows a long press already handled.
   private onClick = (event: MouseEvent): void => {
     if (this.fired) {
       event.preventDefault();

@@ -33,7 +33,7 @@ public class AlbumsController(AlbumService albums) : ControllerBase
         return Ok(ToDto(result));
     }
 
-    // Remplace l'intégralité du regroupement/ordre des albums — voir AlbumService.SaveStructureAsync.
+    // Replaces the entire album grouping/order — see AlbumService.SaveStructureAsync.
     [HttpPut("structure")]
     public async Task<IActionResult> SaveStructure(SaveAlbumStructureRequest request, CancellationToken ct)
     {
@@ -55,7 +55,7 @@ public class AlbumsController(AlbumService albums) : ControllerBase
         }
     }
 
-    // Redécouvre les albums déjà présents sur pCloud — voir AlbumService.ReindexAsync.
+    // Rediscovers albums already present on pCloud — see AlbumService.ReindexAsync.
     [HttpPost("reindex")]
     public async Task<IActionResult> Reindex(CancellationToken ct)
     {

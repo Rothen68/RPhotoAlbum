@@ -2,8 +2,8 @@ import { Pipe, PipeTransform, inject } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { marked } from 'marked';
 
-// bypassSecurityTrustHtml sans sanitisation supplémentaire : app mono-utilisateur (le
-// contenu vient de l'utilisateur lui-même), donc hygiène plutôt que frontière de sécurité.
+// bypassSecurityTrustHtml with no extra sanitization: single-user app (the content comes
+// from the user themselves), so this is hygiene rather than a security boundary.
 @Pipe({
   name: 'markdown',
   standalone: true,
@@ -15,10 +15,10 @@ export class MarkdownPipe implements PipeTransform {
     if (!value) {
       return '';
     }
-    // breaks: true — un simple retour à la ligne (Entrée) dans l'éditeur devient un vrai saut de
-    // ligne rendu, pas seulement un espace (comportement CommonMark par défaut, qui exige une
-    // ligne vide entre paragraphes ou deux espaces en fin de ligne pour un saut "dur" — contre-
-    // intuitif ici, où la zone de texte est une note libre, pas du Markdown académique).
+    // breaks: true — a plain line break (Enter) in the editor becomes an actual rendered line
+    // break, not just a space (default CommonMark behavior requires a blank line between
+    // paragraphs, or two trailing spaces, for a "hard" break — counterintuitive here, where the
+    // text area is a free-form note, not academic Markdown).
     return this.sanitizer.bypassSecurityTrustHtml(marked.parse(value, { async: false, breaks: true }) as string);
   }
 }

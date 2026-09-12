@@ -2,7 +2,7 @@ using Microsoft.Extensions.Options;
 
 namespace RPhotoAlbum.Api.Media;
 
-// Réindexation périodique des dossiers source — voir ARCHITECTURE.md §9.4, "Pipeline média".
+// Periodic reindexing of the source folders — see ARCHITECTURE.md §9.4, "Media pipeline".
 public class MediaIndexBackgroundService(
     IServiceScopeFactory scopeFactory,
     IOptions<IndexingOptions> options,
@@ -19,9 +19,9 @@ public class MediaIndexBackgroundService(
             {
                 using var scope = scopeFactory.CreateScope();
                 var indexService = scope.ServiceProvider.GetRequiredService<MediaIndexService>();
-                // autoOnly : ignore les dossiers sources marqués "non auto-indexé" (issue #28) —
-                // ce passage périodique doit rester léger, contrairement à "Réindexer maintenant"
-                // (déclenchement manuel explicite, qui vérifie tout).
+                // autoOnly: ignores source folders marked "not auto-indexed" (issue #28) —
+                // this periodic pass must stay lightweight, unlike "Reindex now"
+                // (an explicit manual trigger, which checks everything).
                 var result = await indexService.ReindexAsync(stoppingToken, autoOnly: true);
                 if (!result.IsAlreadyRunning)
                 {
@@ -29,11 +29,11 @@ public class MediaIndexBackgroundService(
                         "Indexation périodique pCloud terminée : {Count} médias ({NewCount} nouveaux, {FailedCount} dossier(s) en échec).",
                         result.Indexed, result.NewlyIndexed, result.FailedFolders.Count);
 
-                    // Issue #11 : déclenche automatiquement l'extraction EXIF (qui enchaîne
-                    // elle-même sur la géolocalisation à sa fin, voir MediaExifService.RunAsync)
-                    // uniquement si du contenu réellement nouveau a été trouvé — inutile de
-                    // relancer ces jobs (potentiellement longs) à chaque cycle périodique si rien
-                    // n'a changé côté pCloud.
+                    // Issue #11: automatically triggers EXIF extraction (which itself chains
+                    // into geolocation at its end, see MediaExifService.RunAsync)
+                    // only if genuinely new content was found — no point
+                    // relaunching these (potentially long) jobs on every periodic cycle if
+                    // nothing changed on the pCloud side.
                     if (result.NewlyIndexed > 0)
                     {
                         var exifService = scope.ServiceProvider.GetRequiredService<MediaExifService>();

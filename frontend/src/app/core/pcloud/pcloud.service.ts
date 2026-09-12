@@ -7,9 +7,10 @@ export interface PCloudStatus {
   hostname: string | null;
 }
 
-// Quota du compte pCloud (octets) — distinct du cache miniatures local (MediaService.cacheStatus,
-// issue #27) : la copie brute des médias (compression désactivée, ARCHITECTURE.md §13/§20)
-// n'a aucune limite intégrée à l'application, seul le quota pCloud lui-même est une limite dure.
+// pCloud account quota (bytes) — distinct from the local thumbnail cache
+// (MediaService.cacheStatus, issue #27): the raw media copy (compression disabled,
+// ARCHITECTURE.md §13/§20) has no limit built into the application, only the pCloud quota
+// itself is a hard limit.
 export interface PCloudQuotaStatus {
   usedBytes: number;
   totalBytes: number;
@@ -31,6 +32,6 @@ export class PCloudService {
     return this.http.get<PCloudQuotaStatus>('/api/pcloud/quota');
   }
 
-  // Navigation plein-page volontaire (flux OAuth), pas un appel HttpClient.
+  // Deliberate full-page navigation (OAuth flow), not an HttpClient call.
   readonly connectUrl = '/api/auth/pcloud/start';
 }

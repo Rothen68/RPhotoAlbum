@@ -2,8 +2,8 @@ using RPhotoAlbum.Api.Media;
 
 namespace RPhotoAlbum.Api.Tests.Media;
 
-// Couvre MediaCacheEvictionBackgroundService.Evict (issue #26) directement — logique pure,
-// répertoire temporaire réel, pas besoin de lancer le BackgroundService complet.
+// Covers MediaCacheEvictionBackgroundService.Evict (issue #26) directly — pure logic,
+// real temporary directory, no need to run the full BackgroundService.
 public sealed class MediaCacheEvictionTests : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "rphotoalbum-tests-" + Guid.NewGuid().ToString("N"));
@@ -44,8 +44,8 @@ public sealed class MediaCacheEvictionTests : IDisposable
         CreateFile("middle.bin", 100, now.AddHours(-2));
         CreateFile("newest.bin", 100, now.AddHours(-1));
 
-        // Plafond de 150 octets pour 300 au total : doit supprimer le plus ancien (et seulement lui,
-        // 300 - 100 = 200 > 150, il faut aussi supprimer "middle" pour repasser sous 150).
+        // Cap of 150 bytes for 300 total: must delete the oldest one (and not only that one,
+        // 300 - 100 = 200 > 150, "middle" must also be deleted to get back under 150).
         MediaCacheEvictionBackgroundService.Evict(_tempDir, maxBytes: 150);
 
         var remaining = Directory.GetFiles(_tempDir, "*.bin").Select(Path.GetFileName).ToHashSet();

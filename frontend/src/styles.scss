@@ -1,4 +1,4 @@
-/* Thème sombre "Nocturne" — voir la spécification UI/UX (Photo Album Manager). */
+/* Dark theme "Nocturne" — see the UI/UX specification (Photo Album Manager). */
 :root {
   --color-bg: #0d0e1a;
   --color-surface: #1a1b2e;
@@ -14,9 +14,9 @@
   --elev-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --app-max-width: 480px;
 
-  // Écran large (PC) : colonne centrée élargie plutôt qu'un vrai layout desktop multi-colonnes
-  // (voir ARCHITECTURE.md §19 / commentaire sur .page) — l'app reste une seule colonne partout,
-  // juste plus large, pour mieux exploiter l'espace en consultation/édition d'album (issue #23).
+  // Large screen (PC): widened centered column rather than a true multi-column desktop layout
+  // (see ARCHITECTURE.md §19 / comment on .page) — the app stays a single column everywhere,
+  // just wider, to make better use of space when viewing/editing an album (issue #23).
   @media (min-width: 900px) {
     --app-max-width: 720px;
   }
@@ -37,12 +37,12 @@ body {
   color: var(--color-text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
-  // Garde-fou : `.fixed-bar` ci-dessous utilise `width: 100%` (résolu contre le viewport de mise
-  // en page, pas le viewport visuel, pour un élément `position: fixed`). Si un contenu déborde
-  // horizontalement quelque part dans l'app (ex. issue #3 : des <select> de filtre trop larges
-  // sur mobile), le viewport de mise en page s'élargit pour l'accueillir, ce qui pousse TOUTE
-  // barre fixe (tab bar, barre de sélection…) visuellement hors écran. `overflow-x: hidden` ici
-  // empêche ce débordement de se propager, quelle que soit sa source.
+  // Safety net: `.fixed-bar` below uses `width: 100%` (resolved against the layout
+  // viewport, not the visual viewport, for a `position: fixed` element). If content overflows
+  // horizontally anywhere in the app (e.g. issue #3: filter <select>s too wide
+  // on mobile), the layout viewport widens to accommodate it, which pushes ANY
+  // fixed bar (tab bar, selection bar…) visually off-screen. `overflow-x: hidden` here
+  // prevents this overflow from propagating, whatever its source.
   overflow-x: hidden;
 }
 
@@ -57,7 +57,7 @@ a {
   color: var(--color-accent);
 }
 
-/* Icônes (Material Symbols) — voir https://fonts.google.com/icons */
+/* Icons (Material Symbols) — see https://fonts.google.com/icons */
 .material-symbols-outlined {
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
 }
@@ -77,8 +77,8 @@ a {
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
 }
 
-/* Centre la mise en page sur les grands écrans (l'app reste une colonne
-   mobile-first, pas un layout desktop à part) — voir ARCHITECTURE.md §19. */
+/* Centers the layout on large screens (the app stays a mobile-first
+   column, not a separate desktop layout) — see ARCHITECTURE.md §19. */
 .page {
   max-width: var(--app-max-width);
   margin: 0 auto;
@@ -99,7 +99,7 @@ a {
   max-width: var(--app-max-width);
 }
 
-/* Boutons */
+/* Buttons */
 .btn {
   min-height: 44px;
   padding: 0 1rem;
@@ -170,7 +170,7 @@ a {
   }
 }
 
-/* Champs */
+/* Fields */
 .field {
   display: flex;
   flex-direction: column;
@@ -198,7 +198,7 @@ textarea.input {
   resize: vertical;
 }
 
-/* Cartes */
+/* Cards */
 .card {
   background: var(--color-surface);
   border-radius: var(--radius);
@@ -209,9 +209,9 @@ textarea.input {
   box-shadow: var(--elev-sm);
 }
 
-/* Contenu Markdown rendu (via [innerHTML]) : les styles scopés d'un composant ne s'appliquent
-   pas à du HTML injecté par [innerHTML] (Angular ne l'annote pas pour l'encapsulation), donc
-   ces règles vivent ici, globalement, plutôt que dans le SCSS d'un composant. */
+/* Rendered Markdown content (via [innerHTML]): a component's scoped styles don't apply
+   to HTML injected via [innerHTML] (Angular doesn't annotate it for encapsulation), so
+   these rules live here, globally, rather than in a component's SCSS. */
 .markdown-body {
   p {
     margin: 0 0 0.5rem;
@@ -246,7 +246,7 @@ textarea.input {
   }
 }
 
-/* Dialogues et bottom sheets */
+/* Dialogs and bottom sheets */
 .dialog-backdrop {
   position: fixed;
   inset: 0;

@@ -1,9 +1,9 @@
 import { Component, inject } from '@angular/core';
 import { OfflineModeService } from '../../core/offline/offline-mode.service';
 
-// Bandeau global (monté une fois dans App, visible sur toutes les routes y compris /login et
-// /albums/:id qui ne passent pas par ShellComponent) — voir OfflineModeService pour le
-// raisonnement (bascule manuelle plutôt que détection automatique seule, issue #29).
+// Global banner (mounted once in App, visible on all routes including /login and
+// /albums/:id which don't go through ShellComponent) — see OfflineModeService for the
+// reasoning (manual toggle rather than automatic detection alone, issue #29).
 @Component({
   selector: 'app-offline-banner',
   standalone: true,

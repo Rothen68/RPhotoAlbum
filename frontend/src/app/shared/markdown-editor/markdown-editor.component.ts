@@ -1,10 +1,10 @@
 import { Component, ElementRef, EventEmitter, Input, Output, ViewChild, signal } from '@angular/core';
 import { MarkdownPipe } from '../markdown.pipe';
 
-// Éditeur Markdown minimal réutilisé pour l'ajout et l'édition de blocs texte d'album :
-// barre d'outils qui enveloppe/insère autour de la sélection courante du <textarea>
-// (selectionStart/selectionEnd), plus une bascule aperçu/édition. Pas de librairie
-// d'édition tierce, par choix (§ plan V2 étape 6).
+// Minimal Markdown editor reused for adding and editing album text blocks:
+// a toolbar that wraps/inserts around the <textarea>'s current selection
+// (selectionStart/selectionEnd), plus a preview/edit toggle. No third-party
+// editing library, by choice (§ V2 plan step 6).
 @Component({
   selector: 'app-markdown-editor',
   standalone: true,

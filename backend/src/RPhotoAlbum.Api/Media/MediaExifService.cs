@@ -13,26 +13,26 @@ public record ExifJobStatus(bool Running, int Processed, int Total, DateTime? St
 
 internal record ExifResult(long Id, DateTime? DateTaken, double? Latitude, double? Longitude, int? Width, int? Height);
 
-// Job manuel (pas périodique comme MediaIndexBackgroundService) : extrait la date de prise de
-// vue réelle (EXIF DateTimeOriginal pour les images, atome QuickTime/MP4 mvhd.creation_time pour
-// les vidéos — voir issue #21) et les coordonnées GPS des images du cache, en ne téléchargeant
-// qu'un petit en-tête de chaque fichier (voir PCloudClient.DownloadPartialAsync) — voir plan V2
-// étape 9. Pas de GPS pour les vidéos : rare dans les métadonnées vidéo grand public.
+// Manual job (not periodic like MediaIndexBackgroundService): extracts the actual capture date
+// (EXIF DateTimeOriginal for images, QuickTime/MP4 mvhd.creation_time atom for videos — see
+// issue #21) and the GPS coordinates of the cached images, downloading only a small header of
+// each file (see PCloudClient.DownloadPartialAsync) — see V2 plan step 9. No GPS for videos:
+// rare in consumer video metadata.
 public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupService geoService, ILogger<MediaExifService> logger)
 {
-    // Lus en tête de fichier : suffisant pour l'IFD EXIF/GPS de la quasi-totalité des JPEG et
-    // RAW (TIFF-based, ex. CR2) — bien plus petit qu'un fichier RAW complet (dizaines de Mo).
+    // Read from the start of the file: enough for the EXIF/GPS IFD of nearly all JPEG and
+    // RAW (TIFF-based, e.g. CR2) files — much smaller than a full RAW file (tens of MB).
     private const int ExifReadBytes = 512 * 1024;
-    // Taille de lecture pour l'atome "moov" (QuickTime/MP4, contient mvhd.creation_time) —
-    // distincte de ExifReadBytes ci-dessus (même valeur pour l'instant, mais sémantiquement
-    // différente, réglable indépendamment si l'expérience réelle montre qu'il faut l'ajuster).
-    // Contrairement au JPEG (EXIF toujours en tête), "moov" peut être en tête OU en fin de
-    // fichier selon l'encodeur (pas de "faststart") — voir TryReadVideoCreationDateAsync
-    // ci-dessous, qui tente les deux avant d'abandonner.
+    // Read size for the "moov" atom (QuickTime/MP4, contains mvhd.creation_time) —
+    // distinct from ExifReadBytes above (same value for now, but semantically
+    // different, tunable independently if real-world experience shows it needs adjusting).
+    // Unlike JPEG (EXIF always at the start), "moov" can be at the start OR the end of the
+    // file depending on the encoder (no "faststart") — see TryReadVideoCreationDateAsync
+    // below, which tries both before giving up.
     private const int VideoReadBytes = 512 * 1024;
-    // Concurrence volontairement limitée (voir V2 étape 4 : pCloud peut être lent à générer un
-    // lien pour un fichier jamais consulté) — ce job ne doit pas aggraver la latence perçue
-    // pendant un usage normal de l'app en parallèle.
+    // Concurrency deliberately limited (see V2 step 4: pCloud can be slow to generate a
+    // link for a file that has never been accessed) — this job must not worsen the perceived
+    // latency of normal app usage happening in parallel.
     private const int MaxConcurrency = 3;
     private const int SaveBatchSize = 50;
 
@@ -52,11 +52,11 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
         return new ExifJobStatus(_running, processed, total, _startedAt, _lastError);
     }
 
-    // Démarre en arrière-plan sans bloquer la requête HTTP appelante — idempotent (no-op si déjà
-    // en cours). La progression elle-même est recalculée depuis la base à chaque GetStatusAsync
-    // (pas de compteur en mémoire à part _running) : un redémarrage du conteneur ne perd donc
-    // aucune progression déjà écrite, seul l'indicateur "en cours" repasse à faux (reprise
-    // naturelle en relançant, qui re-filtre sur ExifProcessedAt == null).
+    // Starts in the background without blocking the calling HTTP request — idempotent (no-op if
+    // already running). Progress itself is recomputed from the database on every GetStatusAsync
+    // (no in-memory counter besides _running): a container restart therefore loses no progress
+    // already written, only the "running" flag goes back to false (naturally resumed by
+    // relaunching, which re-filters on ExifProcessedAt == null).
     public async Task StartAsync()
     {
         if (!await RunLock.WaitAsync(0))
@@ -74,27 +74,27 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
 
     public void Stop() => _cts?.Cancel();
 
-    // Deux phases délibérément séparées PAR LOT (SaveBatchSize) : le téléchargement + l'extraction
-    // EXIF d'un lot (I/O réseau, concurrent, borné par MaxConcurrency) NE TOUCHENT JAMAIS le
-    // DbContext ; l'écriture en base de ce lot se fait ensuite séquentiellement sur UN SEUL
-    // DbContext, avant de passer au lot suivant — la progression (recalculée depuis la base à
-    // chaque appel de statut) avance donc régulièrement au fil du job, pas seulement à la toute
-    // fin.
+    // Two phases deliberately separated PER BATCH (SaveBatchSize): the download + EXIF
+    // extraction of a batch (network I/O, concurrent, bounded by MaxConcurrency) NEVER TOUCH the
+    // DbContext; the database write for that batch is then done sequentially on a SINGLE
+    // DbContext, before moving to the next batch — progress (recomputed from the database on
+    // every status call) therefore advances steadily throughout the job, not only at the very
+    // end.
     //
-    // db est résolu ICI, depuis un scope créé pour (et qui dure) toute la durée du job — PAS
-    // injecté dans le constructeur de MediaExifService. Cause racine d'un bug observé en pratique
-    // (job tournant sans erreur journalisée, mais aucune date jamais persistée) : MediaExifService
-    // est lui-même Scoped, donc un service injecté dans son constructeur reste lié au scope de la
-    // requête HTTP /exif/start — laquelle se termine (et dispose son scope) presque immédiatement
-    // après le démarrage du Task.Run en arrière-plan. Les téléchargements échouaient alors
-    // silencieusement (ObjectDisposedException avalée par le catch générique d'ExtractAsync).
+    // db is resolved HERE, from a scope created for (and lasting) the entire duration of the
+    // job — NOT injected into MediaExifService's constructor. Root cause of a bug observed in
+    // practice (job running with no logged error, but no date ever persisted): MediaExifService
+    // is itself Scoped, so a service injected into its constructor stays bound to the scope of
+    // the /exif/start HTTP request — which completes (and disposes its scope) almost immediately
+    // after the background Task.Run starts. The downloads then failed silently
+    // (ObjectDisposedException swallowed by ExtractAsync's generic catch).
     //
-    // PCloudClient, en revanche, N'EST PAS résolu ici mais individuellement dans chaque appel
-    // concurrent d'ExtractAsync (voir plus bas) : PCloudClient dépend de PCloudTokenStore, qui
-    // interroge CacheDbContext à chaque appel pCloud (le jeton n'est pas mis en cache). Un
-    // DbContext EF Core n'est PAS thread-safe — le partager entre les tâches concurrentes
-    // (MaxConcurrency) provoquait des erreurs aléatoires "Cannot access a disposed object:
-    // SQLitePCL.sqlite3" (issue #12), le DbContext étant heurté par plusieurs threads à la fois.
+    // PCloudClient, on the other hand, is NOT resolved here but individually in each concurrent
+    // call to ExtractAsync (see below): PCloudClient depends on PCloudTokenStore, which queries
+    // CacheDbContext on every pCloud call (the token is not cached). An EF Core DbContext is NOT
+    // thread-safe — sharing it across concurrent tasks (MaxConcurrency) caused random "Cannot
+    // access a disposed object: SQLitePCL.sqlite3" errors (issue #12), the DbContext being hit
+    // by several threads at once.
     private async Task RunAsync(CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
@@ -125,10 +125,10 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
 
                 var results = await Task.WhenAll(extractTasks);
 
-                // Suivi (pas AsNoTracking) : on va modifier ces entités — même pattern que
-                // MediaIndexService.ReindexAsync (déjà éprouvé sur ~64k entrées), mais chargées
-                // lot par lot ici plutôt que toutes d'un coup (63k entités trackées en
-                // permanence serait inutilement lourd vu l'écriture par lot).
+                // Tracked (not AsNoTracking): we're going to modify these entities — same pattern
+                // as MediaIndexService.ReindexAsync (already proven at ~64k entries), but loaded
+                // batch by batch here instead of all at once (63k permanently tracked entities
+                // would be needlessly heavy given the batch-by-batch writing).
                 var batchIds = batch.Select(b => b.Id).ToList();
                 var entries = await db.MediaIndex.Where(m => batchIds.Contains(m.Id)).ToDictionaryAsync(e => e.Id, ct);
 
@@ -144,20 +144,21 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
                 }
 
                 await db.SaveChangesAsync(ct);
-                db.ChangeTracker.Clear(); // évite d'accumuler les entités des lots précédents en mémoire
+                db.ChangeTracker.Clear(); // avoids accumulating previous batches' entities in memory
             }
 
-            // Issue #11 : enchaîne automatiquement sur la géolocalisation des coordonnées GPS
-            // qui viennent d'être extraites — uniquement ici (fin normale de la boucle), pas
-            // dans le finally ci-dessous, pour ne jamais déclencher geo après un Stop() manuel
-            // ou une erreur réelle. StartAsync() est idempotent (no-op si déjà en cours).
+            // Issue #11: automatically chains into geolocation of the GPS coordinates that were
+            // just extracted — only here (normal end of the loop), not in the finally block
+            // below, so as to never trigger geo after a manual Stop() or a real error.
+            // StartAsync() is idempotent (no-op if already running).
             await geoService.StartAsync();
         }
         catch (OperationCanceledException)
         {
-            // Arrêt demandé (Stop()) — chaque lot déjà complet a été sauvegardé au fil de l'eau,
-            // rien à rattraper ici ; le lot en cours au moment de l'arrêt est simplement perdu
-            // (repris naturellement au prochain lancement, ExifProcessedAt y est resté nul).
+            // Stop requested (Stop()) — every already-complete batch was saved as it went,
+            // nothing to catch up on here; the batch in progress at the moment of the stop is
+            // simply lost (naturally resumed on the next run, since ExifProcessedAt stayed null
+            // for it).
         }
         catch (Exception ex)
         {
@@ -173,9 +174,9 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
 
     private async Task<ExifResult> ExtractAsync(long id, long pCloudFileId, string mediaType, CancellationToken ct)
     {
-        // Scope dédié à CET appel concurrent (voir commentaire sur RunAsync) : isole le
-        // CacheDbContext utilisé par PCloudTokenStore de celui des autres extractions en
-        // cours en parallèle.
+        // Scope dedicated to THIS concurrent call (see comment on RunAsync): isolates the
+        // CacheDbContext used by PCloudTokenStore from those of the other extractions
+        // running in parallel.
         using var scope = scopeFactory.CreateScope();
         var client = scope.ServiceProvider.GetRequiredService<IPCloudClient>();
 
@@ -202,21 +203,21 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
             double? latitude = null;
             double? longitude = null;
             var gpsDirectory = directories.OfType<GpsDirectory>().FirstOrDefault();
-            // GeoLocation est une struct (GetGeoLocation() renvoie donc un GeoLocation? au sens
-            // Nullable<T>) — le pattern de capture est nécessaire pour obtenir une variable non
-            // nullable exploitable.
+            // GeoLocation is a struct (so GetGeoLocation() returns a GeoLocation? in the
+            // Nullable<T> sense) — the capture pattern is needed to get a usable non-nullable
+            // variable.
             if (gpsDirectory?.GetGeoLocation() is { IsZero: false } location)
             {
                 latitude = location.Latitude;
                 longitude = location.Longitude;
             }
 
-            // Dimensions de l'image — nécessaires pour précalculer la hauteur des rangées dans la
-            // virtualisation d'Album Detail (issue #20) sans avoir à mesurer chaque image après
-            // rendu. PixelXDimension/PixelYDimension (EXIF SubIFD) d'abord — c'est la dimension
-            // réelle telle qu'enregistrée par l'appareil, fiable aussi pour les RAW (TIFF-based) —
-            // avec repli sur les marqueurs JPEG SOF si l'EXIF ne les porte pas (certains éditeurs
-            // ne réécrivent pas ces tags).
+            // Image dimensions — needed to precompute row height in Album Detail's
+            // virtualization (issue #20) without having to measure each image after rendering.
+            // PixelXDimension/PixelYDimension (EXIF SubIFD) first — this is the actual dimension
+            // as recorded by the device, reliable for RAW (TIFF-based) too — with a fallback to
+            // JPEG SOF markers if the EXIF doesn't carry them (some editors don't rewrite these
+            // tags).
             int? width = null;
             int? height = null;
             if (subIfd?.TryGetInt32(ExifDirectoryBase.TagExifImageWidth, out var exifWidth) == true &&
@@ -235,36 +236,35 @@ public class MediaExifService(IServiceScopeFactory scopeFactory, GeoLookupServic
 
             return new ExifResult(id, dateTaken, latitude, longitude, width, height);
         }
-        // Ne PAS exclure OperationCanceledException ici : HttpClient lève un TaskCanceledException
-        // (qui EN DÉRIVE) sur un simple timeout de requête (défaut 100s — déjà observé des liens
-        // pCloud à froid mettant 30s+ à se générer, voir étape 4). Un filtre sur le type
-        // d'exception laissait ce timeout se propager jusqu'au catch (OperationCanceledException)
-        // de RunAsync, qui l'interprétait à tort comme un Stop() volontaire et arrêtait tout le
-        // job en silence (aucune erreur journalisée) après seulement quelques dizaines
-        // d'éléments — bug observé en pratique sur deux lancements successifs. On ne distingue
-        // désormais l'arrêt volontaire que via l'état réel de notre propre token.
+        // Do NOT exclude OperationCanceledException here: HttpClient throws a TaskCanceledException
+        // (which DERIVES from it) on a plain request timeout (default 100s — cold pCloud links
+        // already observed taking 30s+ to generate, see step 4). A filter on the exception type
+        // let this timeout propagate up to RunAsync's catch (OperationCanceledException), which
+        // wrongly interpreted it as a deliberate Stop() and silently stopped the whole job (no
+        // logged error) after only a few dozen items — bug observed in practice across two
+        // successive runs. We now distinguish a deliberate stop only via the actual state of our
+        // own token.
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            // Pas d'EXIF exploitable (format non supporté, fichier corrompu, en-tête incomplet,
-            // timeout réseau…) — normal pour une bonne partie de la bibliothèque, pas une erreur
-            // à remonter.
+            // No usable EXIF (unsupported format, corrupted file, incomplete header,
+            // network timeout…) — normal for a good part of the library, not an error
+            // to surface.
             logger.LogDebug(ex, "Pas d'EXIF exploitable pour le média {Id}.", id);
             return new ExifResult(id, null, null, null, null, null);
         }
     }
 
-    // Époque QuickTime/Mac classique (secondes depuis ce point de référence) — un mvhd.creation_time
-    // à zéro (donc converti tel quel par MetadataExtractor en 1904-01-01T00:00:00) est une valeur
-    // sentinelle très répandue signifiant "jamais renseigné" (constaté en pratique sur une vidéo
-    // réencodée par un outil tiers, pas une vraie date de capture) — à distinguer d'une vraie date.
+    // Classic QuickTime/Mac epoch (seconds since this reference point) — an mvhd.creation_time
+    // of zero (thus converted as-is by MetadataExtractor to 1904-01-01T00:00:00) is a very common
+    // sentinel value meaning "never set" (observed in practice on a video re-encoded by a
+    // third-party tool, not a real capture date) — to be distinguished from a real date.
     private static readonly DateTime QuickTimeEpoch = new(1904, 1, 1);
 
-    // Tente de lire mvhd.creation_time depuis les octets donnés (tête OU fin de fichier — voir
-    // appelant). Volontairement silencieuse (retourne null) sur tout échec : un fichier tronqué à
-    // cette taille de lecture (moov trop volumineux, ou situé ailleurs que la portion lue) est un
-    // cas normal, pas une erreur à remonter — la tentative suivante (tête puis fin) ou l'absence
-    // de date prend le relais. Ne masque PAS une annulation réelle (voir commentaire sur
-    // ExtractAsync ci-dessus, même piège).
+    // Tries to read mvhd.creation_time from the given bytes (start OR end of file — see
+    // caller). Deliberately silent (returns null) on any failure: a file truncated at this read
+    // size (moov too large, or located elsewhere than the portion read) is a normal case, not an
+    // error to surface — the next attempt (start then end) or the absence of a date takes over.
+    // Does NOT mask a real cancellation (see comment on ExtractAsync above, same pitfall).
     private static async Task<DateTime?> TryReadVideoCreationDateAsync(Func<Task<byte[]>> downloadBytes, CancellationToken ct)
     {
         try

@@ -9,19 +9,19 @@ namespace RPhotoAlbum.Api.Media;
 
 public record GeoJobStatus(bool Running, int Processed, int Total, DateTime? StartedAt, string? LastError);
 
-// Job manuel : résout pays/région/département/ville pour les coordonnées GPS extraites par
-// MediaExifService, via géocodage inverse Nominatim (OpenStreetMap) — voir plan V2 étape 9.
+// Manual job: resolves country/region/county/city for the GPS coordinates extracted by
+// MediaExifService, via Nominatim (OpenStreetMap) reverse geocoding — see V2 plan step 9.
 //
-// Contrainte dure de la politique d'usage Nominatim (operations.osmfoundation.org/policies/
-// nominatim) pour un script récurrent comme celui-ci : 4 requêtes/minute, User-Agent
-// identifiant l'application, mise en cache obligatoire des résultats côté client. D'où le
-// GeoLocationCache (coordonnées arrondies à ~100 m) consulté AVANT tout appel réseau : des
-// dizaines de photos prises au même endroit ne déclenchent qu'une seule requête Nominatim,
-// ce qui rend la limite de débit largement suffisante en pratique pour une photothèque
-// personnelle (quelques dizaines/centaines de lieux distincts, pas un appel par photo).
+// Hard constraint from the Nominatim usage policy (operations.osmfoundation.org/policies/
+// nominatim) for a recurring script like this one: 4 requests/minute, a User-Agent
+// identifying the application, mandatory client-side caching of results. Hence the
+// GeoLocationCache (coordinates rounded to ~100 m) consulted BEFORE any network call: dozens
+// of photos taken at the same spot trigger only a single Nominatim request, which makes the
+// rate limit plenty sufficient in practice for a personal photo library (a few dozen/hundred
+// distinct places, not one call per photo).
 public class GeoLookupService(IServiceScopeFactory scopeFactory, HttpClient httpClient, ILogger<GeoLookupService> logger)
 {
-    private const int CoordinatePrecision = 3; // ~111 m à l'équateur
+    private const int CoordinatePrecision = 3; // ~111 m at the equator
     private static readonly TimeSpan RequestInterval = TimeSpan.FromSeconds(15); // 4 req/min
 
     private static readonly SemaphoreSlim RunLock = new(1, 1);
@@ -56,8 +56,8 @@ public class GeoLookupService(IServiceScopeFactory scopeFactory, HttpClient http
 
     public void Stop() => _cts?.Cancel();
 
-    // Séquentiel (pas de concurrence comme MediaExifService) : Nominatim impose 1 seul thread,
-    // jamais de requêtes en parallèle.
+    // Sequential (no concurrency like MediaExifService): Nominatim requires a single thread,
+    // never parallel requests.
     private async Task RunAsync(CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
@@ -86,8 +86,8 @@ public class GeoLookupService(IServiceScopeFactory scopeFactory, HttpClient http
                     cached = await ResolveAndCacheAsync(db, roundedLat, roundedLon, ct);
                     if (cached is null)
                     {
-                        // Échec (réseau, Nominatim indisponible…) : laissé non traité, retenté au
-                        // prochain lancement plutôt que marqué "traité" avec un résultat vide.
+                        // Failure (network, Nominatim unavailable…): left unprocessed, retried on
+                        // the next run rather than marked "processed" with an empty result.
                         continue;
                     }
                     await Task.Delay(RequestInterval, ct);
@@ -111,7 +111,7 @@ public class GeoLookupService(IServiceScopeFactory scopeFactory, HttpClient http
         }
         catch (OperationCanceledException)
         {
-            await db.SaveChangesAsync(CancellationToken.None); // conserve ce qui a déjà été résolu
+            await db.SaveChangesAsync(CancellationToken.None); // keeps what has already been resolved
         }
         catch (Exception ex)
         {
@@ -155,10 +155,10 @@ public class GeoLookupService(IServiceScopeFactory scopeFactory, HttpClient http
             await db.SaveChangesAsync(ct);
             return cached;
         }
-        // Voir le commentaire équivalent dans MediaExifService.ExtractAsync : un timeout HTTP lève
-        // un TaskCanceledException (dérive d'OperationCanceledException) qu'un filtre sur le type
-        // d'exception laisserait remonter jusqu'au catch (OperationCanceledException) de RunAsync,
-        // arrêtant tout le job en silence sans erreur journalisée.
+        // See the equivalent comment in MediaExifService.ExtractAsync: an HTTP timeout throws a
+        // TaskCanceledException (derives from OperationCanceledException) that a filter on the
+        // exception type would let bubble up to RunAsync's catch (OperationCanceledException),
+        // silently stopping the whole job with no logged error.
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             logger.LogWarning(ex, "Échec de géocodage inverse pour {Lat},{Lon}.", lat, lon);

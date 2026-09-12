@@ -1,10 +1,10 @@
 namespace RPhotoAlbum.Api.Albums;
 
-// Fichier manifeste "album-structure.json", écrit à la racine du dossier parent des albums
-// (AppConfiguration.AlbumParentFolderId) — pas dans un sous-dossier d'album comme album.json.
-// Source de vérité de l'organisation de la liste des albums (sections + ordre) — voir issue
-// GitHub #6. Suit le même pattern que AlbumDocument : sérialisé en JSON, réécrit en place via
-// IPCloudClient.UploadTextFileAsync, fileId suivi dans AppConfiguration.AlbumStructureFileId.
+// "album-structure.json" manifest file, written at the root of the albums parent folder
+// (AppConfiguration.AlbumParentFolderId) — not inside an album subfolder like album.json.
+// Source of truth for the organization of the album list (sections + order) — see GitHub
+// issue #6. Follows the same pattern as AlbumDocument: serialized to JSON, rewritten in place
+// via IPCloudClient.UploadTextFileAsync, fileId tracked in AppConfiguration.AlbumStructureFileId.
 public class AlbumStructureDocument
 {
     public List<AlbumSectionDocument> Sections { get; set; } = [];

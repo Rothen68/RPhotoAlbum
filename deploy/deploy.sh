@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Déploiement de RPhotoAlbum sur un serveur Docker (TrueNAS SCALE, etc.).
+# Deploys RPhotoAlbum on a Docker server (TrueNAS SCALE, etc.).
 #
-# Premier déploiement (le dépôt n'existe pas encore sur le serveur) :
+# First deployment (the repo doesn't exist on the server yet):
 #   curl -fsSL https://raw.githubusercontent.com/Rothen68/RPhotoAlbum/V3/deploy/deploy.sh -o deploy.sh
 #   chmod +x deploy.sh
 #   DEPLOY_DIR=/mnt/<pool>/apps/rphotoalbum ./deploy.sh
 #
-# Mises à jour suivantes : relancer le script déjà présent dans le dépôt cloné
-# (il fait un git pull avant de reconstruire) :
+# Later updates: re-run the script already present in the cloned repo
+# (it does a git pull before rebuilding):
 #   $DEPLOY_DIR/deploy/deploy.sh
 #
-# Variables d'environnement optionnelles :
+# Optional environment variables:
 #   REPO_URL   (def: https://github.com/Rothen68/RPhotoAlbum.git)
 #   BRANCH     (def: V3)
 #   DEPLOY_DIR (def: $HOME/apps/rphotoalbum)
@@ -28,65 +28,64 @@ if docker compose version >/dev/null 2>&1; then
 elif command -v docker-compose >/dev/null 2>&1; then
   compose() { docker-compose "$@"; }
 else
-  echo "Erreur : ni 'docker compose' ni 'docker-compose' n'est disponible sur ce serveur." >&2
+  echo "Error: neither 'docker compose' nor 'docker-compose' is available on this server." >&2
   exit 1
 fi
 
 if [ -d "$DEPLOY_DIR/.git" ]; then
-  log "Dépôt existant dans $DEPLOY_DIR — mise à jour."
+  log "Existing repo in $DEPLOY_DIR — updating."
   cd "$DEPLOY_DIR"
 
   if [ -n "$(git status --porcelain)" ]; then
-    echo "Erreur : $DEPLOY_DIR contient des modifications locales non commitées." >&2
-    echo "Résous-les manuellement (git status) avant de relancer le déploiement." >&2
+    echo "Error: $DEPLOY_DIR has uncommitted local changes." >&2
+    echo "Resolve them manually (git status) before re-running the deployment." >&2
     exit 1
   fi
 
-  # fetch AVANT checkout : sans ça, `git checkout` ne connaît que les branches déjà vues lors
-  # du clonage initial (ex. V2) — basculer vers une branche créée depuis (ex. V3) échoue avec
-  # "pathspec did not match any file(s) known to git" tant qu'aucun fetch n'a rafraîchi les
-  # références distantes.
+  # fetch BEFORE checkout: without this, `git checkout` only knows about branches already seen
+  # at initial clone time (e.g. V2) — switching to a branch created since (e.g. V3) fails with
+  # "pathspec did not match any file(s) known to git" until a fetch refreshes remote refs.
   git fetch origin
   git checkout "$BRANCH"
-  # --ff-only : refuse d'écraser silencieusement des commits locaux qui auraient
-  # divergé de l'origine, plutôt qu'un reset --hard destructeur.
+  # --ff-only: refuses to silently overwrite local commits that diverged from origin, rather
+  # than a destructive reset --hard.
   git pull --ff-only origin "$BRANCH"
 else
-  log "Aucun dépôt trouvé — clonage dans $DEPLOY_DIR."
+  log "No repo found — cloning into $DEPLOY_DIR."
   git clone --branch "$BRANCH" "$REPO_URL" "$DEPLOY_DIR"
   cd "$DEPLOY_DIR"
 fi
 
 if [ ! -f "$DEPLOY_DIR/.env" ]; then
-  log "Aucun fichier .env trouvé — copie de .env.example."
+  log "No .env file found — copying .env.example."
   cp "$DEPLOY_DIR/.env.example" "$DEPLOY_DIR/.env"
   echo
-  echo "===> Édite $DEPLOY_DIR/.env avec les vraies valeurs (identifiants pCloud,"
-  echo "===> admin applicatif, APP_BASE_URL, TLS_SAN_IP...) puis relance ce script."
+  echo "===> Edit $DEPLOY_DIR/.env with real values (pCloud credentials,"
+  echo "===> application admin, APP_BASE_URL, TLS_SAN_IP...) then re-run this script."
   exit 1
 fi
 
 if [ ! -f "$DEPLOY_DIR/reverse-proxy/certs/server.crt" ]; then
-  log "Génération du certificat TLS auto-signé (HTTPS requis par la consultation hors-ligne, #29)."
+  log "Generating the self-signed TLS certificate (required for offline viewing, #29)."
   bash "$DEPLOY_DIR/reverse-proxy/generate-cert.sh"
 fi
 
-log "Construction des images Docker (backend, frontend)."
+log "Building Docker images (backend, frontend)."
 compose build
 
-log "Démarrage des conteneurs."
+log "Starting containers."
 compose up -d
 
-# reverse-proxy utilise une image nginx stock (jamais reconstruite) avec nginx.conf monté en
-# volume — `compose up -d` ne recrée un service que si son IMAGE ou sa déclaration dans
-# docker-compose.yml change, jamais si seul le CONTENU d'un fichier monté a changé. Sans ce
-# redémarrage explicite, une modification de nginx.conf reste silencieusement sans effet après
-# déploiement (constaté en conditions réelles : proxy_read_timeout mis à jour dans le dépôt mais
-# toujours pas appliqué après plusieurs déploiements successifs).
-log "Redémarrage du reverse-proxy pour prendre en compte un éventuel changement de nginx.conf."
+# reverse-proxy uses a stock nginx image (never rebuilt) with nginx.conf mounted as a volume —
+# `compose up -d` only recreates a service if its IMAGE or its declaration in docker-compose.yml
+# changes, never if only the CONTENT of a mounted file changed. Without this explicit restart, a
+# change to nginx.conf silently has no effect after deployment (observed in real usage:
+# proxy_read_timeout updated in the repo but still not applied after several consecutive
+# deployments).
+log "Restarting reverse-proxy to pick up any nginx.conf change."
 compose restart reverse-proxy
 
-log "État des conteneurs :"
+log "Container status:"
 compose ps
 
-log "Déploiement terminé."
+log "Deployment complete."

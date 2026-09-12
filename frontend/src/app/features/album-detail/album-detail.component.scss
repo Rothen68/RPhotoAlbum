@@ -1,8 +1,8 @@
-// Conteneur borné en hauteur (comme Gallery) plutôt que scroll de page naturel — nécessaire
-// pour héberger le <cdk-virtual-scroll-viewport> de la vue de base (issue #20), qui gère son
-// propre défilement interne. Le mode Edit (non virtualisé) partage le même agencement, avec son
-// propre conteneur défilant (.feed-scroll) plutôt que window — voir AlbumDetailComponent
-// (runAutoScroll cible désormais ce conteneur).
+// Height-bounded container (like Gallery) rather than natural page scroll — needed
+// to host the <cdk-virtual-scroll-viewport> of the base view (issue #20), which manages its
+// own internal scrolling. Edit mode (not virtualized) shares the same layout, with its
+// own scrolling container (.feed-scroll) rather than window — see AlbumDetailComponent
+// (runAutoScroll now targets this container).
 :host {
   display: flex;
   flex-direction: column;
@@ -27,7 +27,7 @@
   white-space: nowrap;
 }
 
-// Consultation hors-ligne (issue #29) — barre de progression et légendes sous le header.
+// Offline viewing (issue #29) — progress bar and captions under the header.
 .offline-status {
   flex: 0 0 auto;
   padding: 0 0.75rem 0.5rem;
@@ -58,19 +58,19 @@
   padding: 0 1rem;
 }
 
-// cdk-virtual-scroll-viewport gère lui-même son overflow interne — ne pas le fixer ici, juste
-// lui laisser l'espace disponible via flex.
+// cdk-virtual-scroll-viewport manages its own internal overflow — don't set it here, just
+// give it the available space via flex.
 .virtual-viewport {
   flex: 1 1 auto;
   min-height: 0;
 
-  // Espacement vertical entre rangées (régression V2.24 : la table d'offsets cumulés de CDK ne
-  // prenait en compte que la hauteur du contenu, jamais d'espacement entre rangées, contrairement
-  // au mode Edit qui en a un via `.feed { gap: 0.5rem }`). Un margin ici, PAS un padding avec
-  // box-sizing:border-box : .row/.media-block gardent leur hauteur exacte (nécessaire pour un
-  // rendu photo non déformé), c'est AlbumDetailComponent.pushRowHeights qui ajoute cette même
-  // valeur (ROW_GAP_PX) à la hauteur poussée à la stratégie de scroll, pour que l'empreinte
-  // totale de chaque rangée (contenu + cette marge) corresponde exactement à ce que CDK attend.
+  // Vertical spacing between rows (V2.24 regression: CDK's cumulative offset table only
+  // accounted for content height, never spacing between rows, unlike Edit mode which has
+  // one via `.feed { gap: 0.5rem }`). A margin here, NOT a padding with
+  // box-sizing:border-box: .row/.media-block keep their exact height (needed for
+  // undistorted photo rendering); it's AlbumDetailComponent.pushRowHeights that adds this same
+  // value (ROW_GAP_PX) to the height pushed to the scroll strategy, so that the total
+  // footprint of each row (content + this margin) matches exactly what CDK expects.
   .row-wrapper {
     margin-bottom: 8px;
   }
@@ -89,9 +89,9 @@
   padding: 0 0.75rem 1rem;
 }
 
-// Une rangée = sa propre mini-grille à N colonnes (N = nombre de médias groupés) : un
-// grid partagé par tout le fil ne peut pas donner à une rangée de 2 photos une largeur
-// 50/50 et à une rangée de 3 une largeur 33/33/33 avec des colonnes de largeur uniforme.
+// A row = its own N-column mini-grid (N = number of grouped media): a
+// grid shared across the whole feed can't give a row of 2 photos a 50/50
+// width and a row of 3 a 33/33/33 width with uniform-width columns.
 .row {
   display: grid;
   grid-template-columns: repeat(var(--row-cols, 1), 1fr);
@@ -109,8 +109,8 @@
   border: none;
   background: transparent;
   cursor: pointer;
-  // padding 10px + glyphe 24px = ~44px de cible tactile réelle (ARCHITECTURE.md §19), sans
-  // agrandir le glyphe visuel lui-même (.dashed-circle reste à 24px).
+  // padding 10px + 24px glyph = ~44px actual touch target (ARCHITECTURE.md §19), without
+  // enlarging the visual glyph itself (.dashed-circle stays at 24px).
   padding: 10px;
 
   .dashed-circle {
@@ -138,10 +138,10 @@
   width: 100%;
 }
 
-// L'unité de drag-and-drop est la RANGÉE, pas l'item individuel (voir retour utilisateur : la
-// poignée de réorganisation par item se superposait avec les boutons de layout/suppression sur
-// les rangées groupées, et la sélection multiple par item s'est avérée trop complexe pour peu
-// de bénéfice une fois la rangée disponible comme unité naturelle depuis l'étape 7).
+// The drag-and-drop unit is the ROW, not the individual item (see user feedback: the
+// per-item reorder handle overlapped with the layout/delete buttons on grouped rows,
+// and per-item multi-selection turned out too complex for little benefit once the
+// row was available as a natural unit since step 7).
 .row-wrapper {
   position: relative;
   display: flex;
@@ -157,7 +157,7 @@
     opacity: 0.3;
   }
 
-  // La mini-grille de la rangée doit occuper tout l'espace restant à côté de la poignée.
+  // The row's mini-grid must take up all the remaining space next to the handle.
   .row {
     flex: 1;
     min-width: 0;
@@ -185,10 +185,10 @@
   }
 }
 
-// Une photo seule garde son ratio naturel (comportement actuel, image complète visible).
-// Groupée, elle serait sinon aussi haute que la plus haute du lot (chaque cellule de la
-// mini-grille de la rangée a la même largeur mais l'image y garde sa hauteur naturelle) —
-// object-fit: cover + ratio carré donne une rangée régulière, à l'image des tuiles Gallery.
+// A single photo keeps its natural ratio (current behavior, full image visible).
+// Grouped, it would otherwise be as tall as the tallest of the batch (each cell of the
+// row's mini-grid has the same width but the image keeps its natural height there) —
+// object-fit: cover + square ratio gives a regular row, like the Gallery tiles.
 .block.grouped .media-block {
   img,
   video {
@@ -197,15 +197,15 @@
   }
 }
 
-// Vue virtualisée (issue #20) : la hauteur est fixée en JS directement sur .media-block (voir
-// computeRowHeight / [style.height.px] dans le template) — PAS via un height: 100% en cascade
-// depuis .row, qui ne se propage pas de façon fiable à travers .block/.block-content (des
-// conteneurs sans hauteur explicite propre, y compris dans une grille CSS) : constaté en
-// pratique, l'image gardait sa taille naturelle carrée et chevauchait la rangée suivante.
-// object-fit: cover fait correspondre exactement le rendu à cette hauteur, sans recadrage
-// perceptible quand les dimensions réelles de l'image sont connues (extraction EXIF). Seul un
-// média pas encore traité (estimation par défaut, voir FALLBACK_ASPECT_RATIO) peut montrer un
-// léger recadrage temporaire, qui se corrige de lui-même une fois l'EXIF disponible.
+// Virtualized view (issue #20): the height is set in JS directly on .media-block (see
+// computeRowHeight / [style.height.px] in the template) — NOT via a cascading height: 100%
+// from .row, which doesn't propagate reliably through .block/.block-content (containers
+// with no explicit height of their own, including inside a CSS grid): observed in
+// practice, the image kept its natural square size and overlapped the next row.
+// object-fit: cover makes the render match this height exactly, with no noticeable
+// cropping once the image's real dimensions are known (EXIF extraction). Only
+// media not yet processed (default estimate, see FALLBACK_ASPECT_RATIO) can show a
+// slight temporary crop, which corrects itself once EXIF is available.
 .media-block.virtualized {
   img,
   video {
@@ -221,14 +221,14 @@
     cursor: text;
   }
 
-  // Vue virtualisée (issue #30) : aucune hauteur propre ici — comme .media-block ci-dessus,
-  // .block/.block-content ne propagent pas de height: 100% de façon fiable, donc ce bloc prend
-  // déjà naturellement la hauteur de son contenu sans réservation explicite. C'est exactement ce
-  // qu'il faut pour que MeasureHeightDirective mesure la vraie hauteur du contenu (et non plus
-  // TEXT_BLOCK_HEIGHT_ESTIMATE_PX, voir album-virtual.ts) : AlbumDetailComponent.onTextHeightMeasured
-  // corrige alors la hauteur de .row (et donc le positionnement de la virtualisation) en
-  // conséquence — léger réajustement visuel possible au tout premier rendu d'une rangée texte
-  // donnée, imperceptible en défilement normal grâce à la zone tampon de la virtualisation.
+  // Virtualized view (issue #30): no height of its own here — like .media-block above,
+  // .block/.block-content don't reliably propagate height: 100%, so this block already
+  // naturally takes the height of its content with no explicit reservation. This is exactly
+  // what's needed for MeasureHeightDirective to measure the real content height (rather than
+  // TEXT_BLOCK_HEIGHT_ESTIMATE_PX, see album-virtual.ts): AlbumDetailComponent.onTextHeightMeasured
+  // then corrects the height of .row (and thus the virtualization positioning) accordingly —
+  // a slight visual readjustment is possible on the very first render of a given text row,
+  // imperceptible during normal scrolling thanks to the virtualization buffer zone.
 }
 
 .reorder-controls {
@@ -249,9 +249,9 @@
     display: flex;
     flex-direction: column;
 
-    // Pas de largeur/hauteur locale : le standard global .btn-icon (styles.scss, 44px) s'applique
-    // tel quel — ARCHITECTURE.md §19 impose 44x44px minimum, une surcharge locale plus petite ici
-    // l'écrasait auparavant.
+    // No local width/height: the global .btn-icon standard (styles.scss, 44px) applies
+    // as-is — ARCHITECTURE.md §19 requires a 44x44px minimum, a smaller local override here
+    // used to override it.
     button {
       .icon {
         font-size: 18px;
@@ -260,9 +260,9 @@
   }
 }
 
-// Coin bas-droit : libre dans les deux vues (group-controls est en haut-gauche, remove-btn en
-// haut-droit) — voir issue #24. Même style que Gallery (.raw-glyph) pour rester cohérent entre
-// les deux contextes.
+// Bottom-right corner: free in both views (group-controls is top-left, remove-btn
+// top-right) — see issue #24. Same style as Gallery (.raw-glyph) to stay consistent
+// between the two contexts.
 .raw-glyph {
   position: absolute;
   right: 4px;
@@ -282,8 +282,8 @@
   right: 4px;
   background: rgba(0, 0, 0, 0.45);
   color: white;
-  // Pas de largeur/hauteur locale : le standard global .btn-icon (44px, ARCHITECTURE.md §19)
-  // s'applique tel quel.
+  // No local width/height: the global .btn-icon standard (44px, ARCHITECTURE.md §19)
+  // applies as-is.
   border-radius: 999px;
 
   .icon {
@@ -291,9 +291,9 @@
   }
 }
 
-// Conteneur plutôt que positionner chaque bouton individuellement : "Grouper avec le
-// suivant" et "Séparer" peuvent être visibles simultanément (une rangée de 2 peut à la fois
-// grandir à 3 et être séparée) et ne doivent pas se superposer dans le coin.
+// Container rather than positioning each button individually: "Group with
+// next" and "Separate" can be visible at the same time (a row of 2 can both
+// grow to 3 and be separated) and must not overlap in the corner.
 .group-controls {
   position: absolute;
   top: 4px;
@@ -306,8 +306,8 @@
 .group-btn {
   background: rgba(0, 0, 0, 0.45);
   color: white;
-  // Pas de largeur/hauteur locale : le standard global .btn-icon (44px, ARCHITECTURE.md §19)
-  // s'applique tel quel.
+  // No local width/height: the global .btn-icon standard (44px, ARCHITECTURE.md §19)
+  // applies as-is.
   border-radius: 999px;
 
   .icon {

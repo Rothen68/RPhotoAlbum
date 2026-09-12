@@ -9,33 +9,33 @@ namespace RPhotoAlbum.Api.Albums;
 
 public record AlbumMembership(string AlbumId, string Name, bool ContainsAll);
 
-// Regroupement/ordre des albums (issue #6) — Sections préserve l'ordre des sections telles que
-// persistées, Unsectioned regroupe les albums pas encore rangés (nouveaux albums compris).
+// Grouping/ordering of albums (issue #6) — Sections preserves the order of sections as
+// persisted, Unsectioned groups the albums not yet organized (including new albums).
 public record AlbumSection(string Id, string Name, List<AlbumSummary> Albums);
 public record AlbumListResult(List<AlbumSection> Sections, List<AlbumSummary> Unsectioned);
 public record AlbumSectionInput(string? Id, string Name, List<string> AlbumIds);
 
-// Création, lecture/écriture de album.json, ajout/retrait de médias et blocs texte,
-// réorganisation — voir ARCHITECTURE.md §9.5.
+// Creation, reading/writing of album.json, adding/removing media and text blocks,
+// reordering — see ARCHITECTURE.md §9.5.
 public class AlbumService(
     CacheDbContext db, IPCloudClient client, IServiceScopeFactory scopeFactory, ILogger<AlbumService> logger)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    // Copies pCloud en concurrence bornée (voir MediaExifService.MaxConcurrency, même logique) —
-    // issue #13 : une sélection nombreuse copiée en série (un aller-retour pCloud par fichier,
-    // sans aucun retour visible côté UI) rendait la création d'un album perceptiblement "gelée".
+    // Bounded-concurrency pCloud copies (see MediaExifService.MaxConcurrency, same logic) —
+    // issue #13: a large selection copied serially (one pCloud round trip per file,
+    // with no visible feedback in the UI) made creating an album perceptibly "frozen".
     private const int AddMediaConcurrency = 4;
-    // Écrit à la racine du dossier parent des albums (pas dans un sous-dossier d'album comme
-    // album.json) — voir AlbumStructureDocument.
+    // Written at the root of the albums parent folder (not inside an album subfolder like
+    // album.json) — see AlbumStructureDocument.
     private const string StructureFileName = "album-structure.json";
 
     public async Task<List<AlbumSummary>> ListAsync(CancellationToken ct = default)
         => await db.AlbumSummaries.AsNoTracking().OrderByDescending(a => a.UpdatedAt).ToListAsync(ct);
 
-    // Liste groupée par sections (issue #6) — combine les AlbumSummary (cache SQLite, comme
-    // ListAsync) avec le manifeste album-structure.json (racine du dossier parent des albums).
-    // Un album jamais placé dans le manifeste (nouveau, ou jamais organisé) apparaît
-    // automatiquement dans Unsectioned, sans qu'aucune écriture pCloud ne soit nécessaire.
+    // List grouped by sections (issue #6) — combines the AlbumSummary (SQLite cache, like
+    // ListAsync) with the album-structure.json manifest (root of the albums parent folder).
+    // An album never placed in the manifest (new, or never organized) automatically appears
+    // in Unsectioned, without requiring any pCloud write.
     public async Task<AlbumListResult> ListGroupedAsync(CancellationToken ct = default)
     {
         var summaries = await ListAsync(ct);
@@ -43,10 +43,10 @@ public class AlbumService(
         return Project(summaries, structure);
     }
 
-    // Remplace l'intégralité du manifeste (même philosophie que ReorderAsync, qui remplace la
-    // liste complète des items d'un album) — élimine les ids d'album inconnus/supprimés et les
-    // doublons, réinjecte en Unsectioned tout album connu mais absent du payload plutôt que de
-    // le perdre silencieusement de la liste (même défense que NormalizeRowSpans).
+    // Replaces the manifest in its entirety (same philosophy as ReorderAsync, which replaces
+    // the full list of an album's items) — drops unknown/deleted album ids and
+    // duplicates, reinjects into Unsectioned any album that is known but absent from the payload
+    // rather than silently dropping it from the list (same defense as NormalizeRowSpans).
     public async Task<AlbumListResult> SaveStructureAsync(
         List<AlbumSectionInput> sections, List<string> unsectionedAlbumIds, CancellationToken ct = default)
     {
@@ -140,8 +140,8 @@ public class AlbumService(
             }
         }
 
-        // Albums jamais placés nulle part dans le manifeste (nouveaux, ou jamais organisés) —
-        // ajoutés en fin de la liste "non rangés" (ordre habituel, plus récent d'abord).
+        // Albums never placed anywhere in the manifest (new, or never organized) —
+        // appended to the end of the "unsectioned" list (usual order, most recent first).
         foreach (var summary in summaries)
         {
             if (placed.Add(summary.Id))
@@ -153,10 +153,10 @@ public class AlbumService(
         return new AlbumListResult(sections, unsectioned);
     }
 
-    // Redécouvre les albums déjà présents sur pCloud (album.json dans chaque sous-dossier du
-    // dossier parent) et reconstruit AlbumSummaries en conséquence — nécessaire quand le cache
-    // local est vide alors que des albums existent déjà sur pCloud (ex. migration vers un nouveau
-    // déploiement pointé sur le même dossier), voir ARCHITECTURE.md §3 (cache reconstructible).
+    // Rediscovers the albums already present on pCloud (album.json in each subfolder of the
+    // parent folder) and rebuilds AlbumSummaries accordingly — needed when the local
+    // cache is empty while albums already exist on pCloud (e.g. migrating to a new
+    // deployment pointed at the same folder), see ARCHITECTURE.md §3 (rebuildable cache).
     public async Task<int> ReindexAsync(CancellationToken ct = default)
     {
         var config = await db.AppConfigurations.AsNoTracking().FirstOrDefaultAsync(c => c.Id == 1, ct);
@@ -332,9 +332,9 @@ public class AlbumService(
             await throttle.WaitAsync(ct);
             try
             {
-                // Scope dédié : PCloudClient dépend de PCloudTokenStore, qui interroge
-                // CacheDbContext à chaque appel — un DbContext EF Core n'est pas thread-safe, le
-                // partager entre ces copies concurrentes reproduirait le même bug que #12.
+                // Dedicated scope: PCloudClient depends on PCloudTokenStore, which queries
+                // CacheDbContext on every call — an EF Core DbContext is not thread-safe,
+                // sharing it across these concurrent copies would reproduce the same bug as #12.
                 using var scope = scopeFactory.CreateScope();
                 var scopedClient = scope.ServiceProvider.GetRequiredService<IPCloudClient>();
                 var copyFileId = await scopedClient.CopyFileAsync(fileId, summary.AlbumFolderId, media.Name);
@@ -385,9 +385,9 @@ public class AlbumService(
             return doc;
         }
 
-        // Suppressions pCloud en concurrence bornée — même correctif que AddMediaAsync (#13),
-        // pour la même raison (une sélection nombreuse supprimée en série pouvait rendre la
-        // requête perceptiblement "gelée", sans aucun retour visible).
+        // Bounded-concurrency pCloud deletions — same fix as AddMediaAsync (#13),
+        // for the same reason (a large selection deleted serially could make the
+        // request perceptibly "frozen", with no visible feedback).
         using var throttle = new SemaphoreSlim(AddMediaConcurrency, AddMediaConcurrency);
         var deleteTasks = toRemove.Select(async item =>
         {
@@ -467,10 +467,10 @@ public class AlbumService(
         return doc;
     }
 
-    // rowSpans : nouvelle valeur de RowSpan par id d'item ancre (facultatif) — transportée en
-    // plus de l'ordre pour n'avoir qu'un seul appel / une seule réécriture d'album.json, y
-    // compris pour un simple "Grouper avec le suivant" qui ne change pas l'ordre (voir action
-    // Edit d'album étape 7).
+    // rowSpans: new RowSpan value per anchor item id (optional) — carried alongside
+    // the order so there is only a single call / single album.json rewrite, including
+    // for a simple "Group with next" that doesn't change the order (see Album Edit
+    // action step 7).
     public async Task<AlbumDocument> ReorderAsync(
         string id, List<string> itemIds, Dictionary<string, int>? rowSpans = null, CancellationToken ct = default)
     {
@@ -495,7 +495,7 @@ public class AlbumService(
         return doc;
     }
 
-    // Pour le bottom sheet "Add to Album" : dans quels albums TOUS les médias donnés sont-ils déjà présents ?
+    // For the "Add to Album" bottom sheet: in which albums are ALL the given media already present?
     public async Task<List<AlbumMembership>> GetMembershipAsync(List<long> fileIds, CancellationToken ct = default)
     {
         var summaries = await db.AlbumSummaries.AsNoTracking().ToListAsync(ct);
@@ -552,16 +552,16 @@ public class AlbumService(
         await db.SaveChangesAsync(ct);
     }
 
-    // Validation serveur avant persistance : plafonne RowSpan à [1,3] et le réduit au nombre
-    // réel d'items média consécutifs disponibles derrière l'ancre — corrige silencieusement
-    // les incohérences plutôt que d'échouer, car album.json est la source de vérité réelle
-    // (pas un cache reconstructible) et toute mutation (insertion de texte au milieu d'une
-    // rangée, suppression de l'ancre ou d'un item de la rangée, reorder qui casse la
-    // contiguïté) peut la rendre incohérente. Appelé à chaque écriture, quel que soit le
-    // point d'entrée (AddMedia/RemoveMedia/AddText/RemoveItem/Reorder).
-    // internal (pas private) + InternalsVisibleTo(RPhotoAlbum.Api.Tests) : logique pure, sans
-    // I/O, testable directement sans avoir à instancier AlbumService (donc sans mocker
-    // PCloudClient/CacheDbContext) — voir issue GitHub #17.
+    // Server-side validation before persisting: clamps RowSpan to [1,3] and reduces it to the
+    // actual number of consecutive media items available behind the anchor — silently corrects
+    // inconsistencies rather than failing, because album.json is the real source of truth
+    // (not a rebuildable cache) and any mutation (inserting text in the middle of a
+    // row, removing the anchor or an item from the row, a reorder that breaks
+    // contiguity) can make it inconsistent. Called on every write, regardless of the
+    // entry point (AddMedia/RemoveMedia/AddText/RemoveItem/Reorder).
+    // internal (not private) + InternalsVisibleTo(RPhotoAlbum.Api.Tests): pure logic, no
+    // I/O, directly testable without having to instantiate AlbumService (so without mocking
+    // PCloudClient/CacheDbContext) — see GitHub issue #17.
     internal static void NormalizeRowSpans(AlbumDocument doc)
     {
         var items = doc.Items;
@@ -594,10 +594,10 @@ public class AlbumService(
         }
     }
 
-    // targetClient explicite (pas le `client` injecté au constructeur) : appelé aussi bien
-    // depuis un contexte simple (RemoveItemAsync, un seul item) que depuis des suppressions
-    // concurrentes (RemoveMediaAsync), où chaque tâche a besoin de son propre PCloudClient
-    // scope-isolé — voir commentaire sur AddMediaAsync.
+    // Explicit targetClient (not the `client` injected in the constructor): called both
+    // from a simple context (RemoveItemAsync, a single item) and from concurrent
+    // deletions (RemoveMediaAsync), where each task needs its own scope-isolated
+    // PCloudClient — see the comment on AddMediaAsync.
     private async Task TryDeleteAlbumCopyAsync(AlbumItemDocument item, IPCloudClient targetClient)
     {
         if (item.AlbumCopy is null)

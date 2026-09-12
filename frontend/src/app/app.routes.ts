@@ -3,9 +3,9 @@ import { authGuard } from './core/auth/auth.guard';
 import { GalleryComponent } from './features/gallery/gallery.component';
 import { ShellComponent } from './shell/shell.component';
 
-// Chargement paresseux par route (issue #19) — seuls Gallery (premier écran) et Shell (wrapper
-// léger, tab bar) restent chargés d'emblée. Le reste (Login, Config, Album Detail, Albums) n'a
-// pas besoin d'être présent au premier affichage.
+// Lazy loading per route (issue #19) — only Gallery (first screen) and Shell (lightweight
+// wrapper, tab bar) stay loaded upfront. The rest (Login, Config, Album Detail, Albums) doesn't
+// need to be present on first render.
 export const routes: Routes = [
   {
     path: 'login',

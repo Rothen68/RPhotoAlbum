@@ -1,6 +1,6 @@
 namespace RPhotoAlbum.Api.Albums;
 
-// Forme persistée de album.json sur pCloud — source de vérité, voir ARCHITECTURE.md §6.3.
+// Persisted form of album.json on pCloud — source of truth, see ARCHITECTURE.md §6.3.
 public class AlbumDocument
 {
     public required string Id { get; set; }
@@ -18,8 +18,8 @@ public class AlbumFolderRef
     public required string Path { get; set; }
 }
 
-// type = "media" | "text". Pour "media" : MediaType/Date/Source/AlbumCopy renseignés.
-// Pour "text" : seul Markdown est renseigné.
+// type = "media" | "text". For "media": MediaType/Date/Source/AlbumCopy are populated.
+// For "text": only Markdown is populated.
 public class AlbumItemDocument
 {
     public required string Id { get; set; }
@@ -30,27 +30,27 @@ public class AlbumItemDocument
     public AlbumMediaRef? AlbumCopy { get; set; }
     public string? Markdown { get; set; }
 
-    // Dimensions de l'image d'origine (issues de l'extraction EXIF, voir MediaIndexEntry) —
-    // permet au frontend de précalculer la hauteur d'affichage sans mesurer après rendu
-    // (virtualisation d'Album Detail, issue #20). Absentes (null) si le média n'a pas encore
-    // été traité par le job EXIF, ou pour les vidéos.
+    // Dimensions of the original image (from EXIF extraction, see MediaIndexEntry) —
+    // lets the frontend precompute the display height without measuring after render
+    // (Album Detail virtualization, issue #20). Absent (null) if the media hasn't yet
+    // been processed by the EXIF job, or for videos.
     public int? Width { get; set; }
     public int? Height { get; set; }
 
-    // Date de prise de vue et localisation (issues des jobs EXIF/géo, voir MediaIndexEntry) —
-    // pour l'affichage dans la visionneuse plein écran (issue #22). Copiées depuis
-    // MediaIndexEntry au moment de AddMediaAsync, comme Width/Height ci-dessus : figées à cet
-    // instant, pas mises à jour rétroactivement si le média source est traité plus tard par les
-    // jobs EXIF/géo (même limitation acceptée que pour #20).
+    // Date taken and location (from the EXIF/geo jobs, see MediaIndexEntry) —
+    // for display in the fullscreen viewer (issue #22). Copied from
+    // MediaIndexEntry at the time of AddMediaAsync, like Width/Height above: frozen at that
+    // moment, not updated retroactively if the source media is processed later by the
+    // EXIF/geo jobs (same accepted limitation as for #20).
     public DateTime? DateTaken { get; set; }
     public string? Country { get; set; }
     public string? Region { get; set; }
     public string? City { get; set; }
 
-    // Nombre d'items média consécutifs (1 à 3) formant une même rangée dans la grille de
-    // l'album, porté UNIQUEMENT par le premier item de la rangée (les suivants ont une
-    // valeur non significative, remise à 1 par AlbumService.NormalizeRowSpans). Modèle
-    // "ancré" plutôt que relatif : voir ARCHITECTURE.md / plan V2 étape 7.
+    // Number of consecutive media items (1 to 3) forming a single row in the album grid,
+    // carried ONLY by the first item of the row (the following ones have a
+    // non-significant value, reset to 1 by AlbumService.NormalizeRowSpans). An "anchored"
+    // model rather than a relative one: see ARCHITECTURE.md / V2 plan step 7.
     public int RowSpan { get; set; } = 1;
 }
 

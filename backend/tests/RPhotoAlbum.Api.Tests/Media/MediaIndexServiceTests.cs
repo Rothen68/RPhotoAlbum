@@ -11,9 +11,9 @@ using RPhotoAlbum.Api.Tests.Fakes;
 
 namespace RPhotoAlbum.Api.Tests.Media;
 
-// SQLite en mémoire (pas le provider InMemory d'EF Core) : on veut le vrai comportement de
-// contraintes (index unique sur PCloudFileId) qu'utilise MediaIndexService, que le provider
-// InMemory n'applique pas fidèlement.
+// In-memory SQLite (not EF Core's InMemory provider): we want the real constraint
+// behavior (unique index on PCloudFileId) that MediaIndexService relies on, which the
+// InMemory provider does not enforce faithfully.
 public sealed class MediaIndexServiceTests : IDisposable
 {
     private readonly SqliteConnection _connection;
@@ -53,16 +53,15 @@ public sealed class MediaIndexServiceTests : IDisposable
         return folder;
     }
 
-    // Chemin imbriqué sous /Photos (le label par défaut d'AddSourceFolderAsync) — nécessaire
-    // depuis l'issue #28 : la purge ne considère "disparue" qu'une entrée dont le chemin
-    // appartient à un dossier source effectivement revu ce passage (préfixe de chemin), donc les
-    // fixtures doivent imiter un vrai chemin pCloud imbriqué sous son dossier source, pas un
-    // chemin plat sans rapport avec lui.
+    // Path nested under /Photos (AddSourceFolderAsync's default label) — necessary since
+    // issue #28: the purge only considers an entry "gone" if its path belongs to a source
+    // folder actually revisited this pass (path prefix), so the fixtures must mimic a real
+    // pCloud path nested under its source folder, not a flat, unrelated path.
     private static PCloudItem Image(long fileId, string name, string? modified = "Wed, 12 Jun 2013 12:15:41 +0000") =>
         new(name, false, fileId, null, 1024, 12345, "image/jpeg", modified, modified, false, "/Photos/" + name, null);
 
-    // Comme Image ci-dessus, mais imbriqué sous un dossier source précis — nécessaire pour les
-    // tests avec plusieurs dossiers sources distincts (voir issue #28, AutoOnly_*).
+    // Like Image above, but nested under a specific source folder — needed for
+    // tests with several distinct source folders (see issue #28, AutoOnly_*).
     private static PCloudItem ImageAt(long fileId, string folderLabel, string name, string? modified = "Wed, 12 Jun 2013 12:15:41 +0000") =>
         new(name, false, fileId, null, 1024, 12345, "image/jpeg", modified, modified, false, $"/{folderLabel}/{name}", null);
 
@@ -171,13 +170,13 @@ public sealed class MediaIndexServiceTests : IDisposable
 
         _client.SetFolderListing(100, Listing(ImageAt(1, "Active", "new.jpg")));
         _client.SetFolderListing(200, Listing(ImageAt(2, "Archive", "old.jpg")));
-        await CreateService().ReindexAsync(); // seed complet des deux dossiers (manuel)
+        await CreateService().ReindexAsync(); // full seed of both folders (manual)
 
         archive.AutoIndex = false;
         await _db.SaveChangesAsync();
 
-        // Passage automatique : le dossier Archive n'est plus jamais listé, donc son média
-        // n'apparaît jamais dans seenFileIds cette fois — ne doit PAS être purgé pour autant.
+        // Automatic pass: the Archive folder is never listed anymore, so its media
+        // never appears in seenFileIds this time — it must NOT be purged for that reason.
         var result = await CreateService().ReindexAsync(autoOnly: true);
 
         Assert.Equal(1, result.Indexed);
@@ -198,7 +197,7 @@ public sealed class MediaIndexServiceTests : IDisposable
         Assert.Equal(0, result.Indexed);
         Assert.Equal(0, result.NewlyIndexed);
         Assert.Equal(["Photos"], result.FailedFolders);
-        // Le dossier a échoué : la purge est sautée, les entrées précédemment indexées restent.
+        // The folder failed: the purge is skipped, previously indexed entries remain.
         Assert.Equal(2, await _db.MediaIndex.CountAsync());
     }
 
@@ -242,8 +241,8 @@ public sealed class MediaIndexServiceTests : IDisposable
         var service = CreateService();
         var firstCall = service.ReindexAsync();
 
-        // Attend que le premier appel soit effectivement entré dans la section critique
-        // (verrou pris, en train d'appeler ListFolderAsync) avant de tenter le second.
+        // Waits for the first call to actually enter the critical section
+        // (lock acquired, calling ListFolderAsync) before attempting the second one.
         await Task.Delay(50);
         var secondResult = await service.ReindexAsync();
 

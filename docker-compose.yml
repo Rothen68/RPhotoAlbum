@@ -25,8 +25,8 @@ services:
     image: nginx:1.27-alpine
     ports:
       - "3140:80"
-      # HTTPS auto-signé (issue #29) : l'API Cache Storage, requise pour la consultation
-      # hors-ligne, n'existe que dans un contexte sécurisé — voir reverse-proxy/generate-cert.sh.
+      # Self-signed HTTPS (issue #29): the Cache Storage API, required for offline viewing,
+      # only exists in a secure context — see reverse-proxy/generate-cert.sh.
       - "${HTTPS_PORT:-3143}:443"
     volumes:
       - ./reverse-proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
@@ -37,9 +37,9 @@ services:
       - frontend
     restart: unless-stopped
 
-  # Visualiseur de logs Docker en temps réel (tous les conteneurs de l'hôte, pas seulement
-  # ceux de cette stack) — accès direct sur le port ci-dessous, protégé par le même
-  # périmètre réseau (VPN/LAN) que le reste de l'application, voir ARCHITECTURE.md §2.
+  # Real-time Docker log viewer (all containers on the host, not just this stack's) — direct
+  # access on the port below, protected by the same network perimeter (VPN/LAN) as the rest
+  # of the application, see ARCHITECTURE.md §2.
   logs:
     image: amir20/dozzle:latest
     ports:
@@ -48,13 +48,13 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
-  # Client sqlite3 pour inspecter directement backend-data/cache.db pendant le débogage — sous
-  # un profil dédié ("debug") pour ne JAMAIS démarrer avec un simple `docker compose up -d`
-  # (donc pas plus de conteneur en prod via deploy.sh, qui n'active aucun profil). Sans danger
-  # pour la base en tant que lecteur concurrent : le mode WAL (voir issue #18) autorise
-  # explicitement des lectures pendant qu'un writer (le backend) est actif.
-  # Usage : docker compose --profile debug up -d sqlite-cli
-  #         docker exec -it rphotoalbum-sqlite-cli-1 sqlite3 /data/cache.db
+  # sqlite3 client for inspecting backend-data/cache.db directly while debugging — under a
+  # dedicated profile ("debug") so it NEVER starts with a plain `docker compose up -d` (so no
+  # extra container in prod via deploy.sh either, which activates no profile). Safe as a
+  # concurrent reader: WAL mode (see issue #18) explicitly allows reads while a writer (the
+  # backend) is active.
+  # Usage: docker compose --profile debug up -d sqlite-cli
+  #        docker exec -it rphotoalbum-sqlite-cli-1 sqlite3 /data/cache.db
   sqlite-cli:
     image: alpine:3.20
     profiles: ["debug"]

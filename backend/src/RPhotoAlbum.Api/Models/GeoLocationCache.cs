@@ -1,9 +1,9 @@
 namespace RPhotoAlbum.Api.Models;
 
-// Cache de géocodage inverse (Nominatim), clé sur des coordonnées arrondies (~100 m) —
-// indispensable pour respecter la limite de débit de Nominatim (4 req/min pour un usage
-// récurrent) : des dizaines/centaines de photos prises au même endroit ne déclenchent qu'un
-// seul appel. Voir GeoLookupService.
+// Reverse geocoding cache (Nominatim), keyed on rounded coordinates (~100 m) —
+// essential to respect Nominatim's rate limit (4 req/min for recurring use):
+// dozens/hundreds of photos taken at the same spot trigger only a
+// single call. See GeoLookupService.
 public class GeoLocationCache
 {
     public int Id { get; set; }

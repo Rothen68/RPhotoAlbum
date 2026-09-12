@@ -4,16 +4,15 @@ import { AlbumDetail, AlbumItem, AlbumService } from '../albums/album.service';
 const MANIFEST_KEY = 'rphotoalbum:offlineAlbums';
 
 export interface OfflineAlbumMeta {
-  // Nom de l'album au moment du téléchargement — utilisé pour afficher la liste des albums
-  // disponibles hors-ligne quand /api/albums lui-même est injoignable (issue #29 : sans ce
-  // repli, un album rendu disponible hors-ligne resterait inatteignable depuis la liste des
-  // albums une fois hors-ligne, faute de pouvoir même l'y retrouver pour cliquer dessus).
+  // Album name at download time — used to display the list of albums available offline when
+  // /api/albums itself is unreachable (issue #29: without this fallback, an album made
+  // available offline would remain unreachable from the album list once offline, since it
+  // couldn't even be found there to click on).
   name: string;
   itemCount: number;
-  // Nombre total de médias de l'album au moment du téléchargement — peut différer de itemCount
-  // si certaines miniatures ont échoué même après nouvel essai (voir makeAvailable ci-dessous) :
-  // permet à l'UI de signaler un résultat partiel plutôt que de laisser croire à une couverture
-  // complète.
+  // Total media count of the album at download time — may differ from itemCount if some
+  // thumbnails failed even after retrying (see makeAvailable below): lets the UI report a
+  // partial result instead of implying full coverage.
   totalCount: number;
   sizeBytes: number;
   downloadedAt: string;
@@ -21,8 +20,8 @@ export interface OfflineAlbumMeta {
 
 type Manifest = Record<string, OfflineAlbumMeta>;
 
-// État local à cet appareil (pas synchronisé sur pCloud) — même pattern que
-// COLLAPSED_STORAGE_KEY dans albums.component.ts.
+// State local to this device (not synced to pCloud) — same pattern as COLLAPSED_STORAGE_KEY
+// in albums.component.ts.
 function loadManifest(): Manifest {
   try {
     const raw = localStorage.getItem(MANIFEST_KEY);
@@ -36,7 +35,7 @@ function saveManifest(manifest: Manifest): void {
   try {
     localStorage.setItem(MANIFEST_KEY, JSON.stringify(manifest));
   } catch {
-    // Quota localStorage dépassé ou navigation privée — pas bloquant, juste pas persisté.
+    // localStorage quota exceeded or private browsing — not blocking, just not persisted.
   }
 }
 
@@ -48,9 +47,9 @@ function albumApiUrl(albumId: string): string {
   return `/api/albums/${albumId}`;
 }
 
-// Rend les miniatures d'un album consultables sans connexion (issue #29, V1 : miniatures
-// uniquement). Un cache Cache Storage par album (suppression triviale, dédup cross-album non
-// géré — un média présent dans deux albums hors-ligne est stocké deux fois, coût accepté en V1).
+// Makes an album's thumbnails viewable without a connection (issue #29, V1: thumbnails only).
+// One Cache Storage cache per album (trivial deletion, cross-album dedup not handled — a media
+// item present in two offline albums is stored twice, an accepted cost in V1).
 @Injectable({ providedIn: 'root' })
 export class OfflineAlbumService {
   private readonly albumService = inject(AlbumService);
@@ -67,9 +66,9 @@ export class OfflineAlbumService {
     return this.manifest()[albumId] ?? null;
   }
 
-  // Repli pour la liste des albums quand /api/albums est injoignable (issue #29) — pas de
-  // sections/ordre (jamais mis en cache, propre à la structure serveur), juste de quoi retrouver
-  // et ouvrir un album déjà disponible hors-ligne.
+  // Fallback for the album list when /api/albums is unreachable (issue #29) — no
+  // sections/ordering (never cached, specific to the server structure), just enough to find
+  // and open an album already available offline.
   listOffline(): { id: string; meta: OfflineAlbumMeta }[] {
     return Object.entries(this.manifest()).map(([id, meta]) => ({ id, meta }));
   }
@@ -82,33 +81,33 @@ export class OfflineAlbumService {
     return this.progressMap().get(albumId) ?? 0;
   }
 
-  // Doit rester identique à AlbumDetailComponent.thumbnailUrl() — c'est la seule variante
-  // (800x800, crop=true) mise en cache pour la consultation hors-ligne (issue #29 V1).
+  // Must stay identical to AlbumDetailComponent.thumbnailUrl() — it's the only variant
+  // (800x800, crop=true) cached for offline viewing (issue #29 V1).
   private thumbnailUrl(fileId: number): string {
     return this.albumService.thumbnailUrl(fileId, 800);
   }
 
-  // Cache Storage n'a pas de rename atomique — on efface le cache AVANT de commencer (nettoie
-  // un essai précédent interrompu) et on ne committe le manifest qu'à la fin. En revanche, on
-  // n'exige PAS que toutes les miniatures réussissent : MediaController.Thumbnail convertit
-  // toute erreur pCloud (timeout, aléa transitoire) en simple 404 indiscernable d'un média
-  // réellement absent — sur un grand album, un seul aléa parmi des dizaines d'appels ne doit
-  // pas annuler tout le téléchargement (constaté en usage réel : un album de road trip a échoué
-  // intégralement à cause d'une seule miniature en défaut). Chaque miniature est retentée une
-  // fois ; si elle échoue encore, elle est simplement absente du cache (voir totalCount vs
-  // itemCount) plutôt que fatale. Seuls un vrai échec de stockage (QuotaExceededError) ou une
-  // couverture nulle (aucune miniature récupérée) annulent l'opération.
+  // Cache Storage has no atomic rename — we clear the cache BEFORE starting (cleans up a
+  // previous interrupted attempt) and only commit the manifest at the end. However, we do NOT
+  // require every thumbnail to succeed: MediaController.Thumbnail turns any pCloud error
+  // (timeout, transient glitch) into a plain 404 indistinguishable from media that's genuinely
+  // absent — on a large album, a single glitch among dozens of calls shouldn't cancel the whole
+  // download (observed in real usage: a road-trip album failed entirely because of a single
+  // failed thumbnail). Each thumbnail is retried once; if it still fails, it's simply absent
+  // from the cache (see totalCount vs itemCount) rather than fatal. Only a genuine storage
+  // failure (QuotaExceededError) or zero coverage (no thumbnail retrieved at all) cancels the
+  // operation.
   async makeAvailable(album: AlbumDetail): Promise<void> {
     const albumId = album.id;
     if (this.isDownloading(albumId)) {
       return;
     }
 
-    // L'API Cache Storage n'existe (self.caches) que dans un contexte sécurisé (HTTPS, ou
-    // http://localhost) — sur une adresse LAN en HTTP simple (ex. http://192.168.x.x), `caches`
-    // est tout simplement absent de `window`, et échoue instantanément sans rapport avec le
-    // réseau ou l'espace disque. Détecté explicitement ici pour un message clair plutôt qu'un
-    // TypeError générique sur `caches.delete is not a function`.
+    // The Cache Storage API (self.caches) only exists in a secure context (HTTPS, or
+    // http://localhost) — on a plain HTTP LAN address (e.g. http://192.168.x.x), `caches` is
+    // simply absent from `window`, and fails instantly for reasons unrelated to the network or
+    // disk space. Detected explicitly here for a clear message rather than a generic TypeError
+    // on `caches.delete is not a function`.
     if (!window.isSecureContext) {
       throw new DOMException(
         'La consultation hors-ligne nécessite une connexion sécurisée (HTTPS).',
@@ -169,10 +168,10 @@ export class OfflineAlbumService {
     }
   }
 
-  // Un seul nouvel essai après un court délai — suffisant pour absorber un aléa transitoire
-  // (pCloud, timeout réseau mobile) sans ralentir excessivement un grand album. Renvoie null
-  // (jamais ne lève) : un échec de miniature individuel est géré par l'appelant comme un simple
-  // "manquant", pas une erreur fatale — voir makeAvailable.
+  // A single retry after a short delay — enough to absorb a transient glitch (pCloud, mobile
+  // network timeout) without excessively slowing down a large album. Returns null (never
+  // throws): an individual thumbnail failure is handled by the caller as a simple "missing"
+  // case, not a fatal error — see makeAvailable.
   private async fetchWithRetry(url: string): Promise<Response | null> {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
@@ -181,7 +180,7 @@ export class OfflineAlbumService {
           return res;
         }
       } catch {
-        // Échec réseau (pas de réponse du tout) — même logique de nouvel essai ci-dessous.
+        // Network failure (no response at all) — same retry logic below.
       }
       if (attempt === 0) {
         await new Promise((resolve) => setTimeout(resolve, 800));
@@ -208,14 +207,14 @@ export class OfflineAlbumService {
     }
   }
 
-  // Avale ses propres erreurs et renvoie une map partielle/vide plutôt que de lever — un cache
-  // manquant ou corrompu doit dégrader silencieusement vers le réseau normal côté composant,
-  // jamais casser l'affichage. Lectures en parallèle (Promise.all), pas séquentielles : sur un
-  // grand album (retour utilisateur : 66 médias), un cache.match()+blob() par média l'un après
-  // l'autre pouvait prendre plusieurs secondes cumulées avant que la moindre miniature n'ait sa
-  // véritable Object URL — le composant retombait entre-temps sur l'URL réseau (qui reste
-  // bloquée indéfiniment hors-ligne, une <img> n'ayant aucun délai d'abandon natif). Aucun appel
-  // réseau ici (uniquement Cache Storage local), donc paralléliser ne surcharge rien.
+  // Swallows its own errors and returns a partial/empty map rather than throwing — a missing or
+  // corrupted cache must silently degrade to the normal network path on the component side,
+  // never break the display. Reads happen in parallel (Promise.all), not sequentially: on a
+  // large album (user report: 66 media items), doing cache.match()+blob() per item one after
+  // another could take several cumulative seconds before even a single thumbnail got its real
+  // Object URL — meanwhile the component would fall back to the network URL (which stays stuck
+  // indefinitely offline, an <img> having no native abandon delay). No network call here (only
+  // local Cache Storage), so parallelizing doesn't overload anything.
   async buildObjectUrlMap(albumId: string, mediaItems: AlbumItem[]): Promise<Map<number, string>> {
     const result = new Map<number, string>();
     try {
@@ -233,7 +232,7 @@ export class OfflineAlbumService {
         }),
       );
     } catch {
-      // Cache absent/inaccessible — la map partielle déjà construite (éventuellement vide) suffit.
+      // Cache missing/inaccessible — the partial map already built (possibly empty) is enough.
     }
     return result;
   }

@@ -4,16 +4,16 @@ import { Observable, of, tap } from 'rxjs';
 import { ConnectivityService } from '../offline/connectivity.service';
 import { OfflineModeService } from '../offline/offline-mode.service';
 
-// navigator.onLine peut se tromper ou tarder à se mettre à jour (constaté en usage réel :
-// un appareil resté "en ligne" un instant après le passage en mode avion, laissant la requête
-// /api/auth/me bloquée en attente indéfiniment plutôt que d'échouer proprement) — un délai
-// explicite garantit qu'on ne reste jamais bloqué, quelle que soit la cause du blocage réseau.
-// Minuteur JS ordinaire plutôt que l'opérateur RxJS timeout() : constaté en usage réel qu'une
-// requête interceptée par le service worker (toute requête /api/* l'est, même sans règle de
-// cache dédiée) peut rester bloquée bien au-delà du délai RxJS — jusqu'à l'échec naturel de la
-// connexion TCP sous-jacente (net::ERR_CONNECTION_TIMED_OUT, observé à plusieurs MINUTES). Ce
-// repli ne dépend d'aucun mécanisme d'annulation de la requête HTTP elle-même : passé le délai,
-// on décide et on ignore simplement toute réponse tardive.
+// navigator.onLine can be wrong or slow to update (observed in real usage: a device stayed
+// "online" for a moment after switching to airplane mode, leaving the /api/auth/me request
+// stuck pending indefinitely instead of failing cleanly) — an explicit delay guarantees we
+// never stay stuck, whatever the cause of the network stall.
+// Plain JS timer rather than the RxJS timeout() operator: observed in real usage that a
+// request intercepted by the service worker (every /api/* request is, even without a
+// dedicated cache rule) can stay stuck well beyond the RxJS delay — until the underlying TCP
+// connection naturally fails (net::ERR_CONNECTION_TIMED_OUT, observed after several MINUTES).
+// This fallback doesn't depend on any mechanism to actually cancel the HTTP request itself:
+// once the delay has elapsed, we simply decide and ignore any late response.
 const REQUEST_TIMEOUT_MS = 6000;
 
 export interface Session {
@@ -22,12 +22,12 @@ export interface Session {
 
 const LAST_KNOWN_SESSION_KEY = 'rphotoalbum:lastKnownSession';
 
-// Miroir local du dernier /api/auth/me confirmé par le serveur — pas une session en soi (le
-// cookie HttpOnly reste la seule source d'autorité), juste de quoi décider, hors-ligne, s'il faut
-// faire confiance au cookie déjà présent plutôt que bloquer sur /login (issue #29 : sans ça,
-// ouvrir l'app hors-ligne après un redémarrage à froid — donc sans session en mémoire — renvoie
-// systématiquement vers /login, page sur laquelle il n'y a de toute façon aucun moyen de se
-// connecter sans réseau, empêchant même la consultation d'un album déjà disponible hors-ligne).
+// Local mirror of the last /api/auth/me confirmed by the server — not a session in itself (the
+// HttpOnly cookie remains the sole source of authority), just enough to decide, offline, whether
+// to trust the cookie already present rather than blocking on /login (issue #29: without this,
+// opening the app offline after a cold restart — so with no session in memory — always redirects
+// to /login, a page where there's no way to log in without network anyway, which would even
+// prevent viewing an album already available offline).
 function loadLastKnownSession(): Session | null {
   try {
     const raw = localStorage.getItem(LAST_KNOWN_SESSION_KEY);
@@ -45,7 +45,7 @@ function saveLastKnownSession(session: Session | null): void {
       localStorage.removeItem(LAST_KNOWN_SESSION_KEY);
     }
   } catch {
-    // Quota localStorage dépassé ou navigation privée — pas bloquant.
+    // localStorage quota exceeded or private browsing — not a blocking issue.
   }
 }
 
@@ -77,14 +77,14 @@ export class AuthService {
     );
   }
 
-  // Interroge la session courante (ex. au démarrage de l'application) sans provoquer d'erreur console si non connecté.
+  // Queries the current session (e.g. on app startup) without causing a console error when not logged in.
   refresh(): Observable<Session | null> {
-    // Mode hors-ligne forcé par l'utilisateur, ou déjà su hors-ligne : inutile d'attendre
-    // l'échec (parfois lent, plusieurs secondes selon l'appareil/réseau) d'une requête réseau
-    // vouée à échouer — repli direct sur le dernier /api/auth/me confirmé, comme le ferait le
-    // catchError ci-dessous pour un status 0 (issue #29 : sans ça, la page /login pouvait
-    // rester visiblement bloquée un moment avant que l'échec réseau soit détecté, malgré une
-    // session locale valide disponible immédiatement).
+    // Offline mode forced by the user, or already known to be offline: no point waiting for
+    // the failure (sometimes slow, several seconds depending on device/network) of a network
+    // request doomed to fail — fall back directly to the last confirmed /api/auth/me, the same
+    // way the catchError below would for a status 0 (issue #29: without this, the /login page
+    // could stay visibly stuck for a moment before the network failure was detected, despite a
+    // valid local session being immediately available).
     if (this.offlineMode.manualOfflineMode() || !this.connectivity.online()) {
       const lastKnown = loadLastKnownSession();
       this.session.set(lastKnown);
@@ -123,11 +123,10 @@ export class AuthService {
           }
           settled = true;
           clearTimeout(fallbackTimer);
-          // Un vrai 401 (serveur joint, cookie explicitement rejeté) doit déconnecter
-          // normalement. Tout le reste (status 0 : jamais atteint le serveur) n'est PAS une
-          // confirmation que la session est invalide : on fait confiance au dernier
-          // /api/auth/me réellement confirmé plutôt que d'exiger une reconnexion peut-être
-          // impossible sans réseau.
+          // A real 401 (server reached, cookie explicitly rejected) should log out normally.
+          // Everything else (status 0: never reached the server) is NOT confirmation that the
+          // session is invalid: we trust the last actually confirmed /api/auth/me rather than
+          // requiring a re-login that might be impossible without network.
           const isRealRejection = err.status !== 0;
           if (!isRealRejection) {
             this.offlineMode.markUnreachable();
