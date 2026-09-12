@@ -1,4 +1,4 @@
-// Incrémenté manuellement à chaque lot de changements prêt à tester (V2.1, V2.2...),
-// affiché dans Configuration — pour repérer d'un coup d'œil si le déploiement testé
-// correspond bien à la dernière version envoyée (cause du souci de branche du 16/08).
-export const APP_VERSION = 'V2.25';
+// Incremented manually for each batch of changes ready to test (V2.1, V2.2...),
+// displayed in Configuration — to spot at a glance whether the deployment being tested
+// actually matches the last version sent (cause of the branch issue on 16 Aug).
+export const APP_VERSION = 'V3';
